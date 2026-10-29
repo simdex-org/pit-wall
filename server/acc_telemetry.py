@@ -59,8 +59,9 @@ class AccPages:
             "xyz": _f(g, 256 + 12 * car, 3), "pit_lane": _i(g, 1236), "wind": _f(g, 1248), "wind_dir": _f(g, 1252),
             "tc": _i(g, 1268), "tc_cut": _i(g, 1272), "map": _i(g, 1276), "abs": _i(g, 1280), "fuel_per_lap": _f(g, 1284),
             "rain_tyres": _i(g, 1316), "delta_ms": _i(g, 1360), "valid": _i(g, 1408), "fuel_laps": _f(g, 1412),
+            "grip": _i(g, 1556), "rain": _i(g, 1560, 3), "tyre_set": _i(g, 1572), "gap_ahead": _i(g, 1580), "gap_behind": _i(g, 1584),
             "car": _w(s, 68), "track": _w(s, 134), "name": f"{_w(s, 200)} {_w(s, 266)}".strip(),
-            "sectors": _i(s, 400), "max_rpm": _i(s, 412),
+            "sectors": _i(s, 400), "max_rpm": _i(s, 412), "max_fuel": _f(s, 416),
         }
 
 
@@ -70,13 +71,13 @@ class Telemetry:
     def __init__(self):
         self.seq, self.prev, self.splits, self.debrief = 0, None, [], []
         self.stint_start = self.fuel_at_line = None
-        self.lap_fuel, self.lap_brake_max, self.best = [], 0.0, None
+        self.lap_fuel, self.lap_brake_max, self.best, self.stint = [], 0.0, None, []
 
     def update(self, r):
         self.seq += 1
         p = self.prev
         if self.stint_start is None or r["pit_lane"]:
-            self.stint_start = r["laps"]
+            self.stint_start, self.stint = r["laps"], []
         if p and r["sector"] > p["sector"]:
             self.splits.append(r["cur_ms"])
         self.lap_brake_max = max(self.lap_brake_max, *r["brake_temp"])
@@ -98,9 +99,11 @@ class Telemetry:
                 "engine_map": r["map"] + 1, "completed_laps": r["laps"], "total_laps": 0, "session_time_left_ms": max(0, r["time_left"]),
                 "kind": SESSIONS.get(r["session"], "Session"), "status": STATUS[r["status"]] if 0 <= r["status"] < 4 else "Off",
                 "position": r["position"], "wind_speed_kmh": r["wind"] * 3.6, "wind_direction_deg": math.degrees(r["wind_dir"]) % 360,
-                "surface_grip": 0, "fuel_per_lap": self.fuel_per_lap(r), "track_position": r["track_pos"], "car_position_m": r["xyz"]},
+                "surface_grip": 0, "fuel_per_lap": self.fuel_per_lap(r), "track_position": r["track_pos"], "car_position_m": r["xyz"],
+                "gap_ahead_ms": r["gap_ahead"], "gap_behind_ms": r["gap_behind"], "track_grip": r["grip"], "rain": r["rain"],
+                "rain_tyres": bool(r["rain_tyres"]), "tyre_set": r["tyre_set"]},
             "fixed": {"car_model": r["car"], "track": r["track"], "track_config": "", "driver_name": r["name"],
-                      "sector_count": r["sectors"] or 3, "max_rpm": r["max_rpm"]},
+                      "sector_count": r["sectors"] or 3, "max_rpm": r["max_rpm"], "max_fuel": r["max_fuel"]},
             "capabilities": {"tyre_edge_temps": False, "tyre_wear": False, "sectors": True}}}
 
     def fuel_per_lap(self, r):
@@ -131,13 +134,17 @@ class Telemetry:
         self.debrief.insert(0, {"lap_number": r["laps"], "lap_time_ms": ms, "sectors_ms": sectors,
                                 "lines": [{"severity": s, "text": t} for s, t in lines]})
         del self.debrief[3:]
+        if not r["pit_lane"] and ms > 0:   # the stint so far, for the degradation and brake wear modules
+            self.stint.append({"n": r["laps"], "ms": ms, "valid": bool(p["valid"]), "pads": r["pad"],
+                               "fuel": round(self.lap_fuel[-1], 2) if green and self.lap_fuel else None})
+            del self.stint[:-60]
         self.splits, self.lap_brake_max, self.fuel_at_line = [], 0.0, r["fuel"]
 
     def summary(self, r):
         fpl = self.fuel_per_lap(r)
         return {"what": "pit-wall/summary", "fuel_per_lap": fpl, "fuel_laps_remaining": r["fuel"] / fpl if fpl > 0 else r["fuel_laps"],
                 "stint_laps": r["laps"] - (self.stint_start or 0), "max_rpm": r["max_rpm"], "advice": self.advice(r, fpl),
-                "debrief": self.debrief}
+                "debrief": self.debrief, "stint": self.stint}
 
     def advice(self, r, fpl):
         out, moving = [], r["speed"] > 60 and not r["pit_lane"]
@@ -176,7 +183,7 @@ class Telemetry:
 class FakePages:
     """A pretend ACC session (Ferrari 296 at the Nürburgring 24h), for --simulate-acc and the self-test."""
 
-    def __init__(self, lap_ms=120000, clock=time.monotonic):
+    def __init__(self, lap_ms=60000, clock=time.monotonic):
         self.lap, self.clock, self.t0 = lap_ms, clock, clock()
 
     def read(self):
@@ -189,12 +196,13 @@ class FakePages:
             "steer": 0.3 * math.sin(w * 5), "speed": sp, "acc_g": [1.2 * math.sin(w * 5), 0.0, 0.8 * math.cos(w * 5)],
             "pressure": [27.6, 27.8, 26.6, 26.8], "core_temp": [84.0, 86.0, 79.0, 81.0], "damage": [0.0] * 5, "tyres_out": 0, "limiter": 0,
             "air": 22.4, "road": 29.1, "brake_temp": [412.0, 405.0, 330.0, 338.0], "clutch": 0.0, "bias": 0.565, "tc_on": 0, "abs_on": 0,
-            "pad": [24.1, 24.0, 25.2, 25.3], "disc": [31.8, 31.8, 31.9, 31.9],
-            "laps": laps, "position": 7, "cur_ms": int(t % self.lap), "last_ms": self.lap - 300 + laps * 7919 % 900 if laps else 0,
-            "best_ms": self.lap - 412 if laps > 1 else 2147483647, "time_left": 3.2e6 - t, "sector": int(pos * 3), "compound": "dry_compound",
+            "pad": [round(x - t / self.lap * k, 2) for x, k in zip([24.1, 24.0, 25.2, 25.3], [0.21, 0.2, 0.12, 0.12])], "disc": [31.8, 31.8, 31.9, 31.9],
+            "laps": laps, "position": 7, "cur_ms": int(t % self.lap), "last_ms": self.lap - 500 + 110 * laps + laps * 7919 % 400 if laps else 0,
+            "best_ms": self.lap - 120 if laps > 1 else 2147483647, "time_left": 3.2e6 - t, "sector": int(pos * 3), "compound": "dry_compound",
             "track_pos": pos, "xyz": [0.0, 0.0, 0.0], "pit_lane": 0, "wind": 2.3, "wind_dir": 3.73, "tc": 3, "tc_cut": 2, "map": 0, "abs": 2,
-            "fuel_per_lap": 3.0, "rain_tyres": 0, "delta_ms": int(-214 + 100 * math.sin(w)), "valid": 1, "fuel_laps": 12.0,
-            "car": "ferrari_296_gt3", "track": "nurburgring_24h", "name": "Daniel", "sectors": 3, "max_rpm": 8000}
+            "fuel_per_lap": 3.0, "rain_tyres": 0, "delta_ms": int(-214 + 100 * math.sin(w)), "valid": int(laps % 5 != 2), "fuel_laps": 12.0,
+            "grip": 2, "rain": [0, 1, 2], "tyre_set": 3, "gap_ahead": int(1840 - 90 * (t / self.lap)), "gap_behind": int(950 + 60 * (t / self.lap)),
+            "car": "ferrari_296_gt3", "track": "nurburgring_24h", "name": "Daniel", "sectors": 3, "max_rpm": 8000, "max_fuel": 120.0}
 
 
 def selftest():
@@ -213,6 +221,8 @@ def selftest():
     assert any(a["text"].startswith("Fronts 27.7 psi, 0.7 over") for a in s["advice"]), s["advice"]
     assert s["stint_laps"] >= 3 and 1 <= car["gear"] <= 6 and ses["status"] == "Live" and ses["kind"] == "Race"
     assert any("Pressures out of" in l["text"] for l in d["lines"]) and any("Used 3.10 L" == l["text"] for l in d["lines"]), d["lines"]
+    assert [l["n"] for l in s["stint"]] == [d["lap_number"] for d in reversed(tel.debrief)], s["stint"]
+    assert s["stint"][-1]["pads"][0] < s["stint"][0]["pads"][0] and ses["gap_ahead_ms"] > 0 and reading["reading"]["fixed"]["max_fuel"] == 120
     print(f"ok: {len(tel.debrief)} laps debriefed, sectors add up, fuel {s['fuel_per_lap']:.2f} L/lap, {len(s['advice'])} advice lines")
 
 

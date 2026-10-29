@@ -130,7 +130,7 @@ function render(){
 
   if (tab === 'live') renderLive(r, c, s, f, cap, fpl, fuelLaps);
   else if (tab === 'tyres') renderTyres(c, s, cap);
-  else if (tab === 'strategy') renderStrategy(c, s, fpl, fuelLaps);
+  else if (tab === 'strategy') renderStrategy(c, s, f, fpl, fuelLaps);
   renderAdvice();
 }
 
