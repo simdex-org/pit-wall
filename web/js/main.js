@@ -63,8 +63,8 @@ function enterApp(){
 function renderWelcome(){
   if (welcomeDone) return;
   const got = !!reading, f = got && reading.reading.fixed, s = got && reading.reading.session;
-  step('bridge', bridgeUp ? 'done' : 'wait', bridgeUp ? 'Connected' : 'Connecting to the local bridge');
-  step('signal', got ? 'done' : bridgeUp ? 'wait' : '', got ? `Receiving from ${reading.from || (ages.peer || 'the driver')}` : 'Waiting for the driver to share');
+  step('bridge', bridgeUp ? 'done' : 'wait', bridgeUp ? 'Connected' : "Connecting to the driver's PC");
+  step('signal', got ? 'done' : bridgeUp ? 'wait' : '', got ? `${reading.from || 'The driver'} is on track` : "Waiting for ACC on the driver's PC");
   step('session', got ? 'done' : '', got ? [f.car_model, f.track, s.kind].filter(Boolean).join(' · ') : 'Waiting for a session');
   $('wNote').textContent = got ? 'Opening automatically' : '';
   if (got && !enterTimer) enterTimer = setTimeout(enterApp, 1800);
@@ -72,7 +72,7 @@ function renderWelcome(){
 $('wEnter').addEventListener('click', enterApp);
 
 // ---------- SSE ----------
-// The UDP feed is unauthenticated and its values reach innerHTML, so only these keys may stay strings;
+// Values from the game reach innerHTML, so only these keys may stay strings;
 // every other string becomes a number (NaN if it is not one) before anything reads it.
 const TEXT_KEYS = new Set(['what', 'from', 'magic', 'game', 'driver', 'app_version', 'car_model', 'track', 'track_config', 'driver_name', 'kind', 'status', 'compound', 'text']);
 const numbersOnly = (o, k) => typeof o === 'string' ? (TEXT_KEYS.has(k) ? o : Number(o))
@@ -82,7 +82,7 @@ function connect(){
   es.onmessage = e => {
     const p = JSON.parse(e.data);
     p.reading = numbersOnly(p.reading); p.summary = numbersOnly(p.summary);
-    ages = {r:p.reading_age_ms, s:p.summary_age_ms, peer:p.peer}; if (p.udp) $('wUdp').textContent = p.udp.split(':').pop();
+    ages = {r:p.reading_age_ms, s:p.summary_age_ms};
     if (p.summary) summary = p.summary;
     pit = p.pit; onPitJob(p.pit_job);
     if (p.reading && p.reading.sequence !== lastSeq) {
@@ -103,7 +103,7 @@ function render(){
   $('link').className = 'dot ' + (live ? 'live' : stale ? 'stale' : '');
   document.body.classList.toggle('offline', !live);
   $('linkText').textContent = live ? 'live' : stale ? `stale ${(ages.r/1000).toFixed(0)} s` : 'no signal';
-  $('rate').textContent = live ? `${(rx.length/2).toFixed(0)} Hz` + (ages.peer ? ` from ${ages.peer}` : '') : '';
+  $('rate').textContent = live ? `${(rx.length/2).toFixed(0)} Hz` : '';
   $('advAge').textContent = ages.s == null ? '' : ages.s < 3000 ? 'live' : `${(ages.s/1000).toFixed(0)} s ago`;
   if (tab === 'compare') renderCompare();
   if (tab === 'log') renderLog();

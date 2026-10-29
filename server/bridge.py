@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""Engineer web view for Pro Engineer, with pit stop control for ACC.
+"""Pit Wall: the race engineer's dashboard for Assetto Corsa Competizione.
 
-Listens on the UDP port the driver's copy sends to (both the 30 Hz session
-reading and the 10 Hz summary with the engineer's advice), and serves
-web/index.html plus a Server-Sent-Events stream the page draws from.
+Runs on the driver's PC. Reads ACC's shared memory (acc_telemetry.py), serves
+web/index.html plus a Server-Sent-Events stream the page draws from, and,
+when the engineer sends a pit plan, sets it in the game's pit page
+(acc_pit.py). Sending a plan needs the access key printed at start; watching
+does not.
 
-Run on the driver's PC it also reads ACC's pit page (MFD) and, when the
-engineer sends a plan, sets it in the game - see acc_pit.py. Sending a plan
-needs the access key printed at start; watching does not.
+    python server/bridge.py                          # http://0.0.0.0:8765, reachable over the VPN
+    python server/bridge.py --simulate-acc --key demo   # a pretend session, no game needed
 
-    python server/bridge.py --udp 127.0.0.1:9001 --http 0.0.0.0:8765   # on the driver's PC
-    python server/bridge.py                  # UDP 0.0.0.0:9001 -> http://127.0.0.1:8765
-    python server/bridge.py --udp 0.0.0.0:9005 --http 127.0.0.1:8080 --no-browser
-
-Standard library only. Close the terminal app's LAN listener first (O on the
-LAN tab) - two programs cannot own the same UDP port.
+Standard library only.
 """
 import argparse
 import functools
@@ -24,13 +20,15 @@ import json
 import os
 import secrets
 import socket
+import struct
 import threading
 import time
 import webbrowser
 
 import acc_pit
+import acc_telemetry
 
-STATE = {"reading": None, "summary": None, "t_reading": 0.0, "t_summary": 0.0, "peer": "", "ver": 0, "pit_job": None}
+STATE = {"reading": None, "summary": None, "t_reading": 0.0, "t_summary": 0.0, "ver": 0, "pit_job": None}
 LOCK = threading.Lock()
 PIT = {"mfd": None, "key": "", "busy": threading.Lock()}
 
@@ -61,39 +59,28 @@ def run_plan(plan):
         PIT["busy"].release()
 
 
-def udp_loop(sock):
+def acc_loop(pages, tel):
+    """30 times a second: read ACC, build the reading; every third time the summary too."""
+    n, said = 0, None
     while True:
-        data, peer = sock.recvfrom(65535)
+        time.sleep(1 / 30)
         try:
-            msg = json.loads(data)
-        except ValueError:
+            raw = pages.read()
+        except (OSError, ValueError, struct.error):
             continue
-        if not isinstance(msg, dict):
+        live = raw["status"] in (2, 3)   # live or paused; off and replays have nothing to show
+        if live != said:
+            print(f"ACC: {raw['car']} at {raw['track']}, {raw['name']} driving" if live else "ACC: waiting for a session on this PC")
+            said = live
+        if not live:
             continue
+        reading, n = tel.update(raw), n + 1
+        summary = tel.summary(raw) if n % 3 == 0 else None
         with LOCK:
-            if msg.get("what") == "pro-engineer/session":
-                STATE["reading"], STATE["t_reading"] = msg, time.time()
-            elif msg.get("magic") == "acpe":
-                STATE["summary"], STATE["t_summary"] = msg, time.time()
-            else:
-                continue
-            STATE["peer"] = peer[0]
+            STATE["reading"], STATE["t_reading"] = reading, time.time()
+            if summary:
+                STATE["summary"], STATE["t_summary"] = summary, time.time()
             STATE["ver"] += 1
-            STATE["rx"] = STATE.get("rx", 0) + 1
-
-
-def report_loop():
-    """Every 5 s say whether anything is arriving - the fastest way to tell a firewall from a page problem."""
-    seen = 0
-    while True:
-        time.sleep(5)
-        with LOCK:
-            n, peer = STATE.get("rx", 0), STATE["peer"]
-        if n == seen:
-            print("nothing received in the last 5 s - is the driver sharing? is Python allowed through the firewall on ALL network types?")
-        else:
-            print(f"receiving: {(n - seen) / 5:.0f} datagrams/s from {peer}")
-        seen = n
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -151,8 +138,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         "summary": snap["summary"],
                         "reading_age_ms": int((now - snap["t_reading"]) * 1000) if snap["t_reading"] else None,
                         "summary_age_ms": int((now - snap["t_summary"]) * 1000) if snap["t_summary"] else None,
-                        "peer": snap["peer"],
-                        "udp": snap.get("udp"),
                         "pit": pit_snapshot(),
                         "pit_job": snap["pit_job"],
                     }
@@ -167,13 +152,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--udp", default="0.0.0.0:9001", help="where the driver sends (default 0.0.0.0:9001)")
-    ap.add_argument("--http", default="127.0.0.1:8765", help="where the page is served (default 127.0.0.1:8765)")
+    ap.add_argument("--http", default="0.0.0.0:8765", help="where the page is served (default 0.0.0.0:8765: this PC and the VPN)")
     ap.add_argument("--no-browser", action="store_true", help="do not open the page automatically")
     ap.add_argument("--key", default=secrets.token_urlsafe(6), help="access key for sending pit plans (default: a new one each start)")
     ap.add_argument("--pit-key", default="p", help="ACC's key for the pitstop MFD page (default p)")
     ap.add_argument("--key-ms", type=int, default=40, help="how long each key is held and released, ms (default 40)")
-    ap.add_argument("--simulate-acc", action="store_true", help="a pretend pit page instead of the game, to try the dashboard")
+    ap.add_argument("--simulate-acc", action="store_true", help="a pretend session and pit page instead of the game, to try the dashboard")
     args = ap.parse_args()
 
     PIT["key"] = args.key
@@ -182,25 +166,17 @@ def main():
     except (OSError, AttributeError, ValueError) as e:   # not Windows (no named mappings / WinDLL), or a bad --pit-key
         print(f"pit control off: {e}")
 
-    STATE["udp"] = args.udp
-    uh, up = args.udp.rsplit(":", 1)
-    hh, hp = args.http.rsplit(":", 1)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        sock.bind((uh, int(up)))
-    except OSError as e:
-        print(f"Cannot listen on UDP {args.udp}: {e}")
-        print("Another program already owns that port - usually ac_pro_engineer with LAN still on.")
-        print("Close it (or press 0 then O in it to turn LAN off) and run this again.")
-        input("Press Enter to exit.")
-        return
-    threading.Thread(target=udp_loop, args=(sock,), daemon=True).start()
-    threading.Thread(target=report_loop, daemon=True).start()
+        pages = acc_telemetry.FakePages() if args.simulate_acc else acc_telemetry.AccPages()
+        threading.Thread(target=acc_loop, args=(pages, acc_telemetry.Telemetry()), daemon=True).start()
+    except (OSError, AttributeError, TypeError) as e:   # not Windows: no named shared memory
+        print(f"telemetry off: {e}")
 
+    hh, hp = args.http.rsplit(":", 1)
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
     server = http.server.ThreadingHTTPServer((hh, int(hp)), functools.partial(Handler, directory=here))
     hosts = sorted({a[4][0] for a in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)} | {"127.0.0.1"}) if hh == "0.0.0.0" else [hh]
-    print(f"UDP {args.udp}  ->  HTTP {args.http}   (Ctrl+C to stop)")
+    print(f"Pit Wall on {args.http}   (Ctrl+C to stop)")
     print("Engineer, open one of these (the Hamachi one is 25.x.x.x):")
     for h in hosts:
         print(f"    http://{h}:{hp}/?key={args.key}")

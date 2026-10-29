@@ -14,19 +14,18 @@
   <div class="w-inner">
     <div class="w-brand"><i data-lucide="radio"></i>ENGINEER</div>
     <h1 id="wTitle">Live race engineering view</h1>
-    <p class="w-lead">Track map, car state, tyres, fuel and the engineer's advice for the driver you are watching in Assetto Corsa.</p>
+    <p class="w-lead">Track map, car state, tyres, fuel, the engineer's advice and the next pit stop for the driver you are watching in Assetto Corsa Competizione.</p>
     <ol class="w-steps" aria-live="polite">
-      <li id="ws-bridge"><span class="w-mark"></span><div><b>Bridge</b><span id="ws-bridge-t">Connecting to the local bridge</span></div></li>
-      <li id="ws-signal"><span class="w-mark"></span><div><b>Driver signal</b><span id="ws-signal-t">Waiting for the driver to share</span></div></li>
+      <li id="ws-bridge"><span class="w-mark"></span><div><b>Driver's PC</b><span id="ws-bridge-t">Connecting to the driver's PC</span></div></li>
+      <li id="ws-signal"><span class="w-mark"></span><div><b>ACC</b><span id="ws-signal-t">Waiting for ACC on the driver's PC</span></div></li>
       <li id="ws-session"><span class="w-mark"></span><div><b>Session</b><span id="ws-session-t">Waiting for a session</span></div></li>
     </ol>
     <div class="w-actions"><button id="wEnter" class="primary">Open dashboard</button><span id="wNote"></span></div>
     <details class="w-help"><summary>Not receiving anything?</summary>
       <ul>
-        <li>In the driver's terminal app, make sure sharing is on and pointed at this PC.</li>
-        <li>Turn the terminal app's own LAN listener off (<b>0</b>, then <b>O</b>); two programs cannot own the same UDP port.</li>
-        <li>Allow Python through the Windows firewall on all network types.</li>
-        <li>Listening on UDP <b id="wUdp">9001</b>. The terminal running <b>server/bridge.py</b> reports every 5 s whether datagrams arrive.</li>
+        <li>ACC must be in a session (on track or in the pits) on the driver's PC, the same PC that runs <b>server/bridge.py</b>.</li>
+        <li>The terminal running <b>server/bridge.py</b> says when it sees ACC and which car and track.</li>
+        <li>If this page does not load at all: check the VPN shows the driver online, and that Python is allowed through the driver's Windows firewall on Public networks.</li>
       </ul>
     </details>
   </div>

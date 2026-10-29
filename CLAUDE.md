@@ -4,24 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Pit Wall: a live browser dashboard for the "engineer" watching a driver in Assetto Corsa Competizione (Pro Engineer app), with remote pit stop control. Folders `server/` (bridge.py, acc_pit.py), `web/` (index.html, css/app.css, js/*.js, data/tracks.js), `docs/` (README screenshots); no framework, no build, no package manager. Git repo: github.com/simdex-org/pit-wall.
+Pit Wall: a live browser dashboard for the "engineer" watching a driver in Assetto Corsa Competizione, with remote pit stop control. Everything runs from this repo: the bridge reads ACC's shared memory itself. Folders `server/` (bridge.py, acc_telemetry.py, acc_pit.py), `web/` (index.html, css/app.css, js/*.js, data/tracks.js), `docs/` (README screenshots); no framework, no build, no package manager. Git repo: github.com/simdex-org/pit-wall.
 
 ## Run
 
 ```
-python server/bridge.py                                              # UDP 0.0.0.0:9001 -> http://127.0.0.1:8765, opens browser
-python server/bridge.py --udp 0.0.0.0:9005 --http 127.0.0.1:8080 --no-browser
+python server/bridge.py                               # on the driver's PC: reads ACC, serves http://0.0.0.0:8765, opens browser
+python server/bridge.py --simulate-acc --key demo     # a pretend session and pit page, no game needed
+python server/acc_telemetry.py; python server/acc_pit.py   # self-tests
 ```
 
-On the driver's PC (pit control): `python server/bridge.py --udp 127.0.0.1:9001 --http 0.0.0.0:8765`. Without the game: `--simulate-acc --key demo`. Self-test of the pit logic: `python server/acc_pit.py`.
-
-Python 3.8+, stdlib only. The terminal app's LAN listener must be off first (two programs can't bind UDP 9001). Edit anything under `web/` and reload the page; only `server/bridge.py` changes need a restart.
+Python 3.8+, stdlib only, Windows for the game side. Edit anything under `web/` and reload the page; only `server/bridge.py` changes need a restart.
 
 ## Architecture
 
-Data flow: driver app --UDP JSON--> `server/bridge.py` --SSE `/events`--> `web/index.html`.
+Data flow: ACC shared memory --> `acc_telemetry.py` (in `bridge.py`, 30 Hz) --SSE `/events`--> `web/index.html`; pit plans go back as POST /pit --> `acc_pit.py` --> MFD key presses.
 
-- **bridge.py** keeps one global `STATE` (guarded by `LOCK`) holding the latest datagram of each stream, and also serves `web/` statically (`/` -> `index.html`). Two datagram kinds are distinguished by shape: `what == "pro-engineer/session"` is the 30 Hz **reading**; `magic == "acpe"` is the 10 Hz **summary** (advice, debrief, fuel/stint figures). Anything else is dropped. `/events` pushes a payload whenever `STATE["ver"]` changes, plus a heartbeat every 1 s, including `*_age_ms` so the page can tell live from stale.
+- **bridge.py** keeps one global `STATE` (guarded by `LOCK`) holding the latest **reading** (30 Hz) and **summary** (10 Hz: advice, debrief, fuel/stint figures), both built by `acc_telemetry.Telemetry` from `AccPages.read()` (or `FakePages` with `--simulate-acc`), and also serves `web/` statically (`/` -> `index.html`). The advice rules and the GT3 pressure windows live in `Telemetry.advice()`. `/events` pushes a payload whenever `STATE["ver"]` changes, plus a heartbeat every 1 s, including `*_age_ms` so the page can tell live from stale.
 - **web/index.html** is markup; **css/app.css** styles; **js/** is plain scripts loaded in order, sharing globals: `util.js` (settings in localStorage, unit conversion, formatters), `recorder.js` (60 s trace buffer, per-lap 400-point recordings vs track position, tyre history, event log, laps import/export), `charts.js` (canvas: live rows, compare rows, G-force, map), `views.js` (one render fn per tab), `main.js` (tabs, welcome, SSE, render loop). `connect()` → `onReading()` (per-reading accumulation: throttle/brake/speed trace ring buffer, client-side lap list, learned track coordinates) → `render()` (idempotent DOM update from latest `reading`/`summary`/`ages`). `renderAdvice()` re-renders only when advice/debrief JSON changes. The reading payload is `reading.reading.{car,session,fixed,capabilities}`; optional UI rows are gated on `capabilities` flags.
 - **web/data/tracks.js** defines `window.TRACKS`; currently only `nurburgring_24h` (`box`, `loop` = 800 uniformly spaced points with index 0 = start/finish in driving direction, plus `pit` and `labels`). The car is placed by `session.track_position` (0..1) indexed into `loop`. `trackFor()` in charts.js maps `fixed.track` names to entries; for unknown tracks the map is learned from `car_position_m` (x, z) as the car laps.
 
@@ -30,6 +29,6 @@ Data flow: driver app --UDP JSON--> `server/bridge.py` --SSE `/events`--> `web/i
 
 ## Notes
 
-- `ALERT` thresholds in util.js mirror the desktop application's defaults; keep them in sync with it.
+- `ALERT` defaults in util.js match the thresholds in acc_telemetry.py; keep them in step.
 - Icons come from Lucide via unpkg (SRI-pinned) — the only network dependency. Dynamically added icons need `lucide.createIcons({nodes})`.
 - `web/data/tracks.js` is large generated data; don't read it whole.

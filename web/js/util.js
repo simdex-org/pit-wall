@@ -5,7 +5,7 @@ const CORNERS = ['FL','FR','RL','RR'];
 
 // ---------- settings (kept in this browser) ----------
 const DEF = {speed:'kmh', temp:'c', press:'psi', sound:false,
-  psiMin:26.0, psiMax:28.5, tMin:70, tMax:105, brakeMax:800, padMin:12, fuelLaps:3,   // the application's defaults, native units (psi, °C, mm)
+  psiMin:26.0, psiMax:27.0, tMin:65, tMax:105, brakeMax:750, padMin:12, fuelLaps:3,   // GT3 dry, as the bridge's advice uses them (acc_telemetry.py); psi, °C, mm
   rows:['speed', 'pedals', 'steer', 'gearrpm'], notes:''};
 const S = (() => { let o = {}; try { o = JSON.parse(localStorage.getItem('engineer.settings') || '{}'); } catch (e) {} return Object.assign({}, DEF, o); })();
 const saveS = () => { try { localStorage.setItem('engineer.settings', JSON.stringify(S)); } catch (e) {} };
