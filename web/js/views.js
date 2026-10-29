@@ -160,7 +160,7 @@ function renderAdvice(){
   if (!summary.debrief.length) D.innerHTML = '<div class="empty">The last laps\' analysis appears here after the first lap.</div>';
   for (const lap of summary.debrief) {
     const el = document.createElement('div'); el.className = 'lap';
-    el.innerHTML = `<h3>Lap ${lap.lap_number} ${fmtLap(lap.lap_time_ms)} <span>${lap.sectors_ms.map(fmtLap).join(' · ')}</span></h3>`;
+    el.innerHTML = `<h3>Lap ${esc(lap.lap_number)} ${fmtLap(lap.lap_time_ms)} <span>${lap.sectors_ms.map(fmtLap).join(' · ')}</span></h3>`;
     const list = document.createElement('div'); list.className = 'msgs';
     for (const a of lap.lines) list.appendChild(msg(a));
     el.appendChild(list); D.appendChild(el);
