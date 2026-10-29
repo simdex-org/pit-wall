@@ -52,10 +52,12 @@ Limits, plainly:
 - **Applying a plan takes about 15 to 30 seconds**: it first finds out how the pit page is laid out
   (Strategy row or not, tyres changing or not, wet or dry, brakes changing or not), then sets each value
   and reads it back. The driver sees the MFD moving; they should not use the MFD keys meanwhile.
-- **Driving on keyboard and mouse works**: a key pressed by the program makes ACC forget the gas, brake and steering keys the driver
-  is holding, so each MFD press presses the driver's held keys again, and lets go of them the instant the driver lets go of the real
-  key. To know which are held, the program watches only those keys (W, A, S, D and the gas, brake and steering keys in ACC's
-  `controls.json`) with a keyboard hook; nothing else typed is seen. A few antivirus programs dislike keyboard hooks.
+- **Driving on keyboard and mouse**: a key typed into the MFD makes ACC forget the gas, brake and steering keys the driver is holding.
+  So the program only types while the driver holds none of them (lifting before a braking zone, coasting into a corner) and waits
+  otherwise; the dashboard then says *applying, waiting for the driver to lift*. A plan can take a lap or two to go in this way, so send
+  it early. A driving key pressed in the middle of an MFD keypress is pressed again until it is let go. To know which keys are held,
+  the program watches only those (W, A, S, D and the gas, brake and steering keys in ACC's `controls.json`) with a keyboard hook;
+  nothing else typed is seen. A few antivirus programs dislike keyboard hooks. On a wheel nothing waits.
 - **The arrow keys and P must be ACC's MFD keys** (they are by default). If the driver rebound them,
   pass the pitstop key with `--pit-key`. Arrow keys must not be bound to anything else.
 - Changes apply **without the driver confirming**: the engineer presses *Send to driver* and it happens.

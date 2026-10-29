@@ -105,11 +105,13 @@ class AccMfd:
         self.u.CallNextHookEx.restype = ctypes.c_ssize_t
         self.scan = dict(self.ARROWS, pit=self._scan_of(pit_key))
         self.hold = key_ms / 1000   # ponytail: one knob for hold and gap; raise it if ACC misses presses at low frame rates
-        # Driving on a keyboard: a key going down or up makes ACC drop the gas, brake and steering keys the driver is holding,
-        # until they are pressed again. So every MFD press re-presses whichever of them the driver physically holds, and lets go
-        # of that copy the moment the driver lets go of the real key. Only these few keys are watched, and only to know if held.
+        # Driving on a keyboard: a key typed into the MFD makes ACC drop the gas, brake and steering keys the driver is holding,
+        # until they are pressed again. So MFD keys are only typed while the driver holds none of them (a lift, a coast into a
+        # corner), and a driving key pressed during one is pressed again until the driver lets go of it. Only these few keys are
+        # watched, and only to know whether they are held. A wheel driver holds none, so nothing waits.
         self.drive = self._driving_keys()
         self.physical, self.copies, self.keys_lock = set(), set(), threading.Lock()   # the lock: no copy is pressed after its release
+        self.waiting = False
         threading.Thread(target=self._watch_keyboard, daemon=True).start()
         threading.Thread(target=self._let_go, daemon=True).start()
 
@@ -157,6 +159,25 @@ class AccMfd:
                         self.copies.discard(vk)
                         self._send((self.drive[vk], 8 | 2))
 
+    def _lift(self):
+        """Wait until the driver holds no driving key."""
+        while True:
+            for vk in list(self.physical):   # a release the hook missed (alt-tab, a stall): the key state says it is up
+                if vk not in self.copies and not self.u.GetAsyncKeyState(vk) & 0x8000:
+                    self.physical.discard(vk)
+            if not any(vk in self.physical for vk in self.drive):
+                break
+            self.waiting = True
+            time.sleep(0.005)
+        self.waiting = False
+
+    def _repress(self):
+        with self.keys_lock:
+            held = [vk for vk in self.drive if vk in self.physical]
+            if held:
+                self.copies.update(held)
+                self._send(*[(self.drive[vk], 8) for vk in held])
+
     def _send(self, *keys):
         """(scan code, flags) pairs in one SendInput call, so ACC takes them in the same frame."""
         arr = (_INPUT * len(keys))(*[_INPUT(type=1, ki=_KI(wScan=sc, dwFlags=fl)) for sc, fl in keys])
@@ -175,15 +196,15 @@ class AccMfd:
 
     def press(self, key, n=1):
         for _ in range(n):
-            if not self.focused():
-                raise RuntimeError("ACC is not the focused window on the driver's PC - stopped before pressing anything else")
             ext = 1 if key in self.ARROWS else 0   # KEYEVENTF_EXTENDEDKEY: arrows are on the extended block
             for flags in (8 | ext, 8 | ext | 2):   # KEYEVENTF_SCANCODE, then + KEYEVENTF_KEYUP
-                with self.keys_lock:
-                    held = [vk for vk in self.drive if vk in self.physical]
-                    self.copies.update(held)
-                    self._send((self.scan[key], flags), *[(self.drive[vk], 8) for vk in held])   # the MFD key, and the driver's keys again
-                time.sleep(self.hold)
+                self._lift()
+                if not self.focused():
+                    raise RuntimeError("ACC is not the focused window on the driver's PC - stopped before pressing anything else")
+                self._send((self.scan[key], flags))
+                for _ in range(5):   # a driving key pressed just now may be dropped too: press it again, like a held key repeats
+                    time.sleep(self.hold / 5)
+                    self._repress()
             if key == "pit":
                 time.sleep(0.2)   # the page redraws before it takes the next key
 
@@ -192,7 +213,7 @@ class AccMfd:
         status = struct.unpack_from("<i", b, OFF_STATUS)[0]
         tyre_set, fuel, *p = struct.unpack_from("<i5f", b, OFF_MFD)
         cur, nxt = struct.unpack_from("<2i", b, OFF_SETS)
-        return {"status": STATUS[status] if 0 <= status < 4 else "off", "fuel": round(fuel, 1), "tyre_set": tyre_set,
+        return {"status": STATUS[status] if 0 <= status < 4 else "off", "fuel": round(fuel, 1), "tyre_set": tyre_set, "waiting_lift": self.waiting,
                 "pressures": [round(x, 1) for x in p], "current_set": cur, "strategy_set": nxt,
                 "in_pit_lane": bool(struct.unpack_from("<i", b, OFF_PITLANE)[0])}
 
