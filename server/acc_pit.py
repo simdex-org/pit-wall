@@ -36,12 +36,23 @@ import time
 GFX_SIZE, OFF_STATUS, OFF_PITLANE, OFF_MFD, OFF_SETS = 1588, 4, 1236, 1532, 1572
 STATUS = ["off", "replay", "live", "pause"]
 CORNERS = ["fl", "fr", "rl", "rr"]
+GROUPS = ("fuel", "tyres", "pressures", "brakes", "repairs")   # what can be sent on its own; "tyres" includes the pressures
 
 
 def clean(plan):
-    """Validate a plan from the network. Raises ValueError."""
+    """Validate a plan from the network. Raises ValueError. `only` lists the groups to send (all when absent);
+    fields of groups not sent are not needed."""
     if not isinstance(plan, dict):
         raise ValueError("plan must be an object")
+    only = plan.get("only", list(GROUPS))
+    if not isinstance(only, list) or not only or any(g not in GROUPS for g in only):
+        raise ValueError(f"only must list some of {', '.join(GROUPS)}")
+    only = set(only)
+    filler = {"fuel": 0, "compound": "dry", "tyre_set": 1, "pressures": [27.0] * 4, "front_pad": 1, "rear_pad": 1}
+    wanted = {"fuel": ["fuel"], "tyres": ["compound", "tyre_set", "pressures"], "pressures": ["pressures"],
+              "brakes": ["front_pad", "rear_pad"], "repairs": []}
+    needed = {k for g in only for k in wanted[g]}
+    plan = {**{k: v for k, v in filler.items() if k not in needed}, **{k: v for k, v in plan.items() if k in needed or k not in filler}}
 
     def num(k, lo, hi, kind=float):
         v = plan.get(k)
@@ -60,6 +71,7 @@ def clean(plan):
         "pressures": [_psi(v) for v in p],
         "brakes": plan.get("brakes") is True, "front_pad": num("front_pad", 1, 4, int), "rear_pad": num("rear_pad", 1, 4, int),
         "flip_suspension": plan.get("flip_suspension") is True, "flip_bodywork": plan.get("flip_bodywork") is True,
+        "only": sorted(only, key=GROUPS.index),
     }
 
 
@@ -293,21 +305,29 @@ def apply(plan, mfd):
         raise RuntimeError("ACC is not in a live session on the driver's PC")
     res = {}
 
+    pos = [None]   # the row the cursor is on, counted from the top; None after the rows above it may have changed
+
     def at(row, key=None, n=1):   # cursor to row (negative: from the bottom), then key n times
-        mfd.press("pit", 2)
-        mfd.press("down" if row >= 0 else "up", abs(row))
+        if row < 0 or pos[0] is None:   # from the top: the pitstop key twice puts the cursor on the first row
+            mfd.press("pit", 2)
+            mfd.press("down" if row >= 0 else "up", abs(row))
+        else:                           # from where it is: one row at a time, no trip back to the top
+            mfd.press("down" if row > pos[0] else "up", abs(row - pos[0]))
+        pos[0] = row if row >= 0 else None   # counting from the bottom says nothing about the row from the top
         if key:
             mfd.press(key, n)
 
-    def probe(row):   # what one step on this row changes; the step is undone
+    def changed(row, key):   # a step that shows or hides rows: where everything is must be found again from the top
+        at(row, key)
+        pos[0] = None
+
+    def probe(row):   # what one step right on this row changes; the step is undone with one step left
+        # ponytail: one way only. A row that is already at its right-hand limit (pads on 4) is moved one step left; trying the
+        # other way as well moved rows at their left-hand limit instead (pads on 1, the usual), so this is the lesser risk.
         a = mfd.read()
         at(row, "right")
         d = _diff(a, mfd.read())
         mfd.press("left")
-        if not d["fuel"] and not d["set"] and not d["p"]:   # at a limit, or a row nothing reports: try the other way
-            at(row, "left")
-            d = _diff(a, mfd.read())
-            mfd.press("right")
         return d
 
     def steer(row, get, target, step):
@@ -319,15 +339,8 @@ def apply(plan, mfd):
         v = get(mfd.read())
         return "ok" if round((target - v) / step) == 0 else f"stopped at {v}"
 
-    # Where things are. Refuel is row 1, or row 2 under a Strategy row: the one that moves fuel, and only fuel, by 1 L.
-    d = probe(1)
-    refuel = 1 if abs(abs(d["fuel"]) - 1) < 0.05 and not d["set"] and not d["p"] else 2
-    tyres = refuel + 1                                    # the Change tyres row
-    tyres_were_on = bool(probe(tyres + 3)["p"])           # All four (dry) or FL (wet) only exists while tyres change
-    if not tyres_were_on:
-        at(tyres, "right")
-        if not probe(tyres + 3)["p"]:
-            raise RuntimeError("could not find the tyre rows on the pit page - is it the pitstop MFD page this key opens?")
+    only = set(plan["only"])
+    tyre_rows = bool(only & {"tyres", "pressures", "brakes"})   # brakes are found by counting past the tyre rows
 
     def wet_now():   # row tyres+4 is FL when dry (a Tyre set row is above), FR when wet
         d = probe(tyres + 4)["p"]
@@ -341,47 +354,59 @@ def apply(plan, mfd):
                 return tail
         raise RuntimeError("could not count the rows below the tyres")
 
-    wet = wet_now()
-    tail = tail_now()
-    brakes_on = tail >= 5
+    if only - {"repairs"}:
+        # Refuel is row 2 under a Strategy row, else row 1. Row 2 is probed, never row 1: stepping the Strategy row reloads that
+        # strategy's fuel, tyres and pressures. Without a Strategy row, row 2 is Change tyres, which the probe switches and back.
+        d = probe(2)
+        refuel = 2 if abs(abs(d["fuel"]) - 1) < 0.05 and not d["set"] and not d["p"] else 1
+        tyres = refuel + 1                                # the Change tyres row
 
-    res["fuel"] = steer(refuel, lambda m: m["fuel"], plan["fuel"], 1)
+    if "fuel" in only:
+        res["fuel"] = steer(refuel, lambda m: m["fuel"], plan["fuel"], 1)
 
-    if plan["tyres"]:
-        if (plan["compound"] == "wet") != wet:
-            at(tyres + (1 if wet else 2), "right" if plan["compound"] == "wet" else "left")   # Right is wet, Left is dry, whatever it was
+    if tyre_rows:
+        tyres_were_on = bool(probe(tyres + 3)["p"])       # All four (dry) or FL (wet) only exists while tyres change
+        if not tyres_were_on:                             # the tyre rows have to show to set them, or to count past them
+            changed(tyres, "right")
+            if not probe(tyres + 3)["p"]:
+                raise RuntimeError("could not find the tyre rows on the pit page - is it the pitstop MFD page this key opens?")
+        wet = wet_now()
+        if "tyres" in only and (plan["compound"] == "wet") != wet:
+            changed(tyres + (1 if wet else 2), "right" if plan["compound"] == "wet" else "left")   # Right is wet, Left is dry, whatever it was
             wet = wet_now()
-        res["compound"] = "ok" if (plan["compound"] == "wet") == wet else "did not change"
-        res["tyre_set"] = "skipped" if wet else steer(tyres + 1, lambda m: m["tyre_set"], plan["tyre_set"], 1)
-        first = tyres + (3 if wet else 4)
-        for i, c in enumerate(CORNERS):
-            res[c] = steer(first + i, lambda m, i=i: m["pressures"][i], plan["pressures"][i], 0.1)
-    else:
-        res.update({k: "skipped" for k in ["compound", "tyre_set"] + CORNERS})
+        if "tyres" in only:
+            res["compound"] = "ok" if (plan["compound"] == "wet") == wet else "did not change"
+            res["tyre_set"] = "skipped" if wet else steer(tyres + 1, lambda m: m["tyre_set"], plan["tyre_set"], 1)
+        if only & {"tyres", "pressures"}:
+            first = tyres + (3 if wet else 4)
+            for i, c in enumerate(CORNERS):
+                res[c] = steer(first + i, lambda m, i=i: m["pressures"][i], plan["pressures"][i], 0.1)
 
-    brakes = tyres + (6 if wet else 7) + 1                 # the Change brakes row, tyre rows showing
-    if plan["brakes"] != brakes_on:
-        at(brakes, "right")
-        brakes_on = tail_now() >= 5
-    res["brakes"] = "ok" if brakes_on == plan["brakes"] else "did not change"
-    if plan["brakes"] and brakes_on:
-        for row, k in ((brakes + 1, "front_pad"), (brakes + 2, "rear_pad")):
-            at(row, "left", 3)                             # down to compound 1, then up to the one asked for
-            mfd.press("right", plan[k] - 1)
-            res[k] = "sent"
-    else:
-        res["front_pad"] = res["rear_pad"] = "skipped"
+        if "brakes" in only:
+            brakes_on = tail_now() >= 5
+            brakes = tyres + (6 if wet else 7) + 1        # the Change brakes row, tyre rows showing
+            if plan["brakes"] != brakes_on:
+                changed(brakes, "right")
+                brakes_on = tail_now() >= 5
+            res["brakes"] = "ok" if brakes_on == plan["brakes"] else "did not change"
+            if plan["brakes"] and brakes_on:
+                for row, k in ((brakes + 1, "front_pad"), (brakes + 2, "rear_pad")):
+                    at(row, "left", 3)                    # down to compound 1, then up to the one asked for
+                    mfd.press("right", plan[k] - 1)
+                    res[k] = "sent"
 
-    for row, k in ((-2, "flip_suspension"), (-1, "flip_bodywork")):
-        if plan[k]:
-            at(row, "right")
-            res[k] = "sent"
+    if "repairs" in only:
+        for row, k in ((-2, "flip_suspension"), (-1, "flip_bodywork")):
+            if plan[k]:
+                at(row, "right")
+                res[k] = "sent"
 
-    if not plan["tyres"]:
-        at(tyres, "right")
-        res["tyres"] = "ok" if not probe(tyres + 3)["p"] else "did not change"
-    else:
-        res["tyres"] = "ok"
+    if tyre_rows:
+        # Tyres sent: as planned. Pressures alone: tyres stay on, since pressures only matter with new tyres. Otherwise as found.
+        want_on = plan["tyres"] if "tyres" in only else True if "pressures" in only else tyres_were_on
+        if not want_on:
+            changed(tyres, "right")   # not probed after: with the tyre rows gone, the row it would step on can be a pad
+        res["tyres"] = "switched on for the pressures" if "pressures" in only and "tyres" not in only and not tyres_were_on else "sent"
     return res
 
 
@@ -463,12 +488,37 @@ def selftest():
             assert m.repair == [repair0[0] ^ plan["flip_suspension"], repair0[1] ^ plan["flip_bodywork"]], (layout, plan, m.repair)
             assert m.s["strategy"] == layout[0] and m.s["driver"] == layout[4]
             n += 1
-    for bad in [{}, dict(plans[0], fuel=-1), dict(plans[0], pressures=[27] * 3), dict(plans[0], compound="slick"), dict(plans[0], front_pad=True)]:
+    for layout in itertools.product([False, True], repeat=5):
+        for only in (["fuel"], ["repairs"], ["pressures"], ["brakes"], ["fuel", "pressures"]):
+            m = FakeMfd(*layout)
+            before = (m.fuel, list(m.p), m.set, dict(m.s), list(m.pads), list(m.repair))
+            plan = clean(dict(plans[0], only=only))
+            res = apply(plan, m)
+            if "fuel" in only:
+                assert m.fuel == plan["fuel"] and res["fuel"] == "ok", (layout, only, res)
+            else:
+                assert m.fuel == before[0] and m.strat == 0, (layout, only, m.fuel)   # the Strategy row is never stepped
+            if "pressures" in only:
+                assert m.p == plan["pressures"] and m.s["tyres"], (layout, only, m.p, m.s)
+            else:
+                assert m.p == before[1], (layout, only, m.p)
+            if "brakes" in only:
+                assert m.s["brakes"] and m.pads == [plan["front_pad"], plan["rear_pad"]] and m.s["tyres"] == before[3]["tyres"], (layout, only, m.s)
+            else:
+                assert m.s["brakes"] == before[3]["brakes"], (layout, only)
+            if "repairs" in only:
+                assert m.repair == [not before[5][0], before[5][1]] and m.presses <= 8, (layout, only, m.repair, m.presses)
+            else:
+                assert m.repair == before[5], (layout, only)
+            assert m.s["wet"] == before[3]["wet"], (layout, only)
+            n += 1
+    for bad in [{}, dict(plans[0], only=["everything"]), dict(plans[0], only=[]), dict(plans[0], fuel=-1), dict(plans[0], pressures=[27] * 3), dict(plans[0], compound="slick"), dict(plans[0], front_pad=True)]:
         try:
             clean(bad)
         except ValueError:
             continue
         raise AssertionError(f"accepted {bad}")
+    assert clean({"only": ["fuel"], "fuel": 30})["fuel"] == 30   # a fuel-only plan needs no tyre fields
     print(f"ok: {n} plans applied across every pit page layout; bad plans refused")
 
 

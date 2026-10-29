@@ -421,3 +421,11 @@ dl.mini dt{color:var(--mut)}dl.mini dd{text-align:right;font-weight:600}
   .mod-grip{display:none!important}
   .m-window .calc-grid{grid-template-columns:1fr 1fr}
 }
+
+/* pit plan: one block at a time */
+.pit-tab tr.pg th{padding:14px 14px 4px 0;font-size:11px;letter-spacing:.12em;color:var(--txt);border-bottom:1px solid var(--line)}
+.pit-tab tr.pg td{text-align:right;border-bottom:1px solid var(--line);padding:10px 0 4px}
+.btn.send{min-height:24px;padding:2px 10px;font-size:11px;font-weight:600}
+.btn.send:disabled,.primary:disabled{opacity:.45;cursor:not-allowed}
+.pit-tab td.chg input{border-color:var(--warn)}
+.pit-tab td.chg::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--warn);margin-right:6px;vertical-align:2px}

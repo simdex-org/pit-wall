@@ -178,7 +178,12 @@ holding. A virtual controller avoids that: the MFD buttons are pressed on it, an
    - **MFD now** is what the driver's pit page holds right now, read from the game.
    - **Plan** is the next stop. *Copy MFD into plan* starts from the current values; *use fuel to finish* takes the
      figure from the *Fuel to finish* calculator above it.
-   - **Send to driver** sets it in the driver's game. **Last sent** then says, row by row: `ok` (read back from the game),
+   - Each block (**Fuel**, **Tyres**, **Pressures**, **Brakes**, **Repairs**) has its own *Send* button, and only that block is touched
+     on the driver's pit page: sending fuel alone leaves tyres, pressures and brakes as they are. *Send whole plan* sends everything.
+     A dot marks the plan values that differ from what the MFD holds now.
+   - The program moves through the pit page row by row from wherever the cursor is, going back to the top only when rows appear or
+     disappear (tyre change, compound, brake change) or for the repairs at the bottom.
+   - Sending sets it in the driver's game. **Last sent** then says, row by row: `ok` (read back from the game),
      `sent` (pressed, but ACC does not publish it), or the problem (`stopped at 120` when a value hit the game's limit).
    - *Repair suspension / bodywork* are switches: ticking one flips that row once (yes ↔ no), since ACC does not say which it currently is.
      The driver sees the result on their MFD.

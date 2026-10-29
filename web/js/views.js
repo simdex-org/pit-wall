@@ -198,7 +198,8 @@ const PIT_KEY = (() => {   // ?key= from the link bridge.py prints; remembered s
   try { if (k) localStorage.setItem('engineer.pitkey', k); return k || localStorage.getItem('engineer.pitkey') || ''; } catch (e) { return k || ''; }
 })();
 const PIT_FIELDS = {fuel:'pFuel', tyre_set:'pSet', tyres:'pTyres', compound:'pCompound', brakes:'pBrakes', front_pad:'pFpad', rear_pad:'pRpad', flip_suspension:'pFlipSusp', flip_bodywork:'pFlipBody'};
-const RES_TEXT = {ok:['ok', 'confirmed in the game'], sent:['sent', 'pressed; ACC does not publish it'], skipped:['', '']};
+const RES_TEXT = {ok:['ok', 'confirmed in the game'], sent:['sent', 'pressed; ACC does not publish it'], skipped:['', ''],
+  'switched on for the pressures':['on', 'tyre change switched on: pressures only apply with new tyres']};
 function readPit(){
   const v = id => $(id).type === 'checkbox' ? $(id).checked : $(id).tagName === 'SELECT' && id !== 'pCompound' ? +$(id).value : $(id).type === 'number' ? +$(id).value : $(id).value;
   const plan = Object.fromEntries(Object.entries(PIT_FIELDS).map(([k, id]) => [k, v(id)]));
@@ -211,10 +212,11 @@ function fillPit(plan){
 }
 function copyMfd(){ if (pit) fillPit({fuel:Math.round(pit.fuel), tyre_set:pit.tyre_set || 1, pressures:pit.pressures.map(v => v.toFixed(1))}); savePit(); }
 function savePit(){ S.pit = readPit(); saveS(); }
-async function sendPit(){
-  savePit(); $('pitMsg').textContent = 'Sending…';
-  const r = await fetch('/pit', {method:'POST', headers:{'Content-Type':'application/json', 'X-Pit-Key':PIT_KEY}, body:JSON.stringify(S.pit)}).catch(() => null);
-  if (r && r.status === 202) { $('pFlipSusp').checked = $('pFlipBody').checked = false; savePit(); }   // a switch is one-shot
+async function sendPit(only){   // only: one block (fuel, tyres, pressures, brakes, repairs), or the whole plan when absent
+  savePit(); $('pitMsg').textContent = only ? `Sending ${only}…` : 'Sending the whole plan…';
+  const body = only ? {...S.pit, only:[only]} : S.pit;
+  const r = await fetch('/pit', {method:'POST', headers:{'Content-Type':'application/json', 'X-Pit-Key':PIT_KEY}, body:JSON.stringify(body)}).catch(() => null);
+  if (r && r.status === 202 && (!only || only === 'repairs')) { $('pFlipSusp').checked = $('pFlipBody').checked = false; savePit(); }   // a switch is one-shot
   $('pitMsg').textContent = !r ? 'The bridge is not answering.' : r.status === 202 ? "Sent. Typing it into the driver's pit page; keep ACC focused on the driver's PC."
     : r.status === 403 ? "Wrong or missing access key: open the link bridge.py printed on the driver's PC." : 'Refused: ' + await r.text();
 }
@@ -229,7 +231,11 @@ function renderPit(){
   const live = pit && pit.status === 'live', busy = pitJob && pitJob.state === 'running';
   $('pitDot').className = 'dot ' + (live ? 'live' : pit ? 'stale' : '');
   $('pitLink').textContent = !pit ? 'no pit control on this bridge' : busy ? (pit.waiting_lift ? 'applying, waiting for the driver to lift' : 'applying…') : live ? 'ACC live' + (pit.in_pit_lane ? ' · in pit lane' : '') : `ACC ${pit.status === 'off' ? 'not running' : pit.status}`;
-  $('pitApply').disabled = !live || busy;
+  $('pitApply').disabled = !live || busy; document.querySelectorAll('.pit [data-only]').forEach(b => { b.disabled = !live || busy; });
+  // what differs from the driver's MFD right now, where the game says what it holds
+  const plan = readPit(), chg = (id, on) => $(id).closest('td').classList.toggle('chg', !!(live && on));
+  chg('pFuel', pit && Math.round(pit.fuel) !== plan.fuel); chg('pSet', pit && pit.tyre_set !== plan.tyre_set);
+  CORNERS.forEach((c, i) => chg('p' + c, pit && Math.abs(pit.pressures[i] - plan.pressures[i]) > 0.05));
   const show = (id, v) => { $(id).innerHTML = v; };
   show('mfdFuel', pit && live ? unit(pit.fuel.toFixed(0), 'L') : '—'); show('mfdSet', pit && live ? pit.tyre_set : '—');
   CORNERS.forEach((c, i) => show('mfd' + c, pit && live ? unit(pit.pressures[i].toFixed(1), 'psi') : '—'));
