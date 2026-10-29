@@ -173,12 +173,13 @@ def main():
     ap.add_argument("--key", default=secrets.token_urlsafe(16), help="access key for sending pit plans (default: a new one each start)")
     ap.add_argument("--pit-key", default="p", help="ACC's key for the pitstop MFD page (default p)")
     ap.add_argument("--key-ms", type=int, default=40, help="how long each key is held and released, ms (default 40)")
+    ap.add_argument("--vjoy", type=int, nargs="?", const=1, help="press the MFD through vJoy device N (default 1) instead of the keyboard")
     ap.add_argument("--simulate-acc", action="store_true", help="a pretend session and pit page instead of the game, to try the dashboard")
     args = ap.parse_args()
 
     PIT["key"] = args.key
     try:
-        PIT["mfd"] = acc_pit.FakeMfd() if args.simulate_acc else acc_pit.AccMfd(args.pit_key, args.key_ms)
+        PIT["mfd"] = acc_pit.FakeMfd() if args.simulate_acc else acc_pit.AccMfd(args.pit_key, args.key_ms, args.vjoy)
     except (OSError, AttributeError, ValueError) as e:   # not Windows (no named mappings / WinDLL), or a bad --pit-key
         print(f"pit control off: {e}")
 

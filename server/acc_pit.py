@@ -18,7 +18,8 @@ on the first row; Up from the first row wraps to the last):
     Change brakes, [Front pads, Rear pads]                          while Change brakes is on
     [Driver], Repair suspension, Repair bodywork
 
-    python server/acc_pit.py        # self-test: every layout, against a simulated MFD
+    python server/acc_pit.py                # self-test: every layout, against a simulated MFD
+    python server/acc_pit.py --bind-vjoy    # bind ACC's MFD actions to vJoy buttons 1-5 (with bridge.py --vjoy)
 """
 import ctypes
 import ctypes.wintypes
@@ -90,7 +91,10 @@ class AccMfd:
     """ACC's pit page on this PC. Keys go only to ACC: every press first checks ACC is the focused window."""
     ARROWS = {"up": 0x48, "down": 0x50, "left": 0x4B, "right": 0x4D}   # scan codes; games read scan codes, not virtual keys
 
-    def __init__(self, pit_key="p", key_ms=40):
+    VJOY_BUTTONS = {"pit": 1, "up": 2, "down": 3, "left": 4, "right": 5}   # bound to ACC's MFD actions in its Controls screen
+    VJOY_DLL = r"C:\Program Files\vJoy\x64\vJoyInterface.dll"
+
+    def __init__(self, pit_key="p", key_ms=40, vjoy=None):
         # ACCESS_WRITE like every ACC reader: started before ACC, this creates the mapping ACC then opens. Nothing is written.
         self.mem = mmap.mmap(-1, GFX_SIZE, tagname="Local\\acpmf_graphics", access=mmap.ACCESS_WRITE)
         self.u, self.k = ctypes.WinDLL("user32"), ctypes.WinDLL("kernel32")
@@ -105,13 +109,18 @@ class AccMfd:
         self.u.CallNextHookEx.restype = ctypes.c_ssize_t
         self.scan = dict(self.ARROWS, pit=self._scan_of(pit_key))
         self.hold = key_ms / 1000   # ponytail: one knob for hold and gap; raise it if ACC misses presses at low frame rates
+        self.waiting, self.vjoy = False, vjoy
+        if vjoy:
+            # A virtual controller (vJoy) instead of the keyboard: ACC sees its own device for the MFD, so the driver's keyboard is
+            # never touched and nothing has to wait for a lift.
+            self.vj = vjoy_device(vjoy)
+            return
         # Driving on a keyboard: a key typed into the MFD makes ACC drop the gas, brake and steering keys the driver is holding,
         # until they are pressed again. So MFD keys are only typed while the driver holds none of them (a lift, a coast into a
         # corner), and a driving key pressed during one is pressed again until the driver lets go of it. Only these few keys are
         # watched, and only to know whether they are held. A wheel driver holds none, so nothing waits.
         self.drive = self._driving_keys()
         self.physical, self.copies, self.keys_lock = set(), set(), threading.Lock()   # the lock: no copy is pressed after its release
-        self.waiting = False
         threading.Thread(target=self._watch_keyboard, daemon=True).start()
         threading.Thread(target=self._let_go, daemon=True).start()
 
@@ -195,6 +204,14 @@ class AccMfd:
         return bool(ok) and buf.value.lower().endswith("ac2-win64-shipping.exe")
 
     def press(self, key, n=1):
+        if self.vjoy:
+            for _ in range(n):
+                if not self.focused():
+                    raise RuntimeError("ACC is not the focused window on the driver's PC - stopped before pressing anything else")
+                vjoy_press(self.vj, self.vjoy, self.VJOY_BUTTONS[key], self.hold)
+                if key == "pit":
+                    time.sleep(0.2)
+            return
         for _ in range(n):
             ext = 1 if key in self.ARROWS else 0   # KEYEVENTF_EXTENDEDKEY: arrows are on the extended block
             for flags in (8 | ext, 8 | ext | 2):   # KEYEVENTF_SCANCODE, then + KEYEVENTF_KEYUP
@@ -216,6 +233,51 @@ class AccMfd:
         return {"status": STATUS[status] if 0 <= status < 4 else "off", "fuel": round(fuel, 1), "tyre_set": tyre_set, "waiting_lift": self.waiting,
                 "pressures": [round(x, 1) for x in p], "current_set": cur, "strategy_set": nxt,
                 "in_pit_lane": bool(struct.unpack_from("<i", b, OFF_PITLANE)[0])}
+
+
+def vjoy_device(dev):
+    """vJoy's interface with device `dev` acquired for this program. Raises OSError with what to fix."""
+    try:
+        vj = ctypes.WinDLL(AccMfd.VJOY_DLL)
+    except OSError:
+        raise OSError(f"vJoy is not installed ({AccMfd.VJOY_DLL} not found)")
+    status = vj.GetVJDStatus(dev)   # 0 owned by us, 1 free, 2 taken by another program, 3 missing
+    if not vj.vJoyEnabled() or status in (2, 3) or vj.GetVJDButtonNumber(dev) < 5:
+        raise OSError(f"vJoy device {dev} is not usable: it must exist, have at least 5 buttons and not be used by another program "
+                      "(Configure vJoy, device 1, 8 buttons)")
+    if status == 1 and not vj.AcquireVJD(dev):
+        raise OSError(f"could not take vJoy device {dev}")
+    vj.ResetVJD(dev)
+    return vj
+
+
+def vjoy_press(vj, dev, button, hold):
+    vj.SetBtn(1, dev, button)
+    time.sleep(hold)
+    vj.SetBtn(0, dev, button)
+    time.sleep(hold)
+
+
+def bind_vjoy(dev=1):
+    """Help bind ACC's MFD actions to the vJoy buttons: each one is pressed every second for 10 s, announced by beeps."""
+    import winsound
+    vj = vjoy_device(dev)
+    actions = [("pit", "MFD pitstop page"), ("up", "MFD up"), ("down", "MFD down"), ("left", "MFD left"), ("right", "MFD right")]
+    print("In ACC open Options > Controls and find the MFD actions. Starting in 10 s.")
+    print("For each action below: when you hear its beeps, click that action's binding in ACC; the button presses itself.")
+    for i, (key, name) in enumerate(actions, 1):
+        print(f"  {i} beep{'s' if i > 1 else ''}: {name} = vJoy button {AccMfd.VJOY_BUTTONS[key]}")
+    time.sleep(10)
+    for i, (key, name) in enumerate(actions, 1):
+        print(f"now: {name} (vJoy button {AccMfd.VJOY_BUTTONS[key]}) - click it in ACC")
+        for _ in range(i):
+            winsound.Beep(880, 150)
+            time.sleep(0.1)
+        for _ in range(10):
+            vjoy_press(vj, dev, AccMfd.VJOY_BUTTONS[key], 0.15)
+            time.sleep(0.7)
+    vj.RelinquishVJD(dev)
+    print("Done. Check in ACC that the five MFD actions show vJoy buttons 1 to 5.")
 
 
 # ---------- driving the page to a plan ----------
@@ -411,4 +473,9 @@ def selftest():
 
 
 if __name__ == "__main__":
-    selftest() if len(sys.argv) == 1 else print(__doc__)
+    if len(sys.argv) == 1:
+        selftest()
+    elif sys.argv[1] == "--bind-vjoy":
+        bind_vjoy(int(sys.argv[2]) if len(sys.argv) > 2 else 1)
+    else:
+        print(__doc__)
