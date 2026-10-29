@@ -228,7 +228,7 @@ function onPitJob(job){
 function renderPit(){
   const live = pit && pit.status === 'live', busy = pitJob && pitJob.state === 'running';
   $('pitDot').className = 'dot ' + (live ? 'live' : pit ? 'stale' : '');
-  $('pitLink').textContent = !pit ? 'no pit control on this bridge' : busy ? 'applying…' : live ? 'ACC live' + (pit.in_pit_lane ? ' · in pit lane' : '') : `ACC ${pit.status === 'off' ? 'not running' : pit.status}`;
+  $('pitLink').textContent = !pit ? 'no pit control on this bridge' : busy ? (pit.waiting_lift ? 'applying, waiting for the driver to lift' : 'applying…') : live ? 'ACC live' + (pit.in_pit_lane ? ' · in pit lane' : '') : `ACC ${pit.status === 'off' ? 'not running' : pit.status}`;
   $('pitApply').disabled = !live || busy;
   const show = (id, v) => { $(id).innerHTML = v; };
   show('mfdFuel', pit && live ? unit(pit.fuel.toFixed(0), 'L') : '—'); show('mfdSet', pit && live ? pit.tyre_set : '—');
