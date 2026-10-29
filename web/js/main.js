@@ -49,7 +49,8 @@ $('impLaps').addEventListener('change', async e => { const f = e.target.files[0]
 // ---------- pit stop controls ----------
 fillPit(S.pit || {fuel:0, tyres:true, compound:'dry', tyre_set:2, pressures:[26.5, 26.5, 26.5, 26.5], brakes:false, front_pad:1, rear_pad:1});
 $('p-strategy').querySelector('.pit').addEventListener('change', savePit);
-$('pitApply').addEventListener('click', sendPit);
+$('pitApply').addEventListener('click', () => sendPit());
+document.querySelector('.pit').addEventListener('click', e => { const b = e.target.closest('[data-only]'); if (b) sendPit(b.dataset.only); });
 $('pitCopy').addEventListener('click', copyMfd);
 $('pFuelCalc').addEventListener('click', () => { if (fuelToAdd != null) { $('pFuel').value = Math.ceil(fuelToAdd); savePit(); } });
 

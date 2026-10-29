@@ -180,25 +180,30 @@
             <table class="pit-tab">
               <thead><tr><th></th><th>MFD now</th><th>Plan</th><th>Last sent</th></tr></thead>
               <tbody>
+                <tr class="pg"><th colspan="3">Fuel</th><td><button class="btn send" type="button" data-only="fuel">Send fuel</button></td></tr>
                 <tr><td>Fuel to add</td><td id="mfdFuel">—</td><td><input type="number" id="pFuel" min="0" max="150" step="1" aria-label="Fuel to add, litres"> L <button class="linkbtn" id="pFuelCalc" type="button">use fuel to finish</button></td><td data-r="fuel"></td></tr>
+                <tr class="pg"><th colspan="3">Tyres</th><td><button class="btn send" type="button" data-only="tyres">Send tyres</button></td></tr>
                 <tr><td>Change tyres</td><td class="na">not published</td><td><input type="checkbox" id="pTyres" aria-label="Change tyres"></td><td data-r="tyres"></td></tr>
                 <tr><td>Compound</td><td class="na">not published</td><td><select id="pCompound" aria-label="Compound"><option value="dry">Dry</option><option value="wet">Wet</option></select></td><td data-r="compound"></td></tr>
                 <tr><td>Tyre set</td><td id="mfdSet">—</td><td><input type="number" id="pSet" min="1" max="50" step="1" aria-label="Tyre set"></td><td data-r="tyre_set"></td></tr>
+                <tr class="pg"><th colspan="3">Pressures</th><td><button class="btn send" type="button" data-only="pressures">Send pressures</button></td></tr>
                 <tr><td>Pressure FL</td><td id="mfdFL">—</td><td><input type="number" id="pFL" min="15" max="40" step="0.1" aria-label="Pressure front left, psi"> psi</td><td data-r="fl"></td></tr>
                 <tr><td>Pressure FR</td><td id="mfdFR">—</td><td><input type="number" id="pFR" min="15" max="40" step="0.1" aria-label="Pressure front right, psi"> psi</td><td data-r="fr"></td></tr>
                 <tr><td>Pressure RL</td><td id="mfdRL">—</td><td><input type="number" id="pRL" min="15" max="40" step="0.1" aria-label="Pressure rear left, psi"> psi</td><td data-r="rl"></td></tr>
                 <tr><td>Pressure RR</td><td id="mfdRR">—</td><td><input type="number" id="pRR" min="15" max="40" step="0.1" aria-label="Pressure rear right, psi"> psi</td><td data-r="rr"></td></tr>
+                <tr class="pg"><th colspan="3">Brakes</th><td><button class="btn send" type="button" data-only="brakes">Send brakes</button></td></tr>
                 <tr><td>Change brakes</td><td class="na">not published</td><td><input type="checkbox" id="pBrakes" aria-label="Change brake pads"></td><td data-r="brakes"></td></tr>
                 <tr><td>Front pads</td><td class="na">not published</td><td><select id="pFpad" aria-label="Front pad compound"><option>1</option><option>2</option><option>3</option><option>4</option></select></td><td data-r="front_pad"></td></tr>
                 <tr><td>Rear pads</td><td class="na">not published</td><td><select id="pRpad" aria-label="Rear pad compound"><option>1</option><option>2</option><option>3</option><option>4</option></select></td><td data-r="rear_pad"></td></tr>
+                <tr class="pg"><th colspan="3">Repairs</th><td><button class="btn send" type="button" data-only="repairs">Send repairs</button></td></tr>
                 <tr><td>Repair suspension</td><td class="na">not published</td><td><label class="check"><input type="checkbox" id="pFlipSusp">switch yes/no</label></td><td data-r="flip_suspension"></td></tr>
                 <tr><td>Repair bodywork</td><td class="na">not published</td><td><label class="check"><input type="checkbox" id="pFlipBody">switch yes/no</label></td><td data-r="flip_bodywork"></td></tr>
               </tbody>
             </table>
             <div class="pit-side">
-              <button class="primary" id="pitApply" type="button">Send to driver</button>
+              <button class="primary" id="pitApply" type="button">Send whole plan</button>
               <button class="btn" id="pitCopy" type="button">Copy MFD into plan</button>
-              <p class="note" id="pitMsg" role="status">The plan is typed into the driver's pit page with ACC's own MFD keys. Fuel, tyre set and pressures are read back from the game; the rest ACC does not publish.</p>
+              <p class="note" id="pitMsg" role="status">Send one block, or the whole plan. Only what is sent is touched on the driver's pit page. The plan is typed in with ACC's own MFD controls. Fuel, tyre set and pressures are read back from the game; the rest ACC does not publish.</p>
               <p class="note">Current set <b id="mfdCur">—</b> · next by strategy <b id="mfdNext">—</b></p>
             </div>
           </div>
