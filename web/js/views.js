@@ -64,32 +64,131 @@ function renderTyreFlag(c, cap){
   $('flagTyres').classList.toggle('on', bad);
 }
 
-// ---------- strategy ----------
-function renderStrategy(c, s, fpl, fuelLaps){
-  $('fuel').innerHTML = unit(c.fuel_litres.toFixed(1), 'L'); $('fpl').innerHTML = fpl ? unit(fpl.toFixed(2), 'L') : '—';
-  $('fuelLaps').textContent = fuelLaps ? fuelLaps.toFixed(1) : '—'; $('fuelLaps').className = fuelLaps && fuelLaps < ALERT.fuelLaps ? 'bad' : '';
-  $('stint').innerHTML = summary ? unit(summary.stint_laps, 'laps') : '—';
+// ---------- strategy: a board of modules (board.js arranges them; each draws itself here) ----------
+const RAIN = ['Dry', 'Drizzle', 'Light rain', 'Medium rain', 'Heavy rain', 'Storm'];
+const GRIP = ['Green', 'Fast', 'Optimum', 'Greasy', 'Damp', 'Wet', 'Flooded'];
+let lapsToGo = null, boxLap = null, shownDeg = '';
+const stintLaps = () => (summary && summary.stint) || [];
+const shown = id => { const m = document.querySelector(`.mod[data-mod="${id}"]`); return m && !m.hidden; };
+function renderStrategy(c, s, f, fpl, fuelLaps){
+  renderCalc(c, s, fpl);
+  renderFuel(c, f, fpl, fuelLaps);
+  if (shown('timeline')) renderTimeline(s, fuelLaps);
+  if (shown('gaps')) renderGaps(s);
+  if (shown('weather')) renderWeather(c, s);
+  if (shown('tyres')) renderTyreCar(c, s);
+  if (shown('degradation')) renderDegradation();
+  if (shown('brakes')) renderPads(c);
   $('bias').innerHTML = unit(c.brake_bias.toFixed(1), '%');
   $('tc').textContent = c.tc_level; $('tcCut').textContent = s.tc_cut; $('abs').textContent = c.abs_level; $('map_').textContent = s.engine_map;
   $('gLat').textContent = c.acc_g[0].toFixed(2); $('gLon').textContent = c.acc_g[2].toFixed(2); $('steer').textContent = c.steer_angle.toFixed(2);
   const dmg = ['front','rear','left','right','centre'].map((n, i) => c.damage[i] > 0 ? ['triangle-alert', `${n} ${c.damage[i].toFixed(0)}`, 'alert'] : null).filter(Boolean);
   setBadges($('damage'), dmg.length ? dmg : [['circle-check', 'no damage', '']]);
-  renderCalc(c, s, fpl);
 }
 // Fuel to finish: laps to go (typed, else from the session), plus a reserve, times fuel per lap.
 function renderCalc(c, s, fpl){
-  const valid = laps.filter(l => l.src === 'live' && l.valid), avg = valid.length ? valid.reduce((a, l) => a + l.ms, 0) / valid.length : (s.best_lap_ms > 0 ? s.best_lap_ms : 0);
+  const valid = stintLaps().filter(l => l.valid), best = s.best_lap_ms > 0 && s.best_lap_ms < 3.6e6 ? s.best_lap_ms : 0;
+  const avg = valid.length ? valid.reduce((a, l) => a + l.ms, 0) / valid.length : best;
   const auto = s.total_laps > 0 ? Math.max(0, s.total_laps - s.completed_laps) : avg && s.session_time_left_ms > 0 ? Math.ceil(s.session_time_left_ms / avg) : null;
   $('calcLaps').placeholder = auto != null ? `${auto} (session)` : 'unknown';
   const typed = $('calcLaps').value, togo = typed !== '' ? +typed : auto, reserve = +$('calcReserve').value || 0;
   const need = fpl && togo != null ? (togo + reserve) * fpl : null, left = fpl ? c.fuel_litres / fpl : null;
+  lapsToGo = togo; boxLap = left != null ? s.completed_laps + Math.max(0, Math.floor(left - reserve)) + 1 : null;
   $('calcUsed').textContent = togo != null ? togo : '—';
   $('calcNeed').innerHTML = need != null ? unit(need.toFixed(1), 'L') : '—';
   $('calcTank').innerHTML = unit(c.fuel_litres.toFixed(1), 'L');
   fuelToAdd = need != null ? Math.max(0, need - c.fuel_litres) : null;
   $('calcAdd').innerHTML = fuelToAdd != null ? unit(fuelToAdd.toFixed(1), 'L') : '—';
   $('calcAdd').className = need != null && need > c.fuel_litres ? 'warn' : 'ok';
-  $('calcPit').textContent = left != null ? `lap ${s.completed_laps + Math.max(0, Math.floor(left - reserve)) + 1}` : '—';
+  $('calcPit').textContent = boxLap != null ? `lap ${boxLap}` : '—';
+  const enough = need != null && need <= c.fuel_litres, inLaps = boxLap != null ? boxLap - s.completed_laps - 1 : null;
+  $('winLabel').textContent = enough ? 'Fuel' : 'Box by';
+  $('winLap').textContent = enough ? 'to the flag' : boxLap != null ? `lap ${boxLap}` : '—';
+  $('winIn').textContent = enough ? `${(c.fuel_litres - need).toFixed(1)} L spare` : inLaps == null ? '' : inLaps <= 0 ? 'this lap' : `in ${inLaps} lap${inLaps > 1 ? 's' : ''}`;
+  $('winLap').closest('.headline').className = 'headline' + (!enough && inLaps != null && inLaps <= 1 ? ' bad' : '');
+}
+function renderFuel(c, f, fpl, fuelLaps){
+  $('fuel').innerHTML = unit(c.fuel_litres.toFixed(1), 'L'); $('fpl').innerHTML = fpl ? unit(fpl.toFixed(2), 'L') : '—';
+  $('fuelLaps').textContent = fuelLaps ? fuelLaps.toFixed(1) : '—'; $('fuelLaps').className = fuelLaps && fuelLaps < ALERT.fuelLaps ? 'bad' : '';
+  const st = stintLaps(), last = st.length ? st[st.length - 1].fuel : null, target = lapsToGo > 0 ? c.fuel_litres / lapsToGo : null;
+  $('fuelLast').innerHTML = last != null ? unit(last.toFixed(2), 'L') : '—';
+  $('fuelTarget').innerHTML = target != null ? unit(target.toFixed(2), 'L') : '—';   // what saving to the flag without a stop would take
+  $('fuelTarget').className = target != null && fpl && target < fpl ? 'warn' : '';
+  const cap = f.max_fuel > 0 ? f.max_fuel : 0, g = $('fuelGauge');
+  $('fuelCap').textContent = cap ? `tank ${cap.toFixed(0)} L` : '';
+  g.firstChild.style.width = cap ? Math.min(100, 100 * c.fuel_litres / cap) + '%' : '0';
+  g.lastChild.style.left = cap && fpl ? Math.min(100, 100 * ALERT.fuelLaps * fpl / cap) + '%' : '-10px';   // the low-fuel line
+  g.classList.toggle('low', !!fuelLaps && fuelLaps < ALERT.fuelLaps);
+}
+// The stint and the rest of the session on one lap scale: laps run this stint, how far the fuel goes, the latest stop, the flag.
+function renderTimeline(s, fuelLaps){
+  const now = s.completed_laps, start = now - (summary ? summary.stint_laps : 0);
+  const fuelEnd = fuelLaps ? now + fuelLaps : null, end = lapsToGo != null ? now + lapsToGo : null;
+  const lo = Math.max(0, start - 1), hi = Math.max(now + 2, fuelEnd || 0, end || 0, boxLap || 0) + 1;
+  const x = l => (100 * (Math.min(hi, Math.max(lo, l)) - lo) / (hi - lo)).toFixed(2) + '%';
+  const span = (cls, a, b, label) => `<div class="tl-span ${cls}" style="left:${x(a)};width:calc(${x(b)} - ${x(a)})" title="${label}"></div>`;
+  const mark = (cls, l, label) => `<div class="tl-mark ${cls}" style="left:${x(l)}"><span>${label}</span></div>`;
+  const step = [1, 2, 5, 10, 20, 50].find(k => (hi - lo) / k <= 12) || 100;
+  let ticks = ''; for (let l = Math.ceil(lo / step) * step; l <= hi; l += step) ticks += `<span style="left:${x(l)}">${l}</span>`;
+  const short = fuelEnd != null && end != null && fuelEnd < end;
+  $('timeline').innerHTML = `<div class="tl-track">${span('done', start, now, 'laps this stint')}${fuelEnd != null ? span('fuel' + (short ? ' short' : ''), now, fuelEnd, 'fuel range') : ''}
+    ${short && boxLap != null ? mark('box', boxLap, `BOX L${boxLap}`) : ''}${end != null ? mark('flag', end, `FLAG L${Math.round(end)}`) : ''}${mark('now', now, `L${now}`)}</div>
+    <div class="tl-scale">${ticks}</div>
+    <div class="tl-key"><span><i class="k-done"></i>laps this stint</span><span><i class="${short ? 'k-short' : 'k-fuel'}"></i>fuel range${short ? ': short of the flag' : ''}</span></div>`;
+  $('tlInfo').textContent = [fuelLaps ? `${fuelLaps.toFixed(1)} laps of fuel` : '', lapsToGo != null ? `${lapsToGo} to go` : ''].filter(Boolean).join(' · ');
+}
+function renderGaps(s){
+  const gap = ms => ms > 0 && ms < 600000 ? (ms / 1000).toFixed(ms < 10000 ? 2 : 1) + ' s' : '—';
+  $('gapPos').textContent = s.position ? 'P' + s.position : '—';
+  $('gapAhead').textContent = gap(s.gap_ahead_ms); $('gapBehind').textContent = gap(s.gap_behind_ms);
+  $('gapLast').textContent = fmtLap(s.last_lap_ms); $('gapBest').textContent = fmtLap(s.best_lap_ms);
+}
+function renderWeather(c, s){
+  const r = s.rain || [];
+  $('rain').innerHTML = ['Now', '10 min', '30 min'].map((t, i) => { const v = r[i] | 0;
+    return `<div class="${v >= 3 ? 'warn' : ''}"><small>${t}</small><b>${RAIN[v] || '—'}</b><span class="lvl" aria-hidden="true">${'<i class="on"></i>'.repeat(v)}${'<i></i>'.repeat(5 - v)}</span></div>`; }).join('');
+  $('wGrip').textContent = GRIP[s.track_grip] || '—'; $('wGrip').className = s.track_grip >= 3 ? 'warn' : '';
+  $('wAir').innerHTML = fvu('temp', c.air_temp_c); $('wRoad').innerHTML = fvu('temp', c.road_temp_c);
+}
+function renderTyreCar(c, s){
+  const corner = i => { const p = c.tyre_pressure_psi[i], t = c.tyre_core_temp_c[i], pk = cls(p, ALERT.psiMin, ALERT.psiMax), tk = tcls(t);
+    return `<div class="ty c${i} ${pk || tk}"><small>${CORNERS[i]}</small><b class="${pk}${pk ? ' mark ' + pk : ''}">${fv('press', p)}<span class="u">${un('press').u}</span></b><span class="${tk}">${fv('temp', t)} ${un('temp').u}</span></div>`; };
+  $('tyCar').innerHTML = `${corner(0)}<div class="body" aria-hidden="true"></div>${corner(1)}${corner(2)}${corner(3)}`;
+  $('tyInfo').textContent = (s.compound || '').replace(/_/g, ' ') + (s.rain_tyres ? ' · wets' : '');
+  $('stint').innerHTML = summary ? unit(summary.stint_laps, 'laps') : '—'; $('tySet').textContent = s.tyre_set || '—';
+}
+// Lap times of this stint against a fitted line: the slope is what the tyres cost per lap, the closest ACC lets anyone get to wear.
+function renderDegradation(){
+  const st = stintLaps(), el = $('degChart'), key = JSON.stringify(st.map(l => l.ms)) + el.clientWidth + 'x' + el.clientHeight + S.theme + S.accent;
+  if (key === shownDeg) return; shownDeg = key;
+  if (st.length < 2) { el.innerHTML = '<div class="empty">Lap times of the stint appear after two laps.</div>'; $('degInfo').textContent = ''; return; }
+  const fit = st.slice(st.length > 3 ? 1 : 0).filter(l => l.valid);   // the out-lap and invalid laps say nothing about the tyres
+  const n = fit.length, mx = n ? fit.reduce((a, l) => a + l.n, 0) / n : 0, my = n ? fit.reduce((a, l) => a + l.ms, 0) / n : 0;
+  const slope = n >= 3 ? fit.reduce((a, l) => a + (l.n - mx) * (l.ms - my), 0) / fit.reduce((a, l) => a + (l.n - mx) ** 2, 0) : null;
+  const W = el.clientWidth || 400, H = el.clientHeight || 160, pl = 58, pb = 18, pt = 8, ms = st.map(l => l.ms);
+  const lo = Math.min(...ms) - 400, hi = Math.max(...ms) + 200, bw = (W - pl - 4) / st.length;
+  const X = i => pl + i * bw, Y = v => pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo));
+  const bars = st.map((l, i) => `<rect class="${l.valid ? 'ok' : 'inv'}" x="${(X(i) + bw * 0.15).toFixed(1)}" y="${Y(l.ms).toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${(H - pb - Y(l.ms)).toFixed(1)}"><title>Lap ${l.n} ${fmtLap(l.ms)}${l.valid ? '' : ' (invalid)'}</title></rect>`).join('');
+  const labels = st.map((l, i) => st.length <= 16 || i % 2 === 0 ? `<text x="${(X(i) + bw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${l.n}</text>` : '').join('');
+  const fx = i => my + slope * (st[i].n - mx);
+  const trend = slope != null ? `<line class="trend" x1="${X(0) + bw / 2}" y1="${Y(fx(0)).toFixed(1)}" x2="${X(st.length - 1) + bw / 2}" y2="${Y(fx(st.length - 1)).toFixed(1)}"/>` : '';
+  el.innerHTML = `<svg width="${W}" height="${H}" role="img" aria-label="Lap times this stint">
+    <text x="${pl - 6}" y="${Y(hi) + 10}" text-anchor="end">${fmtLap(hi)}</text><text x="${pl - 6}" y="${H - pb}" text-anchor="end">${fmtLap(lo)}</text>
+    <line class="axis" x1="${pl}" y1="${H - pb}" x2="${W}" y2="${H - pb}"/>${bars}${trend}${labels}</svg>`;
+  $('degInfo').textContent = slope == null ? 'trend after 3 valid laps' : `${slope >= 0 ? '+' : '−'}${Math.abs(slope / 1000).toFixed(3)} s/lap`;
+  $('degInfo').className = 'r' + (slope > 150 ? ' bad' : slope > 60 ? ' warn' : '');
+}
+// Pads: millimetres left, the wear per lap measured this stint, and the laps before the low-pad line.
+function renderPads(c){
+  const st = stintLaps(), a = st[0], b = st[st.length - 1], laps = a && b ? b.n - a.n : 0;
+  $('brGrid').innerHTML = [0, 1, 2, 3].map(i => {
+    const mm = c.brake_pad_mm[i], rate = laps > 0 ? (a.pads[i] - b.pads[i]) / laps : null, left = rate > 0 ? (mm - ALERT.padMin) / rate : null;
+    const k = mm > 0 && mm < ALERT.padMin ? 'bad' : left != null && left < 10 ? 'warn' : '';
+    return `<div class="pad ${k}"><small>${CORNERS[i]}</small><b>${mm > 0 ? mm.toFixed(1) : '—'}<span class="u">mm</span></b>
+      <div class="gauge${k ? ' low' : ''}" aria-hidden="true"><i style="width:${Math.min(100, 100 * mm / 30)}%"></i><b style="left:${100 * ALERT.padMin / 30}%"></b></div>
+      <span>${rate != null ? `${rate.toFixed(3)} mm/lap · ${left != null ? `${Math.max(0, left).toFixed(0)} laps left` : '—'}` : 'wear after 1 lap'}</span>
+      <span class="${c.brake_temp_c[i] > ALERT.brakeMax ? 'bad' : ''}">${fv('temp', c.brake_temp_c[i])} ${un('temp').u}</span></div>`; }).join('');
+  $('brInfo').textContent = laps ? `measured over ${laps} lap${laps > 1 ? 's' : ''}` : '';
 }
 
 // ---------- pit stop: the driver's MFD as the bridge reads it, the plan, and what came back ----------

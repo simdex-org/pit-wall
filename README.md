@@ -124,7 +124,27 @@ and use the driver's `100.x.x.x` address. Everything else is the same.
 2. The dashboard opens as soon as the driver is in a session: **Live**, **Tyres & brakes**, **Strategy**, **Laps**, **Compare**, **Log & notes**.
    Number keys 1–7 switch tabs. The **Engineer** panel at the bottom has the advice (pressures, cold tyres, brake heat, pads, fuel,
    fuel to the flag in a race, damage), and **Laps** has a debrief of the last three laps.
-3. **Strategy → Next pit stop:**
+3. **Strategy** is a board of modules, each one answering a question the engineer asks during a stint:
+
+   | Module | What it shows |
+   |---|---|
+   | **Race timeline** | One lap scale for the whole race: laps run this stint, how far the fuel goes (amber when it does not reach the flag), the latest lap to box (`BOX L19`) and the flag. |
+   | **Fuel** | Litres in the tank against its capacity, with the low-fuel line; per lap, last lap, laps left, and the litres per lap that would reach the flag without stopping (amber when that means saving). |
+   | **Pit window** | *Box by lap N, in X laps*, or *Fuel to the flag* with the spare litres; the fuel-to-finish calculator with laps to go and a reserve. |
+   | **Gaps** | Position, gap to the car ahead and behind, last and best lap. |
+   | **Track & weather** | Rain now, in 10 and in 30 minutes, track grip, air and track temperature. |
+   | **Tyres** | Pressure and core temperature on each corner of the car, coloured against the target window, laps this stint and the tyre set. |
+   | **Degradation** | The stint's lap times with a fitted trend: the slope, in seconds per lap, is what the tyres are costing. **ACC does not publish tyre wear** (its wear field is always empty), so lap-time loss is the measure real engineers use in its place. |
+   | **Brake pads** | Millimetres left on each pad, the wear per lap measured this stint, and the laps before the low-pad line. |
+   | **Next pit stop** | Sets the stop in the driver's game, below. |
+   | **Setup & electronics**, **Forces & damage** | Bias, TC, ABS, engine map; G-forces and damage. |
+
+   **Make it yours:** press **Customize**. Drag a module by its title bar to move it and by its bottom-right corner to resize it
+   (or use the arrows and size buttons on its title bar), remove modules with ×, bring them back from *Add module*, pick a
+   **theme** (Timing sheet, Broadcast, Endurance) and an **accent colour**. The layout and colours are kept in that browser, so each
+   engineer (and each screen) can have their own. *Reset layout* goes back to the default.
+
+4. **Strategy → Next pit stop:**
    - **MFD now** is what the driver's pit page holds right now, read from the game.
    - **Plan** is the next stop. *Copy MFD into plan* starts from the current values; *use fuel to finish* takes the
      figure from the *Fuel to finish* calculator above it.
@@ -132,7 +152,7 @@ and use the driver's `100.x.x.x` address. Everything else is the same.
      `sent` (pressed, but ACC does not publish it), or the problem (`stopped at 120` when a value hit the game's limit).
    - *Repair suspension / bodywork* are switches: ticking one flips that row once (yes ↔ no), since ACC does not say which it currently is.
      The driver sees the result on their MFD.
-4. Every applied or failed plan is also written to **Log & notes**.
+5. Every applied or failed plan is also written to **Log & notes**.
 
 The dashboard also works on a phone or tablet.
 
@@ -185,7 +205,7 @@ Self-tests:
 server/bridge.py         dashboard + Server-Sent Events out, POST /pit in
 server/acc_telemetry.py  ACC shared memory reader, laps/sectors/stint/fuel, the engineer's advice and debrief, self-test
 server/acc_pit.py        ACC pit page: MFD key presses, reading it back, the plan logic, self-test
-web/                     index.html, css/app.css, js/*.js, data/tracks.js
+web/                     index.html, css/app.css, js/*.js (board.js: the customisable Strategy board), data/tracks.js
 docs/                    screenshots
 ```
 

@@ -117,56 +117,93 @@
     </div>
 
     <div class="tabpanel" id="p-strategy" role="tabpanel" aria-labelledby="t-strategy" hidden>
-      <div class="ph big">Strategy</div>
-      <div class="tiles four">
-        <div class="tile"><label>Fuel</label><div class="fuel"><span id="fuel">—</span></div></div>
-        <div class="tile"><label>Per lap</label><div class="fuel"><span id="fpl">—</span></div></div>
-        <div class="tile"><label>Laps of fuel left</label><div class="fuel"><span id="fuelLaps">—</span></div></div>
-        <div class="tile"><label>Stint</label><div class="fuel"><span id="stint">—</span></div></div>
+      <div class="ph big">Strategy<span class="r"><button id="boardEdit" class="btn" type="button" aria-pressed="false"><i data-lucide="layout-dashboard"></i>Customize</button></span></div>
+      <div class="board-bar" id="boardBar" hidden>
+        <label>Add module<select id="boardAdd"></select></label>
+        <label>Theme<select id="themePreset"><option value="timing">Timing sheet</option><option value="broadcast">Broadcast</option><option value="endurance">Endurance</option></select></label>
+        <label>Accent<input type="color" id="themeAccent"></label>
+        <button class="btn" id="boardReset" type="button">Reset layout</button>
+        <span class="note">Drag a module by its title bar to move it and by its corner to resize it, or use the buttons on its title bar.</span>
       </div>
-      <section class="panel calc" style="margin-bottom:10px"><div class="ph">Fuel to finish<span class="r">leave laps empty to use the session</span></div>
-        <div class="calc-grid">
-          <label>Laps to go<input type="number" id="calcLaps" min="0" step="1" inputmode="numeric"></label>
-          <label>Reserve (laps)<input type="number" id="calcReserve" min="0" step="0.5" value="1"></label>
-          <dl class="rows">
-            <dt>Laps to go used</dt><dd id="calcUsed">—</dd>
-            <dt>Fuel needed</dt><dd id="calcNeed">—</dd>
-            <dt>In the tank</dt><dd id="calcTank">—</dd>
-            <dt>To add at the stop</dt><dd id="calcAdd">—</dd>
-            <dt>Latest pit lap (with reserve)</dt><dd id="calcPit">—</dd>
-          </dl>
-        </div>
-      </section>
-      <section class="panel pit" style="margin-bottom:10px"><div class="ph">Next pit stop<span class="r"><span class="dot" id="pitDot"></span><span id="pitLink">no pit control</span></span></div>
-        <div class="pit-grid">
-          <table class="pit-tab">
-            <thead><tr><th></th><th>MFD now</th><th>Plan</th><th>Last sent</th></tr></thead>
-            <tbody>
-              <tr><td>Fuel to add</td><td id="mfdFuel">—</td><td><input type="number" id="pFuel" min="0" max="150" step="1" aria-label="Fuel to add, litres"> L <button class="linkbtn" id="pFuelCalc" type="button">use fuel to finish</button></td><td data-r="fuel"></td></tr>
-              <tr><td>Change tyres</td><td class="na">not published</td><td><input type="checkbox" id="pTyres" aria-label="Change tyres"></td><td data-r="tyres"></td></tr>
-              <tr><td>Compound</td><td class="na">not published</td><td><select id="pCompound" aria-label="Compound"><option value="dry">Dry</option><option value="wet">Wet</option></select></td><td data-r="compound"></td></tr>
-              <tr><td>Tyre set</td><td id="mfdSet">—</td><td><input type="number" id="pSet" min="1" max="50" step="1" aria-label="Tyre set"></td><td data-r="tyre_set"></td></tr>
-              <tr><td>Pressure FL</td><td id="mfdFL">—</td><td><input type="number" id="pFL" min="15" max="40" step="0.1" aria-label="Pressure front left, psi"> psi</td><td data-r="fl"></td></tr>
-              <tr><td>Pressure FR</td><td id="mfdFR">—</td><td><input type="number" id="pFR" min="15" max="40" step="0.1" aria-label="Pressure front right, psi"> psi</td><td data-r="fr"></td></tr>
-              <tr><td>Pressure RL</td><td id="mfdRL">—</td><td><input type="number" id="pRL" min="15" max="40" step="0.1" aria-label="Pressure rear left, psi"> psi</td><td data-r="rl"></td></tr>
-              <tr><td>Pressure RR</td><td id="mfdRR">—</td><td><input type="number" id="pRR" min="15" max="40" step="0.1" aria-label="Pressure rear right, psi"> psi</td><td data-r="rr"></td></tr>
-              <tr><td>Change brakes</td><td class="na">not published</td><td><input type="checkbox" id="pBrakes" aria-label="Change brake pads"></td><td data-r="brakes"></td></tr>
-              <tr><td>Front pads</td><td class="na">not published</td><td><select id="pFpad" aria-label="Front pad compound"><option>1</option><option>2</option><option>3</option><option>4</option></select></td><td data-r="front_pad"></td></tr>
-              <tr><td>Rear pads</td><td class="na">not published</td><td><select id="pRpad" aria-label="Rear pad compound"><option>1</option><option>2</option><option>3</option><option>4</option></select></td><td data-r="rear_pad"></td></tr>
-              <tr><td>Repair suspension</td><td class="na">not published</td><td><label class="check"><input type="checkbox" id="pFlipSusp">switch yes/no</label></td><td data-r="flip_suspension"></td></tr>
-              <tr><td>Repair bodywork</td><td class="na">not published</td><td><label class="check"><input type="checkbox" id="pFlipBody">switch yes/no</label></td><td data-r="flip_bodywork"></td></tr>
-            </tbody>
-          </table>
-          <div class="pit-side">
-            <button class="primary" id="pitApply" type="button">Send to driver</button>
-            <button class="btn" id="pitCopy" type="button">Copy MFD into plan</button>
-            <p class="note" id="pitMsg" role="status">The plan is typed into the driver's pit page with ACC's own MFD keys. Fuel, tyre set and pressures are read back from the game; the rest ACC does not publish.</p>
-            <p class="note">Current set <b id="mfdCur">—</b> · next by strategy <b id="mfdNext">—</b></p>
+      <div class="board" id="board">
+        <section class="panel mod" data-mod="timeline"><div class="ph">Race timeline<span class="r" id="tlInfo"></span></div>
+          <div class="tl" id="timeline"><div class="empty">Waiting for the driver.</div></div>
+        </section>
+        <section class="panel mod" data-mod="fuel"><div class="ph">Fuel<span class="r" id="fuelCap"></span></div>
+          <div class="m-fuel">
+            <div class="m-big" id="fuel">—</div>
+            <div class="gauge" id="fuelGauge" aria-hidden="true"><i></i><b></b></div>
+            <dl class="mini"><dt>Per lap</dt><dd id="fpl">—</dd><dt>Last lap</dt><dd id="fuelLast">—</dd><dt>Laps left</dt><dd id="fuelLaps">—</dd><dt>Per lap to the flag</dt><dd id="fuelTarget">—</dd></dl>
           </div>
-        </div>
-      </section>
-      <div class="cols">
-        <section class="panel"><div class="ph">Setup &amp; electronics</div>
+        </section>
+        <section class="panel mod calc" data-mod="window"><div class="ph">Pit window<span class="r">leave laps empty to use the session</span></div>
+          <div class="m-window">
+            <div class="headline"><small id="winLabel">Box by</small><b id="winLap">—</b><em id="winIn"></em></div>
+            <div class="calc-grid">
+              <label>Laps to go<input type="number" id="calcLaps" min="0" step="1" inputmode="numeric"></label>
+              <label>Reserve (laps)<input type="number" id="calcReserve" min="0" step="0.5" value="1"></label>
+              <dl class="rows">
+                <dt>Laps to go used</dt><dd id="calcUsed">—</dd>
+                <dt>Fuel needed</dt><dd id="calcNeed">—</dd>
+                <dt>In the tank</dt><dd id="calcTank">—</dd>
+                <dt>To add at the stop</dt><dd id="calcAdd">—</dd>
+                <dt>Latest pit lap</dt><dd id="calcPit">—</dd>
+              </dl>
+            </div>
+          </div>
+        </section>
+        <section class="panel mod" data-mod="gaps"><div class="ph">Gaps</div>
+          <div class="m-gaps"><div class="m-big" id="gapPos">—</div>
+            <dl class="mini"><dt>Ahead</dt><dd id="gapAhead">—</dd><dt>Behind</dt><dd id="gapBehind">—</dd><dt>Last</dt><dd id="gapLast">—</dd><dt>Best</dt><dd id="gapBest">—</dd></dl></div>
+        </section>
+        <section class="panel mod" data-mod="weather"><div class="ph">Track &amp; weather</div>
+          <div class="m-weather">
+            <div class="rain" id="rain"></div>
+            <dl class="mini"><dt>Grip</dt><dd id="wGrip">—</dd><dt>Air</dt><dd id="wAir">—</dd><dt>Track</dt><dd id="wRoad">—</dd></dl>
+          </div>
+        </section>
+        <section class="panel mod" data-mod="tyres"><div class="ph">Tyres<span class="r" id="tyInfo"></span></div>
+          <div class="m-tyres">
+            <div class="car" id="tyCar"></div>
+            <dl class="mini"><dt>Laps this stint</dt><dd id="stint">—</dd><dt>Tyre set</dt><dd id="tySet">—</dd></dl>
+            <p class="na">ACC does not publish tyre wear: Degradation shows what the tyres cost in lap time.</p>
+          </div>
+        </section>
+        <section class="panel mod" data-mod="degradation"><div class="ph">Degradation<span class="r" id="degInfo"></span></div>
+          <div class="m-chart" id="degChart"><div class="empty">Lap times of the stint appear after two laps.</div></div>
+        </section>
+        <section class="panel mod" data-mod="brakes"><div class="ph">Brake pads<span class="r" id="brInfo"></span></div>
+          <div class="m-brakes" id="brGrid"><div class="empty">Waiting for the driver.</div></div>
+        </section>
+        <section class="panel mod pit" data-mod="pitstop"><div class="ph">Next pit stop<span class="r"><span class="dot" id="pitDot"></span><span id="pitLink">no pit control</span></span></div>
+          <div class="pit-grid">
+            <table class="pit-tab">
+              <thead><tr><th></th><th>MFD now</th><th>Plan</th><th>Last sent</th></tr></thead>
+              <tbody>
+                <tr><td>Fuel to add</td><td id="mfdFuel">—</td><td><input type="number" id="pFuel" min="0" max="150" step="1" aria-label="Fuel to add, litres"> L <button class="linkbtn" id="pFuelCalc" type="button">use fuel to finish</button></td><td data-r="fuel"></td></tr>
+                <tr><td>Change tyres</td><td class="na">not published</td><td><input type="checkbox" id="pTyres" aria-label="Change tyres"></td><td data-r="tyres"></td></tr>
+                <tr><td>Compound</td><td class="na">not published</td><td><select id="pCompound" aria-label="Compound"><option value="dry">Dry</option><option value="wet">Wet</option></select></td><td data-r="compound"></td></tr>
+                <tr><td>Tyre set</td><td id="mfdSet">—</td><td><input type="number" id="pSet" min="1" max="50" step="1" aria-label="Tyre set"></td><td data-r="tyre_set"></td></tr>
+                <tr><td>Pressure FL</td><td id="mfdFL">—</td><td><input type="number" id="pFL" min="15" max="40" step="0.1" aria-label="Pressure front left, psi"> psi</td><td data-r="fl"></td></tr>
+                <tr><td>Pressure FR</td><td id="mfdFR">—</td><td><input type="number" id="pFR" min="15" max="40" step="0.1" aria-label="Pressure front right, psi"> psi</td><td data-r="fr"></td></tr>
+                <tr><td>Pressure RL</td><td id="mfdRL">—</td><td><input type="number" id="pRL" min="15" max="40" step="0.1" aria-label="Pressure rear left, psi"> psi</td><td data-r="rl"></td></tr>
+                <tr><td>Pressure RR</td><td id="mfdRR">—</td><td><input type="number" id="pRR" min="15" max="40" step="0.1" aria-label="Pressure rear right, psi"> psi</td><td data-r="rr"></td></tr>
+                <tr><td>Change brakes</td><td class="na">not published</td><td><input type="checkbox" id="pBrakes" aria-label="Change brake pads"></td><td data-r="brakes"></td></tr>
+                <tr><td>Front pads</td><td class="na">not published</td><td><select id="pFpad" aria-label="Front pad compound"><option>1</option><option>2</option><option>3</option><option>4</option></select></td><td data-r="front_pad"></td></tr>
+                <tr><td>Rear pads</td><td class="na">not published</td><td><select id="pRpad" aria-label="Rear pad compound"><option>1</option><option>2</option><option>3</option><option>4</option></select></td><td data-r="rear_pad"></td></tr>
+                <tr><td>Repair suspension</td><td class="na">not published</td><td><label class="check"><input type="checkbox" id="pFlipSusp">switch yes/no</label></td><td data-r="flip_suspension"></td></tr>
+                <tr><td>Repair bodywork</td><td class="na">not published</td><td><label class="check"><input type="checkbox" id="pFlipBody">switch yes/no</label></td><td data-r="flip_bodywork"></td></tr>
+              </tbody>
+            </table>
+            <div class="pit-side">
+              <button class="primary" id="pitApply" type="button">Send to driver</button>
+              <button class="btn" id="pitCopy" type="button">Copy MFD into plan</button>
+              <p class="note" id="pitMsg" role="status">The plan is typed into the driver's pit page with ACC's own MFD keys. Fuel, tyre set and pressures are read back from the game; the rest ACC does not publish.</p>
+              <p class="note">Current set <b id="mfdCur">—</b> · next by strategy <b id="mfdNext">—</b></p>
+            </div>
+          </div>
+        </section>
+        <section class="panel mod" data-mod="electronics"><div class="ph">Setup &amp; electronics</div>
           <dl class="rows">
             <dt>Brake bias</dt><dd id="bias">—</dd>
             <dt>TC</dt><dd id="tc">—</dd>
@@ -175,13 +212,13 @@
             <dt>Engine map</dt><dd id="map_">—</dd>
           </dl>
         </section>
-        <section class="panel"><div class="ph">Forces &amp; damage</div>
+        <section class="panel mod" data-mod="damage"><div class="ph">Forces &amp; damage</div>
           <dl class="rows">
             <dt>Lateral G</dt><dd id="gLat">—</dd>
             <dt>Longitudinal G</dt><dd id="gLon">—</dd>
             <dt>Steering</dt><dd id="steer">—</dd>
           </dl>
-          <div class="chips" id="damage" style="margin-top:12px"></div>
+          <div class="chips" id="damage"></div>
         </section>
       </div>
     </div>
@@ -285,6 +322,7 @@
 <script src="js/recorder.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/views.js"></script>
+<script src="js/board.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
