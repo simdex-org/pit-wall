@@ -7,7 +7,8 @@ when the engineer sends a pit plan, sets it in the game's pit page
 (acc_pit.py). Sending a plan needs the access key printed at start; watching
 does not.
 
-    python server/bridge.py                          # http://0.0.0.0:8765, reachable over the VPN
+    python server/bridge.py                          # this PC only; it prints how to open it to the VPN
+    python server/bridge.py --http 25.1.2.3:8765     # the driver's Hamachi address: the engineer can connect
     python server/bridge.py --simulate-acc --key demo   # a pretend session, no game needed
 
 Standard library only.
@@ -16,6 +17,7 @@ import argparse
 import functools
 import hmac
 import http.server
+import ipaddress
 import json
 import os
 import secrets
@@ -95,7 +97,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def host_ok(self):
+        """Only requests addressed to an IP or localhost: a page on some other site that rebinds its DNS name
+        to this PC sends its own name as Host, and is turned away."""
+        h = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
+        try:
+            ipaddress.ip_address(h)
+            return True
+        except ValueError:
+            return h == "localhost"
+
     def do_POST(self):
+        if not self.host_ok():
+            return self.reply(403, "use the PC's IP address")
         if self.path != "/pit":
             return self.reply(404, "not found")
         if not hmac.compare_digest(self.headers.get("X-Pit-Key", "").encode(), PIT["key"].encode()):
@@ -115,6 +129,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.reply(202, "applying")
 
     def do_GET(self):
+        if not self.host_ok():
+            return self.reply(403, "use the PC's IP address")
         if self.path.startswith("/events"):
             return self.events()
         if self.path == "/":
@@ -152,9 +168,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--http", default="0.0.0.0:8765", help="where the page is served (default 0.0.0.0:8765: this PC and the VPN)")
+    ap.add_argument("--http", default="127.0.0.1:8765", help="where the page is served: this PC's VPN address and a port (default 127.0.0.1:8765, this PC only)")
     ap.add_argument("--no-browser", action="store_true", help="do not open the page automatically")
-    ap.add_argument("--key", default=secrets.token_urlsafe(6), help="access key for sending pit plans (default: a new one each start)")
+    ap.add_argument("--key", default=secrets.token_urlsafe(16), help="access key for sending pit plans (default: a new one each start)")
     ap.add_argument("--pit-key", default="p", help="ACC's key for the pitstop MFD page (default p)")
     ap.add_argument("--key-ms", type=int, default=40, help="how long each key is held and released, ms (default 40)")
     ap.add_argument("--simulate-acc", action="store_true", help="a pretend session and pit page instead of the game, to try the dashboard")
@@ -175,11 +191,14 @@ def main():
     hh, hp = args.http.rsplit(":", 1)
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
     server = http.server.ThreadingHTTPServer((hh, int(hp)), functools.partial(Handler, directory=here))
-    hosts = sorted({a[4][0] for a in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)} | {"127.0.0.1"}) if hh == "0.0.0.0" else [hh]
     print(f"Pit Wall on {args.http}   (Ctrl+C to stop)")
-    print("Engineer, open one of these (the Hamachi one is 25.x.x.x):")
-    for h in hosts:
-        print(f"    http://{h}:{hp}/?key={args.key}")
+    if hh in ("127.0.0.1", "localhost"):
+        ips = sorted({a[4][0] for a in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)} - {"127.0.0.1"})
+        print("Only this PC can open it. For the engineer, start it on your VPN address (Hamachi's is 25.x.x.x):")
+        for ip in sorted(ips, key=lambda ip: not ip.startswith("25.")):
+            print(f"    python server/bridge.py --http {ip}:{hp}")
+    else:
+        print(f"Engineer, open:   http://{hh}:{hp}/?key={args.key}")
     if not args.no_browser:
         webbrowser.open(f"http://{'127.0.0.1' if hh == '0.0.0.0' else hh}:{hp}/?key={args.key}")
     try:

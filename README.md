@@ -83,9 +83,15 @@ The engineer's browser reaches the driver's PC on port **8765** over the VPN. No
 2. **Driver:** *Network → Create a new network*. Choose a network ID and a password.
 3. **Engineer:** *Network → Join an existing network* with that ID and password.
 4. On the driver's PC, the **IPv4 address** at the top of the Hamachi window (`25.x.x.x`) is the address the engineer will use.
-5. **Driver, Windows firewall:** Windows usually files the Hamachi network as *Public*. The first time `bridge.py` starts,
-   Windows asks whether to allow Python: tick **Public** as well as Private. If the question was dismissed:
-   *Windows Security → Firewall → Allow an app through firewall → Python → tick Public*.
+5. **Driver, Windows firewall:** Windows files the Hamachi network as *Public*, and opening Python to every public network
+   (café Wi-Fi included) is not what you want. Mark only Hamachi as private instead, once, in PowerShell **run as administrator**:
+
+   ```powershell
+   Set-NetConnectionProfile -InterfaceAlias "Hamachi" -NetworkCategory Private
+   ```
+
+   Then, the first time `bridge.py` starts, allow Python on **Private** networks only. Hamachi may need the command again after it
+   reinstalls its adapter. (ZeroTier's and Tailscale's adapters are named differently: `Get-NetConnectionProfile` lists them.)
 
 Using **ZeroTier** instead: create a network at my.zerotier.com, join it from both PCs with its network ID, tick *Auth* for both
 members, and use the driver's ZeroTier address. With **Tailscale**: sign both PCs into the same account (or share the machine)
@@ -93,21 +99,21 @@ and use the driver's `100.x.x.x` address. Everything else is the same.
 
 ## Driver: running it
 
-1. Start the bridge, in a terminal in this folder:
+1. Start the bridge on your Hamachi address (the `25.x.x.x` at the top of the Hamachi window), in a terminal in this folder:
 
    ```bash
-   python server/bridge.py
+   python server/bridge.py --http 25.40.144.183:8765
    ```
 
-   It prints the links for the engineer, one per network address, for example:
+   It then listens on the VPN only, not on your other networks. (Started without `--http` it is reachable from this PC only,
+   and it prints the exact command with your address.) It prints the link for the engineer:
 
    ```
-   Engineer, open one of these (the Hamachi one is 25.x.x.x):
-       http://25.40.144.183:8765/?key=Xq3v9MFa
+   Engineer, open:   http://25.40.144.183:8765/?key=4oX0dSGyk-ZpSt5I3lZq0w
    ```
 
-   Send the engineer the `25.x.x.x` link. The **key** is what allows sending pit plans; it changes on every start unless you fix it
-   with `--key something-long`. Without the key the dashboard can be watched but not used to change anything.
+   Send the engineer that link. The **key** is what allows sending pit plans; it changes on every start unless you fix it
+   with `--key something-long`. Without the key the dashboard can be watched by members of your VPN network but not used to change anything.
 
 2. Start ACC and drive. The terminal says when it sees the session (`ACC: ferrari_296_gt3 at nurburgring_24h, … driving`).
    Keep ACC as the focused window.
@@ -152,7 +158,7 @@ Self-tests:
 
 | Option | Default | What it is |
 |---|---|---|
-| `--http HOST:PORT` | `0.0.0.0:8765` | Where the dashboard is served. The default is this PC and every network it is on, the VPN included. `127.0.0.1:8765` keeps it on this PC. |
+| `--http HOST:PORT` | `127.0.0.1:8765` | Where the dashboard is served. Give your VPN address (`25.x.x.x:8765`) so the engineer can connect; the default is this PC only. |
 | `--key KEY` | new random key each start | Access key needed to send pit plans. |
 | `--pit-key KEY` | `p` | ACC's key for the pitstop MFD page: one character or `F1`–`F24`. |
 | `--key-ms MS` | `40` | How long each key is held, and the pause after it. Raise it (60–80) if ACC misses presses at a low frame rate. |
@@ -163,7 +169,8 @@ Self-tests:
 
 | Symptom | Cause and fix |
 |---|---|
-| Engineer's browser cannot connect | Hamachi shows the driver offline, or the firewall blocks Python on Public networks (see above). |
+| Engineer's browser cannot connect | The bridge was started without `--http 25.x.x.x:8765`, Hamachi shows the driver offline, or the Hamachi network is still *Public* in Windows (see the firewall step). |
+| *Use the PC's IP address* | The page was opened by a host name; open it by the IP address instead (`http://25.x.x.x:8765/…`). |
 | Dashboard opens but stays on *Waiting for ACC* | ACC is not in a session (still in the menus), or the bridge runs on a different PC from ACC. The bridge's terminal says when it sees ACC. |
 | *Next pit stop* says **ACC not running** | Same as above: the pit page is only there during a session. |
 | *Failed: ACC is not the focused window* | The driver alt-tabbed, or a notification took focus. Click into ACC and send again. |
