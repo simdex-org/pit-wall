@@ -52,6 +52,10 @@ Limits, plainly:
 - **Applying a plan takes about 15 to 30 seconds**: it first finds out how the pit page is laid out
   (Strategy row or not, tyres changing or not, wet or dry, brakes changing or not), then sets each value
   and reads it back. The driver sees the MFD moving; they should not use the MFD keys meanwhile.
+- **Driving on keyboard and mouse works**: a key pressed by the program makes ACC forget the gas, brake and steering keys the driver
+  is holding, so each MFD press presses the driver's held keys again, and lets go of them the instant the driver lets go of the real
+  key. To know which are held, the program watches only those keys (W, A, S, D and the gas, brake and steering keys in ACC's
+  `controls.json`) with a keyboard hook; nothing else typed is seen. A few antivirus programs dislike keyboard hooks.
 - **The arrow keys and P must be ACC's MFD keys** (they are by default). If the driver rebound them,
   pass the pitstop key with `--pit-key`. Arrow keys must not be bound to anything else.
 - Changes apply **without the driver confirming**: the engineer presses *Send to driver* and it happens.
