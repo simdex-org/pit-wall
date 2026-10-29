@@ -9,7 +9,7 @@ Pit Wall: a live browser dashboard for the "engineer" watching a driver in Asset
 ## Run
 
 ```
-python server/bridge.py                               # on the driver's PC: reads ACC, serves http://0.0.0.0:8765, opens browser
+python server/bridge.py --http 25.x.x.x:8765          # on the driver's PC, on its VPN address; without --http: 127.0.0.1 only
 python server/bridge.py --simulate-acc --key demo     # a pretend session and pit page, no game needed
 python server/acc_telemetry.py; python server/acc_pit.py   # self-tests
 ```
@@ -25,7 +25,7 @@ Data flow: ACC shared memory --> `acc_telemetry.py` (in `bridge.py`, 30 Hz) --SS
 - **web/data/tracks.js** defines `window.TRACKS`; currently only `nurburgring_24h` (`box`, `loop` = 800 uniformly spaced points with index 0 = start/finish in driving direction, plus `pit` and `labels`). The car is placed by `session.track_position` (0..1) indexed into `loop`. `trackFor()` in charts.js maps `fixed.track` names to entries; for unknown tracks the map is learned from `car_position_m` (x, z) as the car laps.
 
 - **acc_pit.py** sets ACC's pitstop MFD by sending scan-code key presses (pit key twice = cursor on the first row, then arrows; Up wraps to the last row) and reads `mfdFuelToAdd`/`mfdTyreSet`/`mfdTyrePressure*` back from `Local\acpmf_graphics` (offsets at the top of the file). `apply()` first discovers the layout with `probe()` (one step and back, watching what changes), then steers each value. `FakeMfd` mirrors the layout for the self-test and `--simulate-acc`; keep it in step with `apply()`. Keys are only sent while `AC2-Win64-Shipping.exe` is the foreground window.
-- **POST /pit** needs the `X-Pit-Key` header (`--key`, random per start); the page takes it from `?key=` and keeps it in localStorage. SSE payloads carry `pit` (MFD snapshot) and `pit_job` (running/done/error with per-field results). The pit panel is on the Strategy tab (`renderPit` in views.js).
+- Every request must be addressed to an IP or `localhost` (`host_ok`, against DNS rebinding). **POST /pit** needs the `X-Pit-Key` header (`--key`, 128-bit random per start); the page takes it from `?key=` and keeps it in localStorage. SSE payloads carry `pit` (MFD snapshot) and `pit_job` (running/done/error with per-field results). The pit panel is on the Strategy tab (`renderPit` in views.js).
 
 ## Notes
 
