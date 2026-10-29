@@ -9,19 +9,23 @@ straight into the driver's game.
 
 ![Live view: gear, speed, pedals, lap timing, fuel, channel traces, track map and the engineer's advice](docs/live.png)
 
-No framework, no build, no install beyond Python. Telemetry comes from
-[Pro Engineer](https://github.com/Rgosh/ac-pro-engineer), which runs on the driver's PC.
+Everything it needs is in this repository: it reads ACC's telemetry itself. No framework, no build,
+nothing to install but Python.
 
 ---
 
 ## How it works, and what ACC allows
 
 ```
- DRIVER'S PC                                                     ENGINEER'S PC
- ACC ── shared memory ──> Pro Engineer ──UDP 127.0.0.1:9001──> server/bridge.py ══ Hamachi ══> browser
-  ^                                                              │  (HTTP :8765)                  │
-  └──── MFD key presses (P, arrows) <── server/acc_pit.py <──────┘ <──── pit plan (with key) ─────┘
+ DRIVER'S PC                                                          ENGINEER'S PC
+ ACC ── shared memory ──> server/bridge.py (telemetry, advice, HTTP :8765) ══ Hamachi ══> browser
+  ^                               │                                                        │
+  └── MFD key presses (P, arrows) <── server/acc_pit.py <────── pit plan (with key) ──────┘
 ```
+
+`server/bridge.py` runs on the driver's PC. It reads ACC's shared memory 30 times a second
+(`server/acc_telemetry.py`), works out the laps, sectors, stint, fuel per lap and the engineer's advice,
+and serves the dashboard to the engineer's browser.
 
 ACC has **no API to write the pit strategy**. Its shared memory and its broadcasting API are read-only.
 So pit control does what the driver would do with the keyboard: on the driver's PC it opens the
@@ -51,9 +55,12 @@ Limits, plainly:
 - **The arrow keys and P must be ACC's MFD keys** (they are by default). If the driver rebound them,
   pass the pitstop key with `--pit-key`. Arrow keys must not be bound to anything else.
 - Changes apply **without the driver confirming**: the engineer presses *Send to driver* and it happens.
-- The page layout was taken from how ACC 1.9/1.10 lays out the pitstop MFD and how
-  [Simulator Controller](https://github.com/SeriousOldMan/Simulator-Controller) drives it. It is tested
-  against a simulated MFD covering every layout (`python server/acc_pit.py`). **Test it once in a practice session before a race.**
+- The engineer's advice uses GT3 numbers: hot pressures 26.0–27.0 psi dry and 29.5–31.0 psi wet, brakes hot above 750 °C,
+  pads low under 12 mm. Other classes need their own (`server/acc_telemetry.py`).
+- The pit page layout was taken from how ACC 1.9/1.10 lays out the pitstop MFD and how
+  [Simulator Controller](https://github.com/SeriousOldMan/Simulator-Controller) describes driving it. Telemetry and pit control are
+  tested against a simulated session and a simulated MFD covering every layout (the self-tests below), not yet in a live race.
+  **Test it once in a practice session before a race.**
 
 ---
 
@@ -62,8 +69,7 @@ Limits, plainly:
 **Driver's PC** (Windows; ACC runs here):
 
 1. [Python 3.8 or newer](https://www.python.org/downloads/) (the Microsoft Store build works too).
-2. [Pro Engineer](https://github.com/Rgosh/ac-pro-engineer/releases) with the game set to *Assetto Corsa Competizione* on its launcher.
-3. This repository: *Code → Download ZIP* and unzip it, or `git clone https://github.com/simdex-org/pit-wall`.
+2. This repository: *Code → Download ZIP* and unzip it, or `git clone https://github.com/simdex-org/pit-wall`.
 
 **Engineer's PC**: only a browser.
 
@@ -87,20 +93,10 @@ and use the driver's `100.x.x.x` address. Everything else is the same.
 
 ## Driver: running it
 
-1. In Pro Engineer's config file, `%APPDATA%\RaceEngineer\RaceEngineer\config\config.json`, send the session to this PC
-   and leave Pro Engineer's own receiver off, so port 9001 is free for the bridge:
-
-   ```json
-   "overlay": { "broadcast_to": "127.0.0.1:9001", "broadcast_enabled": true, "receive_enabled": false },
-   "lan": { "mode": "Share" }
-   ```
-
-   (Before, it may have pointed at the engineer's Hamachi address. Now the engineer connects to you instead.)
-
-2. Start the bridge, in a terminal in this folder:
+1. Start the bridge, in a terminal in this folder:
 
    ```bash
-   python server/bridge.py --udp 127.0.0.1:9001 --http 0.0.0.0:8765
+   python server/bridge.py
    ```
 
    It prints the links for the engineer, one per network address, for example:
@@ -113,12 +109,15 @@ and use the driver's `100.x.x.x` address. Everything else is the same.
    Send the engineer the `25.x.x.x` link. The **key** is what allows sending pit plans; it changes on every start unless you fix it
    with `--key something-long`. Without the key the dashboard can be watched but not used to change anything.
 
-3. Start Pro Engineer and ACC, and drive. Keep ACC as the focused window.
+2. Start ACC and drive. The terminal says when it sees the session (`ACC: ferrari_296_gt3 at nurburgring_24h, … driving`).
+   Keep ACC as the focused window.
 
 ## Engineer: using it
 
 1. Open the link the driver sent (`http://25.x.x.x:8765/?key=…`). The key is remembered by the browser, so later the plain address works.
-2. The dashboard opens as soon as the driver is on track: **Live**, **Tyres & brakes**, **Strategy**, **Laps**, **Compare**, **Log & notes**. Number keys 1–7 switch tabs.
+2. The dashboard opens as soon as the driver is in a session: **Live**, **Tyres & brakes**, **Strategy**, **Laps**, **Compare**, **Log & notes**.
+   Number keys 1–7 switch tabs. The **Engineer** panel at the bottom has the advice (pressures, cold tyres, brake heat, pads, fuel,
+   fuel to the flag in a race, damage), and **Laps** has a debrief of the last three laps.
 3. **Strategy → Next pit stop:**
    - **MFD now** is what the driver's pit page holds right now, read from the game.
    - **Plan** is the next stop. *Copy MFD into plan* starts from the current values; *use fuel to finish* takes the
@@ -137,12 +136,15 @@ The dashboard also works on a phone or tablet.
 python server/bridge.py --simulate-acc --key demo
 ```
 
-opens the dashboard against a pretend pit page, so the whole pit stop panel can be used without ACC. Telemetry
-still needs Pro Engineer sending to UDP 9001.
+runs a pretend session (a Ferrari 296 GT3 lapping the Nürburgring 24h) and a pretend pit page, so the whole dashboard,
+pit stop panel included, can be used without ACC.
 
-`python server/acc_pit.py` is the self-test: it applies several plans to a simulated pit page in every layout ACC can
-show (with and without a Strategy row, tyres changing or not, dry or wet, brakes changing or not, with and without a Driver row)
-and checks the result.
+Self-tests:
+
+- `python server/acc_telemetry.py` drives simulated laps through the telemetry: laps, sectors that add up to the lap time,
+  fuel per lap, the debrief and the advice.
+- `python server/acc_pit.py` applies several plans to a simulated pit page in every layout ACC can show (with and without a
+  Strategy row, tyres changing or not, dry or wet, brakes changing or not, with and without a Driver row) and checks the result.
 
 ## Command line
 
@@ -150,43 +152,40 @@ and checks the result.
 
 | Option | Default | What it is |
 |---|---|---|
-| `--udp HOST:PORT` | `0.0.0.0:9001` | Where Pro Engineer's UDP arrives. On the driver's PC: `127.0.0.1:9001`. |
-| `--http HOST:PORT` | `127.0.0.1:8765` | Where the dashboard is served. `0.0.0.0:8765` makes it reachable over the VPN. |
+| `--http HOST:PORT` | `0.0.0.0:8765` | Where the dashboard is served. The default is this PC and every network it is on, the VPN included. `127.0.0.1:8765` keeps it on this PC. |
 | `--key KEY` | new random key each start | Access key needed to send pit plans. |
 | `--pit-key KEY` | `p` | ACC's key for the pitstop MFD page: one character or `F1`–`F24`. |
 | `--key-ms MS` | `40` | How long each key is held, and the pause after it. Raise it (60–80) if ACC misses presses at a low frame rate. |
-| `--simulate-acc` | off | A pretend pit page instead of the game. |
+| `--simulate-acc` | off | A pretend session and pit page instead of the game. |
 | `--no-browser` | off | Do not open the dashboard on this PC. |
-
-The older setup still works: run `python server/bridge.py` on the engineer's PC and point Pro Engineer's `broadcast_to`
-at it. That only watches; pit control needs the bridge on the driver's PC.
 
 ## Troubleshooting
 
 | Symptom | Cause and fix |
 |---|---|
-| Engineer's browser cannot connect | The bridge was started without `--http 0.0.0.0:8765`, Hamachi shows the driver offline, or the firewall blocks Python on Public networks (see above). |
-| Dashboard opens but says *Waiting for the driver* | Pro Engineer is not sending to `127.0.0.1:9001`, or another program owns port 9001. The bridge's terminal says every 5 s whether anything arrives. |
-| *Next pit stop* says **ACC not running** | ACC is not in a session on the driver's PC, or the bridge runs on a different PC from ACC. |
+| Engineer's browser cannot connect | Hamachi shows the driver offline, or the firewall blocks Python on Public networks (see above). |
+| Dashboard opens but stays on *Waiting for ACC* | ACC is not in a session (still in the menus), or the bridge runs on a different PC from ACC. The bridge's terminal says when it sees ACC. |
+| *Next pit stop* says **ACC not running** | Same as above: the pit page is only there during a session. |
 | *Failed: ACC is not the focused window* | The driver alt-tabbed, or a notification took focus. Click into ACC and send again. |
 | *Failed: could not find the tyre rows* | The pitstop key opened something else. Check ACC's *Controls → MFD Pitstop* binding and pass it with `--pit-key`. |
 | Values land one row off, or presses are missed | Raise `--key-ms` to 60 or 80. |
 | *Wrong or missing access key* | Open the link with `?key=…` the bridge printed this time; the key changes on every start unless `--key` is given. |
+| Brake bias reads a few points off the in-game figure | ACC publishes the raw bias; the game adds a per-car offset to what it displays. |
 
 ## Project layout
 
 ```
-server/bridge.py     UDP in, dashboard + Server-Sent Events out, POST /pit
-server/acc_pit.py    ACC pit page: shared memory reader, MFD key presses, the plan logic, self-test
-web/                 index.html, css/app.css, js/*.js, data/tracks.js
-docs/                screenshots
+server/bridge.py         dashboard + Server-Sent Events out, POST /pit in
+server/acc_telemetry.py  ACC shared memory reader, laps/sectors/stint/fuel, the engineer's advice and debrief, self-test
+server/acc_pit.py        ACC pit page: MFD key presses, reading it back, the plan logic, self-test
+web/                     index.html, css/app.css, js/*.js, data/tracks.js
+docs/                    screenshots
 ```
 
-Python standard library only, Windows for pit control (watching works anywhere).
+Python standard library only. Windows, since that is where ACC runs.
 
 ## Credits
 
-- Telemetry and advice: [Pro Engineer](https://github.com/Rgosh/ac-pro-engineer) by Rgosh.
-- How ACC's pitstop MFD is laid out and navigated: [Simulator Controller](https://github.com/SeriousOldMan/Simulator-Controller).
 - Shared memory layout: Kunos' *ACC Shared Memory Documentation* 1.8.12.
+- How ACC's pitstop MFD is laid out and navigated: [Simulator Controller](https://github.com/SeriousOldMan/Simulator-Controller).
 - Nürburgring 24h layout traced from Wikimedia Commons *Circuit Nürburgring-2002-24h.svg* (Pitlane02, CC BY-SA 3.0).
