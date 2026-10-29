@@ -27,7 +27,7 @@ const fmtDelta = ms => (ms == null || !isFinite(ms)) ? '—' : (Math.abs(ms) < 0
 const fmtClock = ms => { if (ms == null || ms < 0 || ms > 1e9) return '—'; const s = Math.floor(ms/1000); return `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; };
 const f1 = v => (v == null ? '—' : (+v).toFixed(1));
 const hms = d => d.toLocaleTimeString([], {hour12:false});
-const unit = (v, u) => `${v}<span class="u">${u}</span>`;
+const unit = (v, u) => `${esc(v)}<span class="u">${u}</span>`;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]));
 

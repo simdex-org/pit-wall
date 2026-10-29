@@ -72,10 +72,16 @@ function renderWelcome(){
 $('wEnter').addEventListener('click', enterApp);
 
 // ---------- SSE ----------
+// The UDP feed is unauthenticated and its values reach innerHTML, so only these keys may stay strings;
+// every other string becomes a number (NaN if it is not one) before anything reads it.
+const TEXT_KEYS = new Set(['what', 'from', 'magic', 'game', 'driver', 'app_version', 'car_model', 'track', 'track_config', 'driver_name', 'kind', 'status', 'compound', 'text']);
+const numbersOnly = (o, k) => typeof o === 'string' ? (TEXT_KEYS.has(k) ? o : Number(o))
+  : Array.isArray(o) ? o.map(v => numbersOnly(v, k)) : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([kk, v]) => [kk, numbersOnly(v, kk)])) : o;
 function connect(){
   const es = new EventSource('/events');
   es.onmessage = e => {
     const p = JSON.parse(e.data);
+    p.reading = numbersOnly(p.reading); p.summary = numbersOnly(p.summary);
     ages = {r:p.reading_age_ms, s:p.summary_age_ms, peer:p.peer}; if (p.udp) $('wUdp').textContent = p.udp.split(':').pop();
     if (p.summary) summary = p.summary;
     pit = p.pit; onPitJob(p.pit_job);

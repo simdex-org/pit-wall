@@ -108,7 +108,7 @@ async function importLaps(file){
   for (const l of j.laps) {
     if (!l.data || !LCH.every(k => Array.isArray(l.data[k]) && l.data[k].length === NB)) continue;
     const id = `import-${file.name}-${l.n}-${l.ms}`; if (laps.some(x => x.id === id)) continue;
-    laps.push({id, n:l.n, ms:l.ms, valid:l.valid !== false, src:'import', label:l.label || file.name.replace(/\.json$/i, ''), data:Object.fromEntries(LCH.map(k => [k, Float32Array.from(l.data[k])]))}); added++;
+    laps.push({id, n:+l.n, ms:+l.ms, valid:l.valid !== false, src:'import', label:l.label || file.name.replace(/\.json$/i, ''), data:Object.fromEntries(LCH.map(k => [k, Float32Array.from(l.data[k])]))}); added++;
   }
   lapsVer++; return added ? `Imported ${added} lap${added > 1 ? 's' : ''}.` : 'No new laps in that file.';
 }
