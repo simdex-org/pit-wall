@@ -52,8 +52,8 @@ Limits, plainly:
 - **Applying a plan takes about 15 to 30 seconds**: it first finds out how the pit page is laid out
   (Strategy row or not, tyres changing or not, wet or dry, brakes changing or not), then sets each value
   and reads it back. The driver sees the MFD moving; they should not use the MFD keys meanwhile.
-- **Driving on keyboard and mouse**: a key typed into the MFD makes ACC forget the gas, brake and steering keys the driver is holding.
-  So the program only types while the driver holds none of them (lifting before a braking zone, coasting into a corner) and waits
+- **Driving on keyboard and mouse**: use **vJoy** (below). Without it, a key typed into the MFD makes ACC forget the gas, brake and
+  steering keys the driver is holding, so the program only types while the driver holds none of them (lifting before a braking zone, coasting into a corner) and waits
   otherwise; the dashboard then says *applying, waiting for the driver to lift*. A plan can take a lap or two to go in this way, so send
   it early. A driving key pressed in the middle of an MFD keypress is pressed again until it is let go. To know which keys are held,
   the program watches only those (W, A, S, D and the gas, brake and steering keys in ACC's `controls.json`) with a keyboard hook;
@@ -124,6 +124,30 @@ and use the driver's `100.x.x.x` address. Everything else is the same.
 2. Start ACC and drive. The terminal says when it sees the session (`ACC: ferrari_296_gt3 at nurburgring_24h, … driving`).
    Keep ACC as the focused window.
 
+### Driving on keyboard and mouse: vJoy
+
+Keys the program types into the MFD reach ACC as another keyboard, and ACC then forgets the gas and brake keys the driver is
+holding. A virtual controller avoids that: the MFD buttons are pressed on it, and the driver's keyboard is never touched.
+
+1. Install [vJoy](https://github.com/BrunnerInnovation/vJoy/releases) (free, open source). In *Configure vJoy*, device 1 needs at least
+   5 buttons (the default 8 is fine).
+2. Bind ACC's MFD to it, once. In a terminal in this folder:
+
+   ```bash
+   python server/acc_pit.py --bind-vjoy
+   ```
+
+   Switch to ACC, *Options → Controls*, and find the MFD actions. After 10 seconds the program presses each vJoy button for 10 seconds,
+   announced by beeps: 1 beep **MFD pitstop page** (button 1), 2 beeps **MFD up** (2), 3 **MFD down** (3), 4 **MFD left** (4),
+   5 **MFD right** (5). When you hear the beeps, click that action's binding in ACC; the button binds itself. Save the controls.
+3. Start the bridge with `--vjoy`:
+
+   ```bash
+   python server/bridge.py --http 25.x.x.x:8765 --vjoy
+   ```
+
+   The keyboard MFD keys stay bound too, so the driver can still use them.
+
 ## Engineer: using it
 
 1. Open the link the driver sent (`http://25.x.x.x:8765/?key=…`). The key is remembered by the browser, so later the plain address works.
@@ -188,6 +212,7 @@ Self-tests:
 | `--key KEY` | new random key each start | Access key needed to send pit plans. |
 | `--pit-key KEY` | `p` | ACC's key for the pitstop MFD page: one character or `F1`–`F24`. |
 | `--key-ms MS` | `40` | How long each key is held, and the pause after it. Raise it (60–80) if ACC misses presses at a low frame rate. |
+| `--vjoy [N]` | off | Press the MFD through vJoy device N (1 if not given) instead of the keyboard. For keyboard-and-mouse drivers. |
 | `--simulate-acc` | off | A pretend session and pit page instead of the game. |
 | `--no-browser` | off | Do not open the dashboard on this PC. |
 
