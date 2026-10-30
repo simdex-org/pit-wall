@@ -103,7 +103,6 @@ svg.spark circle{fill:var(--txt)}
 .dg-wrap text{font:500 var(--t-xs) var(--num);fill:var(--dim)}
 
 /* ---------- pit stop plan ---------- */
-<<<<<<< HEAD
 .pp{container-type:inline-size;display:flex;flex-direction:column;gap:12px}
 .pp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:1;background:var(--panel);padding:12px 16px;border-bottom:1px solid var(--line)}
 .pp-state{font-size:var(--t-lg);font-weight:600;color:var(--txt);margin:0}
@@ -141,23 +140,6 @@ svg.spark circle{fill:var(--txt)}
 .pr.pp-new{background:var(--warn-soft);box-shadow:inset 2px 0 0 var(--warn)}
 .pp-foot{display:flex;flex-direction:column;gap:6px}
 .pp-foot .note{margin:0}
-=======
-.pp{flex-wrap:nowrap}
-.pp>.tt{flex:1 1 auto}
-.pp-side{flex:0 0 220px;position:sticky;top:0}
-.pp-t td.pp-in{white-space:nowrap}
-.pp-t tr.tt-group .send{margin-left:12px}   /* beside the block's name, so it stays in view when the table scrolls on a phone */
-.pp-t td.pp-in input[type=number]{width:9ch;text-align:right;appearance:textfield;-moz-appearance:textfield}   /* no spinner: 4-5 mono digits fit */
-.pp-t input[type=number]::-webkit-inner-spin-button,.pp-t input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-.pp-t .pp-ci{width:30%}.pp-t .pp-cn{width:14%}.pp-t .pp-cp{width:20%}.pp-t .pp-cc{width:20%}.pp-t .pp-cr{width:16%}
-.pp-t caption.pp-np{caption-side:bottom;text-align:left;padding-top:6px}
-.pp-t tr.pp-new>td{background:var(--warn-soft)}
-.pp-t tr.pp-new>td:first-child{box-shadow:inset 2px 0 0 var(--warn)}
-.pp-state{font-weight:600;color:var(--txt)}
-.pp-confirm{border:1px solid var(--warn);padding:8px;display:flex;flex-direction:column;gap:8px;font-size:var(--t-sm)}
-.pp-acts{display:flex;gap:8px}
-@media (max-width:1100px){.pp{flex-wrap:wrap}.pp-side{position:static;flex:1 1 100%}}
->>>>>>> d6540988f55db45447805d7903fa330f67cd83ce
 
 /* ---------- pit sends ---------- */
 .pl-e{border-bottom:1px solid var(--line2)}
@@ -174,7 +156,6 @@ svg.spark circle{fill:var(--txt)}
 .rp-g .rp-f input{width:100%}
 .pf-acts{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .pf-acts .pf-sub{margin:0}
-<<<<<<< HEAD
 .pc-pressures .step{width:26px}
 .pc-pressures .pp-in{gap:3px}
 .pc-pressures .pp-in input[type=number]{font-size:var(--t-md);padding:0 4px}
@@ -184,12 +165,3 @@ svg.spark circle{fill:var(--txt)}
 .pc-pressures .pr-l{align-self:auto}
 .pc-pressures .pr-meta{justify-content:center;align-self:auto}
 .pc-pressures .pp-in{justify-self:center;width:100%;max-width:190px;justify-content:center}
-=======
-/* pit plan under 600 px of module width (a phone): no MFD-now column, the side panel below, the table scrolls sideways */
-.pp.pp-narrow{flex-wrap:wrap}
-.pp.pp-narrow>.pp-t{display:block;overflow-x:auto;max-width:100%;flex:1 1 100%}
-.pp.pp-narrow.pp-quiet .pp-t :is(th:nth-child(4),th:nth-child(5),td[data-chg],td[data-r]){display:none}   /* narrow: MFD now stays; Change and Result while empty go */
-.pp.pp-narrow:not(.pp-quiet) .pp-t :is(th:nth-child(2),td[data-now]){display:none}
-.pp.pp-narrow>.pp-side{position:static;flex:1 1 100%;order:-1}   /* the state line and Send before a 15-row table */
-.pp-sets{font-size:var(--t-sm)}
->>>>>>> d6540988f55db45447805d7903fa330f67cd83ce
