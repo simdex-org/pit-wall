@@ -14,12 +14,13 @@ thresholds needs the access key printed at start; watching does not.
     python server/acc_broadcast.py --enable          # once: switch ACC's broadcasting port on (then restart ACC)
 
 Endpoints: GET /events[?hz=5|10|15|30] (SSE), GET /lap?n=N (a whole lap's trace and line),
-GET /field/laps?car=N (another car's laps), POST /pit and POST /config (both need X-Pit-Key).
+GET /field/laps?car=N (another car's laps), POST /pit, POST /config and POST /mfd/close (all need X-Pit-Key).
 
 Standard library only.
 """
 import argparse
 import atexit
+import errno
 import functools
 import hmac
 import http.server
@@ -30,6 +31,7 @@ import os
 import secrets
 import socket
 import struct
+import sys
 import threading
 import traceback
 import time
@@ -72,7 +74,11 @@ def log(sev, cat, text):
 
 def pit_snapshot():
     try:
-        return PIT["mfd"].read() if PIT["mfd"] else None
+        if not PIT["mfd"]:
+            return None
+        s = PIT["mfd"].read()
+        s["busy"] = PIT["busy"].locked()   # also a Close pit page waiting for the driver to lift, which has no pit_job
+        return s
     except (OSError, ValueError):
         return None
 
@@ -114,6 +120,15 @@ def run_plan(plan, by):
             log(0 if end["state"] == "done" else 2, "PLAN",
                 f"Pit plan ({', '.join(plan['only'])}) " + (f"applied, sent by {by}" if end["state"] == "done" else f"failed, sent by {by}: {end['msg']}"))
         PIT["busy"].release()
+
+
+class Server(http.server.ThreadingHTTPServer):
+    allow_reuse_address = os.name != "nt"   # on Windows SO_REUSEADDR lets a second bridge share the port
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 def field_ext(sim):
@@ -431,6 +446,9 @@ def main():
     ap.add_argument("--broadcast-password", help="connectionPassword for ACC's broadcasting (default: the one in broadcasting.json)")
     ap.add_argument("--sim-session", choices=("race", "quali"), default="race", help="with --simulate-acc: a race (default) or qualifying, ordered by best lap")
     args = ap.parse_args()
+    hh, _, hp = args.http.rpartition(":")
+    if not hh or not hp.isdigit():
+        ap.error("--http must be ADDRESS:PORT, e.g. --http 25.1.2.3:8765")
 
     PIT["key"] = args.key
     try:
@@ -447,20 +465,20 @@ def main():
         print(f"telemetry off: {e}")
     start_field(args, pages)
 
-    hh, hp = args.http.rsplit(":", 1)
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
     try:
-        server = http.server.ThreadingHTTPServer((hh, int(hp)), functools.partial(Handler, directory=here))
+        server = Server((hh, int(hp)), functools.partial(Handler, directory=here))
     except OSError as e:   # 10049: an address of another PC (often the other person's Hamachi address); 10048: port in use
         mine = sorted({a[4][0] for a in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)})
         print(f"Cannot serve on {args.http}: {e.strerror or e}")
         if getattr(e, "winerror", None) == 10048 or e.errno == 98:
             print(f"Port {hp} is already in use: another bridge is running, or pass another port, e.g. --http {hh}:8766")
-        else:
+        elif getattr(e, "winerror", None) == 10049 or e.errno == errno.EADDRNOTAVAIL:
             print("That address is not one of this PC's. Use this PC's own VPN address (Hamachi's is 25.x.x.x):")
+            rest = " ".join(a for a in sys.argv[1:] if a not in (args.http, "--http") and not a.startswith("--http="))
             for ip in sorted(mine, key=lambda ip: not ip.startswith("25.")):
-                print(f"    python server/bridge.py --http {ip}:{hp} --key {args.key}")
-        return
+                print(f"    python server/bridge.py --http {ip}:{hp} {rest}".rstrip())
+        sys.exit(1)
     print(f"Pit Wall on {args.http}   (Ctrl+C to stop)")
     if hh in ("127.0.0.1", "localhost"):
         ips = sorted({a[4][0] for a in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)} - {"127.0.0.1"})

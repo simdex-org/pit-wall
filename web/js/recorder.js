@@ -107,7 +107,7 @@ function onReading(r){
   const p = s.car_position_m;
   if (p && (p[0] || p[2])) {
     const l = REC.curLine[REC.curLine.length - 1], d = l ? Math.hypot(l[0] - p[0], l[1] - p[2]) : 0;
-    if (d > 60) REC.curLine = [[p[0], p[2], s.track_position]];   // a jump (out of the garage, a reset): start the line again rather than draw a straight across
+    if (d > 60) { REC.curLine = [[p[0], p[2], s.track_position]]; REC.cur = []; }   // a jump (out of the garage, a reset): start the line again rather than draw a straight across; the lap is no longer whole
     else if (!l || d > 1.5) REC.curLine.push([p[0], p[2], s.track_position]);
   }
 }
