@@ -680,7 +680,7 @@ class FakeField(Field):
             best = self._lapd(raw["best_ms"], split(raw["best_ms"]), car=7)
         if not self.started:
             self.started = True
-            out.append((5, {"conn": 1, "name": "Nurburgring 24h" if self.pages.loop else "Demo circuit", "id": 0, "meters": int(self.pages.track_len)}))
+            out.append((5, {"conn": 1, "name": self.pages.name, "id": 0, "meters": int(self.pages.track_len)}))
             out.append((4, {"conn": 1, "cars": list(range(1, 21))}))
             for i, c in sorted(self.sim.items()):
                 out.append((6, {"i": i, "model": c["model"], "team": c["team"], "num": c["num"], "cup": c["cup"], "cur_drv": 0, "nat": 0,

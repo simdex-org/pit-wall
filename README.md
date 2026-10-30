@@ -299,8 +299,18 @@ The car drives the layout of `web/data/tracks.js` at its real 25.4 km, in 8:17 l
 65 s in the pit lane, 25 s in the box for some 100 L). The 19 other cars lap at Nordschleife pace and stop every 4 or 5 laps. The
 race lasts about 7 hours, with the pit window scaled to match, so Strategy works out some 13 stops. The map shows the drawn
 layout until the first whole lap, then the recorded racing lines with the field on them. Speed, throttle, brake and steering
-are still made-up waves (the same few curves every lap), and the laps are nearly identical: it shows how the charts look on a
-long track, not what a real lap there looks like.
+are still made-up waves there, and the laps are nearly identical: it shows how the charts look on a long track.
+
+Twelve more real layouts, from OpenStreetMap, at a GT3's lap time: `monza`, `spa`, `silverstone`, `nurburgring` (GP),
+`brands_hatch`, `suzuka`, `laguna_seca`, `mount_panorama`, `imola`, `barcelona`, `zandvoort`, `paul_ricard`, e.g.
+
+```
+python server/bridge.py --simulate-acc --sim-track spa --sim-speed 4 --key demo
+```
+
+On these the car follows a speed profile worked out from the layout's bends (about 1.7 g in corners, braking hard into them,
+top speed on the straights), so speed, throttle, brake, steering, gears and G-G follow the real corners. In a real session
+the map also shows these layouts (by ACC's track id) until your first whole lap.
 
 ![Nordschleife demo, Live: the track map with the field on the recorded line, standings, relative, fuel to the flag and tyres](docs/nordschleife-live.png)
 
@@ -330,7 +340,7 @@ Self-tests:
 | `--vjoy [N]` | off | Press the MFD through vJoy device N (1 if not given) instead of the keyboard. For keyboard-and-mouse drivers. |
 | `--simulate-acc` | off | A pretend session, 20-car field and pit page instead of the game. |
 | `--sim-session race\|quali` | `race` | With `--simulate-acc`: a race, or qualifying (ordered by best lap). |
-| `--sim-track demo\|nordschleife` | `demo` | With `--simulate-acc`: the made-up circuit (1:00 laps), or the Nordschleife 24h layout (8:17 laps). |
+| `--sim-track TRACK` | `demo` | With `--simulate-acc`: the made-up circuit (1:00 laps), `nordschleife` (the 24h layout, 8:17 laps), or `monza`, `spa`, `silverstone`, `nurburgring`, `brands_hatch`, `suzuka`, `laguna_seca`, `mount_panorama`, `imola`, `barcelona`, `zandvoort`, `paul_ricard`. |
 | `--sim-speed N` | `1` | With `--simulate-acc`: the pretend session runs N times faster (e.g. `8` for a Nordschleife lap a minute). |
 | `--broadcast-port PORT` | from `broadcasting.json` | ACC's broadcasting port for field timing, on 127.0.0.1. `0` turns field timing off. |
 | `--broadcast-password PW` | from `broadcasting.json` | ACC's broadcasting connection password. |

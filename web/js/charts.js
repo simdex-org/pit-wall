@@ -149,7 +149,7 @@ function drawGG(cv, o){
 }
 
 // ---------- the track map: recorded racing lines, the field, zoom, pan, follow ----------
-function trackFor(name){ if (!name || typeof TRACKS === 'undefined') return null; name = name.toLowerCase(); return /nurburgring_24h|nordschleife/.test(name) ? TRACKS.nurburgring_24h : null; }
+function trackFor(name){ if (!name || typeof TRACKS === 'undefined') return null; name = name.toLowerCase(); return Object.hasOwn(TRACKS, name) ? TRACKS[name] : /nurburgring_24h|nordschleife/.test(name) ? TRACKS.nurburgring_24h : null; }
 function cumOf(pts){                // cumulative distance along a line, cached on the array
   if (pts._cum) return pts._cum;
   const c = new Float64Array(pts.length); for (let i = 1; i < pts.length; i++) c[i] = c[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
@@ -181,7 +181,7 @@ function drawMap(cv, view, c, o){
   const t = trackFor(r.fixed.track), L = layoutFor(r.fixed.track);   // L: the layout saved by the bridge, there from the start of the session
   if (!(L && own) && ((t && !lines.length) || !(own && (lines.length || curLine.length > 2)))) {
     if (!t) { out.empty = true; return out; }
-    // a drawn layout (traced from a CC BY-SA image) until the car has driven a whole lap of its own
+    // a drawn layout (tracks.js) until the car has driven a whole lap of its own
     const pad = 22, sc = Math.min((w - 2 * pad) / t.box[0], (h - 2 * pad) / t.box[1]), ox = (w - t.box[0] * sc) / 2, oy = (h - t.box[1] * sc) / 2, P = q => [ox + q[0] * sc, oy + q[1] * sc];
     g.lineJoin = g.lineCap = 'round';
     g.beginPath(); t.pit.forEach((q, i) => { const [x, y] = P(q); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.strokeStyle = tk.line; g.lineWidth = 2; g.setLineDash([4, 3]); g.stroke(); g.setLineDash([]);
