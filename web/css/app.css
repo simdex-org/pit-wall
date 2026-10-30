@@ -174,8 +174,11 @@ label.btn{cursor:pointer}
 #tabs [role=tab]:focus-visible{outline-offset:-2px}
 .tab-alert{font:600 var(--t-xs)/1 var(--num);letter-spacing:0}
 .tab-sel{display:none;align-self:center;max-width:160px}
-.tab-menu{margin-left:-8px;width:24px!important;height:24px;font-size:var(--t-lg);line-height:1}
-.tab-add{width:28px;height:28px;margin:0 4px;align-self:center;flex:none;border:1px dashed var(--line);border-radius:var(--r);color:var(--mut);font-size:var(--t-lg)}
+.tabw{position:relative}
+.tab-menu{position:absolute;right:0;top:50%;translate:0 -50%;width:20px!important;height:24px;font-size:var(--t-lg);line-height:1;opacity:0}
+#tabs .tabw:has(.tab-menu)>[role=tab]{padding-right:26px}   /* edit mode: room for the ⋯, shown on the selected or hovered tab only */
+.tabw:hover .tab-menu,.tabw:focus-within .tab-menu,.tabw:has([aria-selected=true]) .tab-menu{opacity:1}
+.tab-add{display:inline-flex;align-items:center;justify-content:center;line-height:1;width:28px;height:28px;margin:0 4px;align-self:center;flex:none;border:1px dashed var(--line);border-radius:var(--r);color:var(--mut);font-size:var(--t-lg)}
 .tab-add:hover{color:var(--txt);border-color:var(--dim)}
 #clock{font:500 16px var(--num);white-space:nowrap;margin:0 4px 0 8px;padding:0 12px;border-left:1px solid var(--line);line-height:28px;flex:none}
 #link{height:24px;flex:none;padding:0 10px;border-radius:12px}
@@ -201,7 +204,7 @@ label.btn{cursor:pointer}
 /* ---------- KPI strip (64 px): instrument tiles in three groups (race, timing, car); the key figures are big.
    Tiles drop from the end when narrow (main.js measures scrollWidth) ---------- */
 #kpi{display:flex;align-items:stretch;gap:6px;height:64px;padding:6px 8px;border-bottom:1px solid var(--line);overflow:hidden;min-width:0}
-.kc{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;flex:none;padding:0 14px;white-space:nowrap;
+.kc{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;flex:1 0 auto;padding:0 14px;white-space:nowrap;
   background:var(--panel);border:1px solid var(--line2);border-radius:var(--r)}
 #kpi .kc:is([data-k=ahead],[data-k=fuel]){margin-left:10px}
 .kl{font-size:var(--t-xs);font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);line-height:1}
