@@ -35,7 +35,6 @@
         for (let t = 0; used() < fit && (lo > 0 || hi < rows.length); t++) { if (t % 2 ? lo > 0 : hi >= rows.length) lo--; else hi++; }
         show = (lo > 0 ? [rows[0]] : []).concat(lo > 1 ? [null] : [], rows.slice(lo, hi));   // P1 stays on top; null = a gap row
       }
-      const narrow = inst.body.clientWidth > 0 && inst.body.clientWidth < 560;   // no room for a tags column: the tags go after the name
       const gapF = (ms, laps) => race ? fmtGap(ms, laps) : fmtDelta(ms);
       const lastCell = x => {
         const v = x.last; if (!okMs(v)) return '—';
@@ -43,31 +42,45 @@
         // ● only once a car has a few laps: early on nearly every lap is its best, and the mark would mean nothing
         return v === sb ? `<span class="t-best">◆ ${fmtLap(v)}</span>` : v === x.best && x.laps >= 3 ? `<span class="t-pb">● ${fmtLap(v)}</span>` : fmtLap(v);
       };
+      const inLap = x => x.last_pit_lap != null && x.laps === x.last_pit_lap + 1;   // the last lap ended in the lane: a slow in-lap, not a slow flying lap
       const secCell = (x, k) => { const v = (x.last_s || [])[k]; if (!okMs(v)) return '—'; return v === bestS[k] ? `<span class="t-best">◆ ${fmtSector(v)}</span>` : v === (x.best_s || [])[k] && x.laps >= 3 ? `<span class="t-pb">● ${fmtSector(v)}</span>` : fmtSector(v); };
       // the optional columns, in the order the options list them: [header, cell]
       const COL = {car:['<th>Car</th>', x => `<td class="car" title="${esc(x.model_name)}">${esc(x.model_name || '—')}</td>`], cup:['<th>Cup</th>', x => `<td>${esc(x.cup_name || '—')}</td>`],
         laps:['<th class="n">Laps</th>', x => `<td class="n">${nf(x.laps, 0)}</td>`],
         gap:[`<th class="n">${race ? 'Gap' : 'To P1'}</th>`, x => `<td class="n">${x.pos === 1 ? '—' : gapF(x.gap, x.gap_laps)}</td>`],
         int:[`<th class="n">${race ? 'Int' : 'To next'}</th>`, x => `<td class="n">${x.pos === 1 ? '—' : gapF(x.int, x.int_laps)}</td>`],
-        last:['<th class="n">Last</th>', x => `<td class="n">${lastCell(x)}${x.last_valid === false && okMs(x.last) ? ' <b class="tag inv">INV</b>' : ''}</td>`],
+        last:['<th class="n">Last</th>', x => `<td class="n">${lastCell(x)}${x.last_valid === false && okMs(x.last) ? ' <b class="tag inv">INV</b>' : ''}${okMs(x.last) && inLap(x) ? ' <b class="tag in">IN</b>' : ''}</td>`],
         best:['<th class="n">Best</th>', x => `<td class="n">${okMs(x.best) ? (x.best === sb ? `<span class="t-best">◆ ${fmtLap(x.best)}</span>` : fmtLap(x.best)) : '—'}</td>`],
         sectors:['<th class="n">S1</th><th class="n">S2</th><th class="n">S3</th>', x => [0, 1, 2].map(k => `<td class="n">${secCell(x, k)}</td>`).join('')],
         pits:['<th class="n">Pits</th>', x => `<td class="n">${nf(x.pits, 0)}</td>`],
         stint:['<th class="n">Stint</th>', x => `<td class="n">${nf(x.i === c.me && c.s ? c.s.stint_laps : x.stint_laps, 0)}</td>`],   // yours: the bridge's count, as in the KPI strip
         net:['<th class="n">Net</th>', x => `<td class="n">P${x.net}${x.net < x.pos ? ` <span class="s-ok">(+${x.pos - x.net})</span>` : x.net > x.pos ? ` <span class="s-bad">(${MINUS}${x.net - x.pos})</span>` : ''}</td>`],
         deltaMe:['<th class="n" title="My best minus theirs">Δ me</th>', x => `<td class="n">${x.i === c.me || !mine || !okMs(mine.best) || !okMs(x.best) ? '—' : deltaHtml(mine.best - x.best)}</td>`]};
-      const cols = o.cols.filter(k => COL[k] && (k !== 'net' || net));
-      const head = '<th class="sb"></th><th class="n">Pos</th><th class="n">#</th><th>Driver</th>' + cols.map(k => COL[k][0]).join('') + (narrow ? '' : '<th></th>');
-      const ncol = (head.match(/<th/g) || []).length;
-      setHtml(inst.body.querySelector('thead'), `<tr>${head}</tr>`);
-      const row = x => {
-        if (!x) return `<tr class="gaprow"><td class="sb"></td><td colspan="${ncol - 1}" class="note">⋯</td></tr>`;
-        const me = x.i === c.me, p = cup ? x.cpos : x.pos;
-        return carRow(x, c, inst) + `<td class="sb"></td><td class="n">${p}</td><td class="n">${esc(x.num)}</td><td class="drv" title="${carTitle(x)}">${name(x, o.names)}${me ? ' <b class="tag you">YOU</b>' : ''}${x.class && mine && x.class !== mine.class ? ` <b class="tag" title="Another class">${esc(x.class)}</b>` : ''}${narrow && carTags(x) ? ' ' + carTags(x) : ''}</td>`
-          + cols.map(k => COL[k][1](x)).join('') + (narrow ? '' : `<td class="tags">${carTags(x)}</td>`) + '</tr>';
+      // columns that do not fit are dropped, least useful first, and said in the header; a new width or column choice starts over
+      const st = inst.state, fitK = inst.body.clientWidth + '|' + o.cols.join();
+      if (st.fitK !== fitK) { st.fitK = fitK; st.drop = new Set(); }
+      const draw = () => {
+        const cols = o.cols.filter(k => COL[k] && (k !== 'net' || net) && !st.drop.has(k));
+        // the PIT / OUT / IN tags sit right after the name, never in a last column the width cuts off
+        const head = '<th class="sb"></th><th class="n">Pos</th><th class="n">#</th><th>Driver</th><th></th>' + cols.map(k => COL[k][0]).join('');
+        const ncol = (head.match(/<th/g) || []).length;
+        setHtml(inst.body.querySelector('thead'), `<tr>${head}</tr>`);
+        const row = x => {
+          if (!x) return `<tr class="gaprow"><td class="sb"></td><td colspan="${ncol - 1}" class="note">⋯</td></tr>`;
+          const me = x.i === c.me, p = cup ? x.cpos : x.pos;
+          return carRow(x, c, inst) + `<td class="sb"></td><td class="n">${p}</td><td class="n">${esc(x.num)}</td><td class="drv" title="${carTitle(x)}">${name(x, o.names)}${me ? ' <b class="tag you">YOU</b>' : ''}${x.class && mine && x.class !== mine.class ? ` <b class="tag" title="Another class">${esc(x.class)}</b>` : ''}</td><td class="tags">${carTags(x)}</td>`
+            + cols.map(k => COL[k][1](x)).join('') + '</tr>';
+        };
+        setHtml(inst.body.querySelector('tbody'), show.map(row).join(''));
+        return cols;
       };
-      setHtml(inst.body.querySelector('tbody'), show.map(row).join(''));
-      inst.setInfo(`${rows.length} cars${sb ? ` · ◆ ${fmtLap(sb)} #${(c.cars.get(F.best.car) || {}).num != null ? c.cars.get(F.best.car).num : '?'}` : ''}`);
+      let cols = draw();
+      for (const k of ['car', 'sectors', 'deltaMe', 'best', 'stint', 'pits', 'net']) {
+        if (inst.body.clientWidth <= 0 || inst.body.scrollWidth <= inst.body.clientWidth + 1) break;
+        if (cols.includes(k)) { st.drop.add(k); cols = draw(); }
+      }
+      const hid = o.cols.filter(k => st.drop.has(k)).length;
+      inst.setInfo(`${rows.length} cars${hid ? ` · ${plural(hid, 'col')} hidden` : ''}${sb ? ` · ◆ ${fmtLap(sb)} #${(c.cars.get(F.best.car) || {}).num != null ? c.cars.get(F.best.car).num : '?'}` : ''}`);
     }});
 
   // ---------- relative ----------
@@ -129,7 +142,7 @@
   // ---------- pit lane activity ----------
   Pit.module({type:'pit-activity', title:'Pit lane', group:'Timing', blurb:'Who is in the pit lane now, and every car\'s stops so far.',
     size:{w:4, h:8, minW:3, minH:5}, needs:['field', 'entries'], requires:['field'], rate:2,
-    build(el){ el.innerHTML = '<div class="pa-now"></div><table class="tt pa-all"><thead><tr><th class="sb"></th><th class="n">#</th><th>Driver</th><th class="n">Pits</th><th class="n">Last</th><th class="n">Lane s</th><th class="n">Stint</th></tr></thead><tbody></tbody></table><div class="pa-none"></div>'; clickFocus(el); },
+    build(el){ el.innerHTML = '<div class="pa-now"></div><table class="tt pa-all"><thead><tr><th class="sb"></th><th class="n">#</th><th>Driver</th><th class="n">Pits</th><th class="n">Stop lap</th><th class="n">Lane s</th><th class="n">Stint</th></tr></thead><tbody></tbody></table><div class="pa-none"></div>'; clickFocus(el); },
     key: rowKey,
     render(c, inst){
       const F = c.field, st = inst.state, seen = st.seen || (st.seen = new Map()), list = sorted(c);
@@ -139,11 +152,11 @@
       }
       st.started = true;
       const now = list.filter(x => IN_LANE.includes(x.loc));
-      setHtml(inst.body.querySelector('.pa-now'), now.length ? `<table class="tt"><tbody>${now.map(x => { const e = seen.get(x.i);
-        return carRow(x, c, inst) + `<td class="sb"></td><td class="n">${num(x)}</td><td class="drv" title="${carTitle(x)}">${name(x)} <b class="tag pit">${esc(String(x.loc).toUpperCase())}</b></td><td class="n">${e ? (e.partial ? '≥ ' : '') + nf((F.t - e.t) / 1000, 1) + '<span class="u"> s</span>' : '—'}</td></tr>`; }).join('')}</tbody></table>`
-        : '<div class="empty">Nobody in the pit lane.</div>');
       // only the cars that have stopped, latest stop first: twenty rows of zeros would bury them
       const stopped = list.filter(x => x.pits > 0).sort((a, b) => (b.last_pit_lap || 0) - (a.last_pit_lap || 0) || a.pos - b.pos);
+      setHtml(inst.body.querySelector('.pa-now'), now.length ? `<table class="tt"><tbody>${now.map(x => { const e = seen.get(x.i);
+        return carRow(x, c, inst) + `<td class="sb"></td><td class="n">${num(x)}</td><td class="drv" title="${carTitle(x)}">${name(x)} <b class="tag pit">${esc(String(x.loc).toUpperCase())}</b></td><td class="n"><span class="u">in lane </span>${e ? (e.partial ? '<span title="already in the lane when this page connected">≥ </span>' : '') + nf((F.t - e.t) / 1000, 1) + '<span class="u"> s</span>' : '—'}</td></tr>`; }).join('')}</tbody></table>`
+        : `<div class="empty">Nobody in the pit lane now.${stopped.length ? ' Stops so far:' : ''}</div>`);
       inst.body.querySelector('.pa-all').hidden = !stopped.length;
       setHtml(inst.body.querySelector('.pa-none'), stopped.length ? '' : '<div class="empty">No stops in the field yet.</div>');
       setHtml(inst.body.querySelector('.pa-all tbody'), stopped.map(x => carRow(x, c, inst) + `<td class="sb"></td><td class="n">${num(x)}</td><td class="drv" title="${carTitle(x)}">${name(x)}${x.i === c.me ? ' <b class="tag you">YOU</b>' : ''}</td><td class="n">${nf(x.pits, 0)}</td><td class="n">${x.last_pit_lap != null ? 'L' + x.last_pit_lap : '—'}</td><td class="n">${x.lane_ms ? nf(x.lane_ms / 1000, 1) : '—'}</td><td class="n">${nf(x.stint_laps, 0)}</td></tr>`).join(''));
@@ -161,15 +174,15 @@
       if (!inst.m.title && tt.textContent !== want) tt.textContent = want;
       if (!other) return inst.setState('empty', 'You are leading: pick a car to compare with.');
       const L = c.laps || [], last = L[L.length - 1], ok = L.filter(l => l.valid && l.ms > 0), best = ok.length ? ok.reduce((a, b) => b.ms < a.ms ? b : a) : null;
-      const mineSet = {last:last ? [last.ms].concat(last.s || []) : [mine.last].concat(mine.last_s || []), best:best ? [best.ms].concat(best.s || []) : [mine.best].concat(mine.best_s || [])};
+      const mineSet = {last:last ? [last.ms].concat(last.s || []) : [mine.last].concat(mine.last_s || []), best:best ? [best.ms].concat(best.s && best.s.length ? best.s : best.ms === mine.best ? mine.best_s || [] : []) : [mine.best].concat(mine.best_s || [])};
       const theirs = {last:[other.last].concat(other.last_s || []), best:[other.best].concat(other.best_s || [])};
-      const cell = (v, k) => `<td class="n">${k ? fmtSector(v) : fmtLap(v)}</td>`;
-      const block = (k, label) => `<tr class="tt-group"><td colspan="5">${label}</td></tr><tr class="me"><td>You</td>${mineSet[k].slice(0, 4).map(cell).join('')}</tr>`
-        + `<tr><td title="${carTitle(other)}">${num(other)}</td>${theirs[k].slice(0, 4).map(cell).join('')}</tr>`
+      const cell = (v, k) => `<td class="n">${!okMs(v) ? '—' : k ? fmtSector(v) : fmtLap(v)}</td>`, four = a => [0, 1, 2, 3].map(i => cell(a[i], i)).join('');   // always 4 cells
+      const block = (k, label) => `<tr class="tt-group"><td colspan="5">${label}</td></tr><tr class="me"><td>You</td>${four(mineSet[k])}</tr>`
+        + `<tr><td title="${carTitle(other)}">${num(other)}</td>${four(theirs[k])}</tr>`
         + `<tr><td class="note">Δ you</td>${[0, 1, 2, 3].map(i => `<td class="n">${okMs(mineSet[k][i]) && okMs(theirs[k][i]) ? deltaHtml(mineSet[k][i] - theirs[k][i]) : '—'}</td>`).join('')}</tr>`;
       setHtml(inst.body.querySelector('tbody'), block('last', 'Last lap') + block('best', 'Best lap'));
       const ahead = other.pos === mine.pos - 1, hist = c.mode === 'best' ? [] : ahead ? mine.int_hist : other.int_hist;   // intervals mean nothing in best-lap sessions
-      setHtml(inst.body.querySelector('.sc-int'), (hist || []).length ? `<div class="lbl">${ahead ? 'Your interval to it, last 5 laps' : `${num(other)}'s interval to the car ahead, last 5 laps`}</div><div class="sub">${hist.slice(-5).map(v => `<b class="n">${fmtRel(v)}</b>`).join('')}</div>` : '');
+      setHtml(inst.body.querySelector('.sc-int'), (hist || []).length ? `<div class="lbl">${ahead ? 'Your interval to it, last 5 laps, oldest first' : `${num(other)}'s interval to the car ahead, last 5 laps, oldest first`}</div><div class="sub">${(h5 => h5.map((v, j) => `<span>L${(ahead ? mine : other).laps - h5.length + j + 1} <b class="n">${fmtRel(v)}</b><span class="u"> s</span></span>`).join(''))(hist.slice(-5))}${sparkSvg(hist.slice(-5), v => (v / 1000).toFixed(1))}</div>` : '');
       inst.setInfo(`vs ${num(other)} ${Pit.carName(other, 'short')}`);
     }});
 
@@ -213,7 +226,7 @@
     render(c, inst){
       const s = c.r.session, st = c.st, ml = st ? st.mandatory_left : null, w = st && st.pit_window, lap = s.lap_number || s.completed_laps + 1;
       const mand = ml === 0 ? '<span class="s-ok">done ●</span>' : ml > 0 ? `<span class="s-warn">${ml} left</span>` : s.kind !== 'Race' ? '<span class="note">none outside races</span>' : '<span class="note">unknown: set in Settings</span>';
-      const win = !w ? '—' : `L${w.open_lap}–L${w.close_lap} <span class="note">${lap < w.open_lap ? `opens in ${w.open_lap - lap} lap${w.open_lap - lap > 1 ? 's' : ''}` : lap <= w.close_lap ? 'open' : 'closed'} · ${w.src === 'config' ? 'set' : 'ACC'}</span>`;
+      const win = !w ? '—' : s.kind !== 'Race' ? '<span class="note">races only</span>' : `L${w.open_lap}–L${w.close_lap} <span class="note">${lap < w.open_lap ? `opens in ${w.open_lap - lap} lap${w.open_lap - lap > 1 ? 's' : ''}` : lap <= w.close_lap ? 'open' : 'closed'} · ${w.src === 'config' ? 'set' : 'ACC'}</span>`;
       const left = s.session_time_left_ms, lim = ms => ms == null || !isFinite(ms) ? '—' : ms < 0 ? 'no limit' : left > 0 && ms >= left ? '<span class="note">past the flag</span>' : fmtClock(ms);
       setHtml(inst.body.firstChild, kvHtml([['Mandatory stops', mand], ['Pit window', win], ['Driver stint left', lim(s.stint_time_left_ms)], ['Driver total left', lim(s.stint_total_time_left_ms)]]));
       inst.setAlert(c.s && (c.s.advice || []).some(a => a.id === 'window_closing') ? 1 : 0);

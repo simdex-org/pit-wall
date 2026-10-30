@@ -134,13 +134,14 @@
     render(c, inst){
       const a = c.r.car, stint = c.s && c.s.stint || [], first = stint.length ? stint[0].pads : null, last = stint.length ? stint[stint.length - 1].pads : null, low = th(c).pad_low_mm;
       const wear = i => first && last && stint.length > 1 ? (first[i] - last[i]) / (stint.length - 1) : null;
-      const rows = [['Pad mm', a.brake_pad_mm.map(v => { const s = padState(v, c); return `<span class="${stCls(s)}">${nf(v, 1)}${stateGlyph(s)}</span>`; })],
-        ['', a.brake_pad_mm.map((v, i) => { const sc = Math.max(30, first ? first[i] : v); return `<div class="gauge"><i class="${stCls(padState(v, c))}" style="width:${clamp(v / sc * 100, 0, 100).toFixed(1)}%"></i><b style="left:${clamp(low / sc * 100, 0, 100).toFixed(1)}%" title="${low} mm: pads low"></b></div>`; })],
+      // pad mm with its bar as an underline (tick = pads low), so the table needs no unlabelled gauge row
+      const rows = [['Pad mm', a.brake_pad_mm.map((v, i) => { const s = padState(v, c), sc = Math.max(30, first ? first[i] : v);
+          return `<span class="${stCls(s)}">${nf(v, 1)}${stateGlyph(s)}</span><div class="gauge"><i class="${stCls(s)}" style="width:${clamp(v / sc * 100, 0, 100).toFixed(1)}%"></i><b style="left:${clamp(low / sc * 100, 0, 100).toFixed(1)}%" title="${low} mm: pads low"></b></div>`; }), 'pad'],
         ['Wear / lap', a.brake_pad_mm.map((v, i) => { const w = wear(i); return w == null ? '—' : nf(w, 3); })],
         ['Laps left', a.brake_pad_mm.map((v, i) => { const w = wear(i); return w > 0.0005 ? nf(Math.max(0, (v - low) / w), 0) : '—'; })],
         ['Disc mm', a.brake_disc_mm.map(v => nf(v, 1))],
         [`Temp ${un('temp').u}`, a.brake_temp_c.map((t, i) => { const s = brakeState(t, i < 2 ? 'front' : 'rear', c); return `<span class="${stCls(s)}">${fv('temp', t)}${stateGlyph(s)}</span>`; })]];
-      setHtml(inst.body.querySelector('tbody'), rows.map(([l, v]) => `<tr><td>${l}</td>${v.map(x => `<td class="n">${x}</td>`).join('')}</tr>`).join(''));
+      setHtml(inst.body.querySelector('tbody'), rows.map(([l, v, cls]) => `<tr><td>${l}</td>${v.map(x => `<td class="n${cls ? ' ' + cls : ''}">${x}</td>`).join('')}</tr>`).join(''));
       inst.setInfo(`pads F ${nf(a.front_pad_compound, 0)} · R ${nf(a.rear_pad_compound, 0)}${stint.length > 1 ? ` · over ${stint.length} laps` : ''}`);
       inst.setAlert(Math.max(...a.brake_pad_mm.map(v => padState(v, c) === 'bad' ? 2 : 0), ...a.brake_temp_c.map((t, i) => { const s = brakeState(t, i < 2 ? 'front' : 'rear', c); return s === 'bad' ? 2 : s === 'warn' ? 1 : 0; })));
     }});
