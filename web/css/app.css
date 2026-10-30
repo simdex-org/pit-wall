@@ -1,17 +1,26 @@
-/* Engineer View — timing-sheet UI. Neutral ground, hairline rules, one cool accent (selection/focus/car),
-   green/amber/red only for state. No gradients, no shadows. JS hooks (ids, .chip, .crow, .corner, ...) are unchanged. */
+/* Pit Wall — a timing sheet, not a dashboard of cards. Neutral ground, hairline rules, one cool accent (selection, focus, the car).
+   Timing colours mean what they mean on a real timing screen: purple best, green improved, grey invalid. Green/amber/red otherwise
+   only for state, always with a shape or a word as well. No gradients, no shadows. Type: Barlow Semi Condensed (DIN-like, tabular
+   figures) for the interface, JetBrains Mono for big live numbers and deltas; both SIL OFL, served from web/fonts. */
+@font-face{font-family:"Barlow Semi Condensed";src:url(../fonts/barlow-semi-condensed-400.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Barlow Semi Condensed";src:url(../fonts/barlow-semi-condensed-500.woff2) format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Barlow Semi Condensed";src:url(../fonts/barlow-semi-condensed-600.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Barlow Semi Condensed";src:url(../fonts/barlow-semi-condensed-700.woff2) format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(../fonts/jetbrains-mono.woff2) format("woff2");font-weight:100 800;font-display:swap}
 :root{
-  --bg:#08090b;--side:#0c0e11;--panel:#0f1115;--raise:#161a20;--line:#252a32;--line2:#1b1f26;--txt:#eceef2;--mut:#98a0ad;--dim:#6c7482;
+  --bg:#0a0b0d;--side:#0d0f12;--panel:#111317;--raise:#181b20;--line:#262a31;--line2:#1c1f25;--txt:#e6e8eb;--mut:#a1a7b0;--dim:#7a818b;
   --acc:#4da3ff;--acc-ink:#04111f;--acc-soft:#4da3ff1f;
-  --ok:#3ecf7a;--warn:#f0a030;--bad:#ff6b5e;--cold:#5aa9ff;
+  --ok:#3ddc84;--warn:#ff9f1a;--bad:#ff5468;--cold:#5aaeff;
+  --best:#c27aff;--pb:#3ddc84;--slow:#f5c518;   /* timing: session best, improvement, slower */
   --c-speed:#35b9d6;--c-thr:#3ecf7a;--c-brk:#ff6b5e;--c-steer:#f2c230;--c-rpm:#a98bff;--c-gear:#f06ab8;--c-cmp:#ff9f1c;--c-fl:#35b9d6;--c-fr:#3ecf7a;--c-rl:#f2c230;--c-rr:#f06ab8;
-  --font:Bahnschrift,"Segoe UI",system-ui,sans-serif;
+  --font:"Barlow Semi Condensed",Bahnschrift,"Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
   --r:2px;--gap:12px;--ease:cubic-bezier(.22,1,.36,1);
   color-scheme:dark;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{background:var(--bg);color:var(--txt);font:14px/1.45 var(--font);font-variant-numeric:tabular-nums;overflow:hidden;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--txt);font:15px/1.4 var(--font);font-variant-numeric:tabular-nums;font-feature-settings:"tnum";overflow:hidden;-webkit-text-size-adjust:100%}
 svg.lucide{width:16px;height:16px;stroke-width:1.75;vertical-align:-3px;flex:none}
 ::selection{background:var(--acc);color:var(--acc-ink)}
 :focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:var(--r)}
@@ -70,20 +79,20 @@ dl.kv dd{text-align:right;font-weight:600;overflow-wrap:anywhere}
 .dock.closed .msgs{display:none}.dock.closed #dockToggle svg{transform:rotate(180deg)}
 
 /* ---------- readout strip: one ruled sheet, not a row of cards ---------- */
-.tiles{display:grid;grid-template-columns:132px 1.2fr 1fr 1.1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);margin-bottom:var(--gap);overflow:hidden}
+.tiles{display:grid;grid-template-columns:120px 1.15fr 1fr 1.15fr .8fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);margin-bottom:var(--gap);overflow:hidden}
 .tiles.four{grid-template-columns:repeat(4,minmax(0,1fr))}
 .tile{background:var(--panel);padding:12px 16px 14px;min-width:0}
 .tile label{display:block;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:8px}
-.gear-n{font:700 84px/1 var(--font);text-align:center}
+.gear-n{font:700 80px/1 var(--mono);text-align:center}
 .tile.gear{text-align:center}
-.speed{font:600 52px/1 var(--font)}.speed small{font-size:14px}
+.speed{font:500 48px/1 var(--mono)}.speed small{font-size:14px}
 .bar{height:8px;background:var(--line2);border-radius:1px;overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--c-speed)}
 .bar.rpm{margin-top:12px}.bar.thr i{background:var(--c-thr)}.bar.brk i{background:var(--c-brk)}.bar.clu i{background:var(--mut)}
 .rpmline{display:flex;justify-content:space-between;color:var(--mut);font-size:12px;margin-top:5px}
 .pedals{display:grid;grid-template-columns:32px 1fr 40px;gap:12px 10px;align-items:center;font-size:12px;color:var(--mut);padding-top:4px}
 .pedals span:last-child{text-align:right;color:var(--txt)}
-.cur{font:600 38px/1.05 var(--font)}
+.cur{font:500 34px/1.05 var(--mono)}
 .sub{display:flex;flex-wrap:wrap;gap:2px 14px;color:var(--mut);font-size:12.5px;margin-top:10px}
 .sub b{color:var(--txt);font-weight:600}
 .fuel{font:600 44px/1.05 var(--font)}.fuel.sm{font-size:28px}.fuel small{font-size:15px}
@@ -94,7 +103,8 @@ dl.kv dd{text-align:right;font-weight:600;overflow-wrap:anywhere}
 
 /* ---------- live: channel rows + map ---------- */
 .live-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,440px);gap:var(--gap);align-items:start}
-.mapbox{height:min(46vh,440px);min-height:280px;padding:8px!important}
+.mapbox{height:min(52vh,520px);min-height:300px;padding:8px!important}
+#map{cursor:grab;touch-action:none}#map:active{cursor:grabbing}
 canvas{display:block;width:100%;height:100%}
 .crow{border-bottom:1px solid var(--line2)}
 .crow:last-child{border-bottom:0}
@@ -186,7 +196,7 @@ table.at td:first-child{color:var(--mut)}
 /* ---------- log, settings, calculator ---------- */
 .log-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:var(--gap);align-items:start}
 .evlist{max-height:62vh;overflow:auto}
-.ev{display:grid;grid-template-columns:72px 40px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:13px}
+.ev{display:grid;grid-template-columns:72px 40px 46px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:13px}
 .ev time{color:var(--mut)}.ev .lp{color:var(--mut)}
 .ev.s1{color:var(--warn)}.ev.s2{color:var(--bad);font-weight:600}
 #notes{width:calc(100% - 32px);margin:14px 16px 0;resize:vertical;min-height:240px;line-height:1.5}
@@ -429,3 +439,51 @@ dl.mini dt{color:var(--mut)}dl.mini dd{text-align:right;font-weight:600}
 .btn.send:disabled,.primary:disabled{opacity:.45;cursor:not-allowed}
 .pit-tab td.chg input{border-color:var(--warn)}
 .pit-tab td.chg::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--warn);margin-right:6px;vertical-align:2px}
+
+/* laps: timing-screen colours, with a shape or a word as well as the colour */
+.tiles.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.t-best,.laptab td.best{color:var(--best)}
+.laptab td.best::before{content:"◆";font-size:.7em;margin-right:5px;vertical-align:1px}
+.laptab td.inv{color:var(--dim);text-decoration:line-through}
+.laptab td:not(:first-child):not(:last-child),.laptab th:not(:first-child):not(:last-child){text-align:right}
+.laptab td{padding:6px 14px 6px 0}
+.laptab tfoot td{border-top:1px solid var(--line);border-bottom:0;color:var(--mut);font-weight:600}
+.laptab tfoot td.best::before{content:none}
+.laptab .note-cell{font-weight:400;font-size:12px}
+.tag{display:inline-block;font:600 10px/1 var(--font);letter-spacing:.08em;padding:3px 5px;border:1px solid var(--line);border-radius:var(--r);color:var(--mut)}
+.tag.bad{color:var(--bad);border-color:var(--bad)}
+.key-best{color:var(--best)}.key-inv{color:var(--dim);text-decoration:line-through}
+
+/* live: the state edge, as timing screens mark a car on track, in the pit lane, or on an invalid lap */
+#p-live .tiles{border-left:4px solid var(--ok)}
+#p-live .tiles[data-state=pit]{border-left-color:var(--cold)}
+#p-live .tiles[data-state=invalid]{border-left-color:var(--dim)}
+#livePos{font-size:30px}
+/* tyres: where the pressure sits against the target window, and what to change at the stop */
+.corner .band{position:relative;height:6px;margin:8px 16px 0;background:var(--line2)}
+.corner .band i{position:absolute;top:0;bottom:0;background:var(--ok);opacity:.35}
+.corner .band b{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;background:var(--txt)}
+.corner .rec{padding:6px 16px 0;font-size:12px;color:var(--mut)}.corner .rec b{color:var(--txt)}
+/* log categories */
+.ev .tag{justify-self:start;align-self:center}
+.tag.c-PLAN{color:var(--acc);border-color:var(--acc)}.tag.c-LAP{color:var(--best);border-color:var(--best)}.tag.c-PIT{color:var(--cold);border-color:var(--cold)}
+
+@media (max-width:1250px){.tiles.five{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.tiles.five{grid-template-columns:1fr 1fr}}
+
+/* tyre widget: car from above; tyre bands coloured by temperature, brake bar beside each tyre, pressure at the corners */
+.tyreviz{padding:8px 16px 12px!important}
+.tyreviz svg{display:block;width:100%;max-width:520px;height:auto;margin:0 auto}
+.tyreviz-panel{margin-bottom:var(--gap);max-width:1000px}
+.tyreviz .chassis{fill:none;stroke:var(--line);stroke-width:2}
+.tyreviz .t-ok,.lg .t-ok{fill:var(--ok);background:var(--ok)}.tyreviz .t-cold,.lg .t-cold{fill:var(--cold);background:var(--cold)}
+.tyreviz .t-warn,.lg .t-warn{fill:var(--warn);background:var(--warn)}.tyreviz .t-bad,.lg .t-bad{fill:var(--bad);background:var(--bad)}
+.tyreviz .t-none{fill:var(--line2)}
+.tyreviz .b-ok{fill:var(--ok)}.tyreviz .b-cold{fill:var(--cold)}.tyreviz .b-warn{fill:var(--warn)}.tyreviz .b-bad{fill:var(--bad)}.tyreviz .b-none{fill:var(--line2)}
+.tyreviz .groove{stroke:rgba(0,0,0,.35);stroke-width:2}
+.tyreviz .tyre-edge{fill:none;stroke:rgba(0,0,0,.55);stroke-width:2}
+.tyreviz .ty-temp{fill:#0a0b0d;font:700 18px var(--mono)}
+.tyreviz .ty-psi{fill:var(--txt);font:600 17px var(--font)}.tyreviz .ty-psi.warn{fill:var(--warn)}.tyreviz .ty-psi.bad{fill:var(--bad)}
+.tyreviz .ty-psi .u{fill:var(--mut);font-size:12px}
+.tyreviz .ty-comp{fill:var(--txt);font:700 15px var(--font);letter-spacing:.08em}
+.lg{display:inline-flex;align-items:center;gap:5px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px}

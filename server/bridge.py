@@ -30,7 +30,7 @@ import webbrowser
 import acc_pit
 import acc_telemetry
 
-STATE = {"reading": None, "summary": None, "t_reading": 0.0, "t_summary": 0.0, "ver": 0, "pit_job": None}
+STATE = {"reading": None, "summary": None, "t_reading": 0.0, "t_summary": 0.0, "ver": 0, "pit_job": None, "laps": [], "laps_ver": 0}
 LOCK = threading.Lock()
 PIT = {"mfd": None, "key": "", "busy": threading.Lock()}
 
@@ -82,12 +82,20 @@ def acc_loop(pages, tel):
             STATE["reading"], STATE["t_reading"] = reading, time.time()
             if summary:
                 STATE["summary"], STATE["t_summary"] = summary, time.time()
+            if len(tel.laps) != len(STATE["laps"]) or (tel.laps and tel.laps[-1] is not STATE["laps"][-1]):
+                STATE["laps"], STATE["laps_ver"] = list(tel.laps), STATE["laps_ver"] + 1
             STATE["ver"] += 1
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *_):
         pass
+
+    def end_headers(self):
+        # Browsers otherwise keep the page's scripts a while and show an old version after an update; this makes them ask
+        # each time, and an unchanged file is answered with a short 304.
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
 
     def reply(self, code, text):
         body = text.encode()
@@ -140,18 +148,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def events(self):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
-        last_ver, last_beat = -1, 0.0
+        last_ver, last_beat, sent_summary, sent_laps = -1, 0.0, None, -1
         try:
             while True:
                 with LOCK:
                     snap = dict(STATE)
                 now = time.time()
                 if snap["ver"] != last_ver or now - last_beat > 1.0:
-                    payload = {
+                    payload = {   # the summary only when new, the lap list only when a lap was added: both are bigger than a reading
                         "reading": snap["reading"],
-                        "summary": snap["summary"],
+                        "summary": snap["summary"] if snap["t_summary"] != sent_summary else None,
+                        "laps": snap["laps"] if snap["laps_ver"] != sent_laps else None,
                         "reading_age_ms": int((now - snap["t_reading"]) * 1000) if snap["t_reading"] else None,
                         "summary_age_ms": int((now - snap["t_summary"]) * 1000) if snap["t_summary"] else None,
                         "pit": pit_snapshot(),
@@ -159,7 +167,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     }
                     self.wfile.write(b"data: " + json.dumps(payload).encode() + b"\n\n")
                     self.wfile.flush()
-                    last_ver, last_beat = snap["ver"], now
+                    last_ver, last_beat, sent_summary, sent_laps = snap["ver"], now, snap["t_summary"], snap["laps_ver"]
                 else:
                     time.sleep(0.01)
         except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):

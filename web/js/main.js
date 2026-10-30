@@ -21,6 +21,7 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || /input|textarea|select/i.test(e.target.tagName)) return;
   const n = +e.key; if (n >= 1 && n <= TABS.length) showTab(TABS[n - 1]);
   else if (e.key === 'p' || e.key === 'P') togglePause();
+  else if ((e.key === 'f' || e.key === 'F') && tab === 'live') setFollow(!mapView.follow);
 });
 $('dockToggle').addEventListener('click', () => { const c = $('dock').classList.toggle('closed'); $('dockToggle').setAttribute('aria-expanded', !c); });
 
@@ -52,6 +53,9 @@ $('p-strategy').querySelector('.pit').addEventListener('change', savePit);
 $('pitApply').addEventListener('click', () => sendPit());
 document.querySelector('.pit').addEventListener('click', e => { const b = e.target.closest('[data-only]'); if (b) sendPit(b.dataset.only); });
 $('pitCopy').addEventListener('click', copyMfd);
+$('tyRec').addEventListener('click', pressFixToPlan);
+$('mapFollow').addEventListener('click', () => setFollow(!mapView.follow));
+$('mapFit').addEventListener('click', () => { Object.assign(mapView, {zoom:1, dx:0, dy:0}); setFollow(false); });
 $('pFuelCalc').addEventListener('click', () => { if (fuelToAdd != null) { $('pFuel').value = Math.ceil(fuelToAdd); savePit(); } });
 
 // ---------- welcome ----------
@@ -82,9 +86,10 @@ function connect(){
   const es = new EventSource('/events');
   es.onmessage = e => {
     const p = JSON.parse(e.data);
-    p.reading = numbersOnly(p.reading); p.summary = numbersOnly(p.summary);
+    p.reading = numbersOnly(p.reading);
     ages = {r:p.reading_age_ms, s:p.summary_age_ms};
-    if (p.summary) summary = p.summary;
+    if (p.summary) summary = numbersOnly(p.summary);
+    if (p.laps) { sessionLaps = numbersOnly(p.laps); lapsVer++; }
     pit = p.pit; onPitJob(p.pit_job);
     if (p.reading && p.reading.sequence !== lastSeq) {
       lastSeq = p.reading.sequence; reading = p.reading;

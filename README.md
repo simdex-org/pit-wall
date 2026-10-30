@@ -60,7 +60,7 @@ Limits, plainly:
   nothing else typed is seen. A few antivirus programs dislike keyboard hooks. On a wheel nothing waits.
 - **The arrow keys and P must be ACC's MFD keys** (they are by default). If the driver rebound them,
   pass the pitstop key with `--pit-key`. Arrow keys must not be bound to anything else.
-- Changes apply **without the driver confirming**: the engineer presses *Send to driver* and it happens.
+- Changes apply **without the driver confirming**: the engineer presses *Send* and it happens.
 - The engineer's advice uses GT3 numbers: hot pressures 26.0–27.0 psi dry and 29.5–31.0 psi wet, brakes hot above 750 °C,
   pads low under 12 mm. Other classes need their own (`server/acc_telemetry.py`).
 - The pit page layout was taken from how ACC 1.9/1.10 lays out the pitstop MFD and how
@@ -152,6 +152,21 @@ holding. A virtual controller avoids that: the MFD buttons are pressed on it, an
 
 1. Open the link the driver sent (`http://25.x.x.x:8765/?key=…`). The key is remembered by the browser, so later the plain address works.
 2. The dashboard opens as soon as the driver is in a session: **Live**, **Tyres & brakes**, **Strategy**, **Laps**, **Compare**, **Log & notes**.
+   It follows the conventions of real timing screens: purple and a ◆ for the session's best lap and sectors, struck-through grey for
+   invalid laps, OUT/IN for pit laps, a coloured edge on the Live strip for on track (green), in the pit lane (blue) or an invalid lap (grey).
+   - **Live**: gear, speed, pedals, lap time with the delta (▼ gaining, ▲ losing), position and gaps, fuel; channel traces, G-force, and the
+     **track map drawn from the car's own coordinates**: the racing line of the last 12 laps over each other (older ones fainter, the best
+     lap in purple, the lap in progress in the accent colour), so you can see where the driver repeats the line and where it varies; the
+     header says how far the last lap was from the best lap's line, in metres. Scroll to zoom where the pointer is, drag to move,
+     **Follow** (or double-click, or F) keeps the car in the middle while zoomed, **Fit** shows the whole track again. Lines are recorded
+     while the page is open.
+   - **Tyres & brakes**: the car from above, each tyre coloured by its temperature (cold, in the window, hot, too hot), the brake beside
+     each tyre coloured the same way, pressures at the corners, compound and tyre set in the middle (also in the Strategy board's Tyres
+     module). Below it, each corner's pressure against the target window, with the correction for the next stop; *Put the corrections
+     in the pit plan* adds them to the plan's pressures (from what the MFD holds now). Core temperature, brake temperature, pads and discs.
+   - **Laps**: every lap of the session from the bridge, so it is complete even when the page was opened late: time, gap to best,
+     sectors, fuel used, tags; the ideal lap from the best sectors.
+   - **Log & notes**: events tagged PLAN, LAP, PIT, ENG or CAR.
    Number keys 1–7 switch tabs. The **Engineer** panel at the bottom has the advice (pressures, cold tyres, brake heat, pads, fuel,
    fuel to the flag in a race, damage), and **Laps** has a debrief of the last three laps.
 3. **Strategy** is a board of modules, each one answering a question the engineer asks during a stint:
@@ -248,6 +263,8 @@ docs/                    screenshots
 Python standard library only. Windows, since that is where ACC runs.
 
 ## Credits
+
+- Fonts: [Barlow Semi Condensed](https://github.com/jpt/barlow) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), SIL Open Font License, in `web/fonts`.
 
 - Shared memory layout: Kunos' *ACC Shared Memory Documentation* 1.8.12.
 - How ACC's pitstop MFD is laid out and navigated: [Simulator Controller](https://github.com/SeriousOldMan/Simulator-Controller).

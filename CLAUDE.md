@@ -30,5 +30,8 @@ Data flow: ACC shared memory --> `acc_telemetry.py` (in `bridge.py`, 30 Hz) --SS
 ## Notes
 
 - `ALERT` defaults in util.js match the thresholds in acc_telemetry.py; keep them in step.
+- Fonts are self-hosted in `web/fonts` (Barlow Semi Condensed for the UI, JetBrains Mono via `--mono` for big live numbers; SIL OFL, licences beside them). Timing colours: `--best` purple for session best (always with ◆), struck-through `--dim` for invalid, `.tag` for OUT/IN and log categories.
+- The map (`drawLines` in charts.js) draws the racing line of each recorded lap from `session.car_position_m` (`lines` / `curLine` in recorder.js, a point every 1.5 m), with zoom, pan and follow (`mapView`); the Nürburgring layout in tracks.js is only a fallback while there are no coordinates. `tyreWidget()` in views.js is the car-from-above SVG used by the Tyres tab and the Strategy Tyres module.
+- The Laps tab draws `sessionLaps`, the bridge's lap list (`Telemetry.laps`, sent in `/events` only when a lap is added); Compare still uses the laps this page recorded itself.
 - Icons come from Lucide via unpkg (SRI-pinned) — the only network dependency. Dynamically added icons need `lucide.createIcons({nodes})`.
 - `web/data/tracks.js` is large generated data; don't read it whole.

@@ -52,7 +52,8 @@ function finishLap(n, ms, valid){
   if (laps.length > 40) laps.pop();
   if (lastC) tyreHist.unshift({n, p:[0, 1, 2, 3].map(i => lastC.tyre_pressure_psi[i]), t:[0, 1, 2, 3].map(i => coreT(lastC, i, lastCap))});
   if (tyreHist.length > 60) tyreHist.pop();
-  cur = []; lapsVer++; histVer++;
+  if (curLine.length > 50) { lines.unshift({n, valid, ms, pts:curLine}); if (lines.length > 12) lines.pop(); lineSpread(); }
+  cur = []; curLine = []; lapsVer++; histVer++;
   logEvent(valid ? 0 : 1, `Lap ${n} ${fmtLap(ms)}${valid ? '' : ' (invalid)'}`);
 }
 
@@ -88,10 +89,23 @@ function onReading(r){
   const fpl = s.fuel_per_lap || (summary && summary.fuel_per_lap) || 0;
   trackFlags(c, s, cap, fpl > 0 ? c.fuel_litres / fpl : 0);
   const p = s.car_position_m;
-  if (p && (p[0] || p[2])) { const l = learned[learned.length - 1]; if (!l || Math.hypot(l[0] - p[0], l[1] - p[2]) > 4) { learned.push([p[0], p[2]]); if (learned.length > 6000) learned.shift(); } }
+  if (p && (p[0] || p[2])) { const l = curLine[curLine.length - 1]; if (!l || Math.hypot(l[0] - p[0], l[1] - p[2]) > 1.5) curLine.push([p[0], p[2]]); }
 }
 let prevLaps = null, prevValid = true, summary = null;
-const learned = [];                // world coordinates for a track without a layout
+// The racing line of each lap (world x, z in metres, a point every 1.5 m): the map draws them over each other to show consistency.
+const lines = [];                  // newest first: {n, valid, ms, pts}
+let curLine = [], spread = null;   // spread: how far, on average, the last lap's line was from the best lap's
+function lineSpread(){
+  const last = lines[0], ok = lines.filter(l => l.valid), best = ok.length ? ok.reduce((a, b) => b.ms < a.ms ? b : a) : null;
+  if (!best || best === last) { spread = null; return; }
+  let sum = 0, k = 0;
+  for (let i = 0; i < last.pts.length; i += Math.max(1, Math.floor(last.pts.length / 200))) {   // 200 samples against the whole best line
+    const [x, z] = last.pts[i]; let d = Infinity;
+    for (const [bx, bz] of best.pts) d = Math.min(d, (bx - x) ** 2 + (bz - z) ** 2);
+    sum += Math.sqrt(d); k++;
+  }
+  spread = {m: sum / k, last: last.n, best: best.n};
+}
 
 // ---------- export / import ----------
 const packLap = l => ({n:l.n, ms:l.ms, valid:l.valid, label:l.label || '', data:Object.fromEntries(LCH.map(k => [k, Array.from(l.data[k], v => +v.toFixed(3))]))});
