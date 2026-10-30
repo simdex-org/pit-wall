@@ -11,9 +11,11 @@ const Editor = {
   // The tab's template made user-owned: a built-in is forked once, with no dialog.
   own(){
     const t = Tpl.cur; if (!Tpl.isBuiltin(t.id)) return t;
-    const f = Tpl.fork(t, `${t.name} (custom)`);
+    // in edit mode the copy stays in memory until Save: a tab closed mid-edit leaves no '(custom)' copy behind
+    const f = Tpl.fork(t, `${t.name} (custom)`, this.active);
     if (this.active) this.forked = f.id;   // made by this edit session: Discard removes it
-    Tpl.cur = f; lsSet('pitwall.active', f.id); writeHash(); renderTabs(true);
+    else lsSet('pitwall.active', f.id);
+    Tpl.cur = f; writeHash(); renderTabs(true);
     Pit.say(`Built-ins are read-only: editing your copy '${f.name}'`);
     return f;
   },
@@ -36,11 +38,11 @@ const Editor = {
     const t = Tpl.cur, raw = lsGet('pitwall.templates', null), stored = raw && Array.isArray(raw.items) ? raw.items.find(x => x && x.id === t.id) : null;
     if (stored && this.snap && this.snap.id === t.id && stored.updated !== this.snap.updated
       && await ask('This template was changed in another tab. Overwrite it?', [['ow', 'Overwrite', true], ['', 'Cancel']]) !== 'ow') return false;
-    if (this.changed()) { Tpl.save(t); Pit.say(`Saved '${t.name}'`); }
+    if (this.changed()) { Tpl.save(t); lsSet('pitwall.active', t.id); Pit.say(`Saved '${t.name}'`); }
     this.exit(); return true;
   },
   discard(){
-    let r;
+    let r; const had = this.changed();
     if (this.forked) {   // the built-in this session forked: drop the fork, back to the built-in
       Tpl.remove(this.forked); r = Tpl.get(this.snap.id) || Tpl.get('builtin-race'); lsSet('pitwall.active', r.id);
     } else {
@@ -49,6 +51,7 @@ const Editor = {
       if (!r) { r = deep(this.snap); const i = Tpl.items.findIndex(x => x.id === r.id); if (i >= 0) Tpl.items[i] = r; }
     }
     Tpl.cur = r; if (!r.workspaces.some(w => w.id === WS.wsId)) WS.wsId = r.workspaces[0].id;
+    if (had) Pit.say('Changes discarded');   // replaces "editing your copy …", which no longer exists
     this.exit(); writeHash(); renderTabs(true);
   },
   async leave(){   // Esc, or switching template while editing
@@ -195,7 +198,11 @@ const Editor = {
     if (k === 'e' || k === 'E') { e.preventDefault(); this.save(); return true; }
     const m = this.sel && this.find(this.sel); if (!m) return false;
     const arrows = {ArrowLeft:[-1, 0], ArrowRight:[1, 0], ArrowUp:[0, -1], ArrowDown:[0, 1]}[k];
-    if (arrows) { e.preventDefault(); const [dx, dy] = arrows; if (e.shiftKey) this.move(m.id, m.x, m.y, m.w + dx, m.h + dy); else this.move(m.id, m.x + dx, m.y + dy, m.w, m.h); return true; }
+    if (arrows) {
+      e.preventDefault(); const [dx, dy] = arrows, r = e.shiftKey ? [m.x, m.y, m.w + dx, m.h + dy] : [m.x + dx, m.y + dy, m.w, m.h];
+      if (!this.move(m.id, ...r)) Pit.say(overlaps(this.ws().modules, m, ...r) ? 'Occupied: move the other module first' : e.shiftKey ? "That is this module's size limit" : 'That is the edge of the grid', 1);   // the pointer path shows a hatched ghost instead
+      return true;
+    }
     if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); this.remove(m.id); return true; }
     if (k === 'd' || k === 'D') { e.preventDefault(); this.dup(m.id); return true; }
     if (k === 'h' || k === 'H') { e.preventDefault(); this.hide(m.id); return true; }

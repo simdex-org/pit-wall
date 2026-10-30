@@ -90,14 +90,17 @@ WS.hooks.push(d => { if (d.has('log')) mergeLog(); ctx.now = performance.now(); 
 const ADVICE_MODS = {press_front:['tyres', 'press-fix'], press_rear:['tyres', 'press-fix'], tyres_cold:['tyres'], brakes_hot:['brakes', 'tyres'], pads_low:['brakes'],
   fuel_box:['race-plan', 'fuel', 'stint-timeline'], fuel_low:['race-plan', 'fuel', 'stint-timeline'], fuel_flag:['race-plan', 'fuel', 'stint-timeline'],
   damage:['damage'], rain_coming:['weather'], window_closing:['rules', 'race-plan'], stint_limit:['rules'], penalty:['flags']};
-function tabAlerts(){   // per workspace: advice that concerns one of its modules, plus what the mounted modules report
+// Per workspace: the number is the distinct advice lines (warning or worse) that concern one of its modules, counted the
+// same way from every tab. The mounted modules' own alerts (only the open workspace has them) may raise the level, never
+// the number, so a badge never changes its count because you switched tabs.
+function tabAlerts(){
   const out = {}, adv = ctx.s && ctx.s.advice || [];
   for (const w of Tpl.cur.workspaces) {
-    const types = new Set(w.modules.filter(m => !m.hidden).map(m => m.type));
-    let lvl = 0, n = 0;
-    for (const a of adv) if (a.severity >= 1 && (ADVICE_MODS[a.id] || []).some(t => types.has(t))) { lvl = Math.max(lvl, a.severity); n++; }
-    if (w.id === WS.wsId) for (const [, [l, c]] of ALERTS) if (l >= 1) { lvl = Math.max(lvl, l); n += Math.max(1, c); }
-    out[w.id] = [lvl, n];
+    const types = new Set(w.modules.filter(m => !m.hidden).map(m => m.type)), ids = new Set();
+    let lvl = 0;
+    for (const a of adv) if (a.severity >= 1 && (ADVICE_MODS[a.id] || []).some(t => types.has(t))) { lvl = Math.max(lvl, a.severity); ids.add(a.id); }
+    if (w.id === WS.wsId) for (const [, [l]] of ALERTS) lvl = Math.max(lvl, l);
+    out[w.id] = [lvl, ids.size];
   }
   return out;
 }
@@ -115,8 +118,8 @@ function renderTabs(force){
   const al = tabAlerts();
   for (const w of t.workspaces) {
     const b = $('tab-' + w.id), s = b && b.querySelector('.tab-alert'); if (!s) continue;
-    const [l, n] = al[w.id] || [0, 0], txt = l ? (l >= 2 ? '■' : '▲') + n : '';
-    if (s.textContent !== txt) { s.textContent = txt; s.hidden = !l; s.className = 'tab-alert' + (l >= 2 ? ' s-bad' : ' s-warn'); s.setAttribute('aria-label', `${n} alert${n === 1 ? '' : 's'}`); }
+    const [l, n] = al[w.id] || [0, 0], txt = l ? (l >= 2 ? '■' : '▲') + (n || '') : '';
+    if (s.textContent !== txt) { s.textContent = txt; s.hidden = !l; s.className = 'tab-alert' + (l >= 2 ? ' s-bad' : ' s-warn'); s.setAttribute('aria-label', n ? plural(n, 'alert') : 'a module reports a problem'); }
   }
 }
 $('tabs').addEventListener('click', e => { const b = e.target.closest('[role="tab"]'); if (b) showWs(b.dataset.ws); });
@@ -246,7 +249,7 @@ function renderKpi(){
     const cells = [...k.querySelectorAll('.kc')], more = k.querySelector('.kc-more'); cells.forEach(c => { c.hidden = false; }); more.hidden = true;
     for (let i = cells.length - 1; i > 0 && k.scrollWidth > k.clientWidth + 1; i--) { cells[i].hidden = true; more.hidden = false; }
     const off = cells.filter(c => c.hidden);   // what did not fit is said, not silently dropped (Settings › Layout marks it too)
-    more.textContent = off.length ? '+' + off.length : ''; more.title = off.length ? `Not shown, the window is too narrow: ${off.map(c => KPI_LABEL[c.dataset.k]).join(', ')}` : '';
+    more.textContent = off.length ? `+${off.length} more` : ''; more.title = off.length ? `Not shown, the window is too narrow: ${off.map(c => KPI_LABEL[c.dataset.k]).join(', ')}` : '';
     KPI_OFF = new Set(off.map(c => c.dataset.k));
   }
 }
@@ -320,6 +323,7 @@ Pit.on('template', ({t, wsId}) => {
 window.addEventListener('storage', e => {
   if (e.key === 'pitwall.templates') {
     Tpl.load();
+    if (Editor.active && Editor.forked === Tpl.cur.id && !Tpl.get(Tpl.cur.id)) Tpl.items.push(Tpl.cur);   // this tab's unsaved copy lives only in memory
     const fresh = Tpl.get(Tpl.cur.id);
     if (!fresh) { Tpl.use('builtin-race'); Pit.say('Template deleted in another tab', 1); }
     else if (!Editor.active && fresh !== Tpl.cur) { Tpl.cur = fresh; showWs(WS.wsId); }
