@@ -202,7 +202,7 @@ address bar (`#t=…&w=…`), so two tabs or two screens can show different thin
 - Ctrl+Z / Ctrl+Y undo and redo; *Save* (Ctrl+S, or E again) keeps it, *Discard* (Esc) drops everything since you entered.
 
 Every module has **options** (the sliders button in its header, also outside edit mode): its title, whether it shows a header,
-whether it follows the focus car, and its own settings (the standings' columns and their order, the map's labels, the traces' lanes…).
+and its own settings (the standings' columns and their order, the map's labels, the traces' lanes…).
 
 **Manage templates** (T, or the template menu): duplicate, rename, delete, **export** a template to a `.pitwall.json` file (optionally with the appearance in use) and **import** one. An imported file is
 rebuilt field by field, keeping only what this version knows, and the page says what it left out; the access key is never written
@@ -255,8 +255,8 @@ in lap time instead.
   problem. *Pit sends* keeps every send, by whom and what came back.
 - *Repair suspension / bodywork* are switches: ticking one flips that row once (yes ↔ no), since ACC does not say which it currently is.
 - Wet tyres have no sets in ACC: with *Compound* wet the tyre set is not sent, and its row says so.
-- *Close pit page* takes the pit page off the driver's screen with ACC's Cycle MFD (Insert, or vJoy button 6); the event log says
-  when it was pressed.
+- *Close pit page* takes the pit page off the driver's screen with ACC's Cycle MFD (Insert, or vJoy button 6); one press per 2 s (the
+  bridge refuses a second, which would move the driver's MFD on to another page); the event log says when it was pressed.
 
 The page also works on a phone (the driver checking the plan): the workspace stacks into one column and tables scroll sideways.
 Edit mode needs a window at least 1100 px wide.

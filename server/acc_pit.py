@@ -465,7 +465,7 @@ class FakeMfd:
 
     def read(self):
         return {"status": "live", "fuel": self.fuel, "tyre_set": self.set, "pressures": list(self.p),
-                "current_set": 1, "strategy_set": 2, "in_pit_lane": False}
+                "current_set": 3, "strategy_set": 2, "in_pit_lane": False}   # set 3 on the car, as in FakePages
 
 
 def selftest():
