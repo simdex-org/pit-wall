@@ -72,7 +72,13 @@ Limits, plainly:
 
 ## Install
 
-**Driver's PC** (Windows; ACC runs here):
+**Driver's PC** (Windows; ACC runs here), the easy way: download
+**[PitWall.exe](https://github.com/simdex-org/pit-wall/releases/latest/download/PitWall.exe)** into an empty folder and open it.
+It needs no Python. The first time, click **Download** to fetch Pit Wall into that folder. Windows may warn that the program is
+unknown (it is not signed): *More info → Run anyway*. Each time it opens, it checks GitHub, and **Update** brings the folder up
+to date with `main` (by `git pull` when the folder is a git clone).
+
+Or, from a terminal:
 
 1. [Python 3.8 or newer](https://www.python.org/downloads/) (the Microsoft Store build works too).
 2. This repository: *Code → Download ZIP* and unzip it, or `git clone https://github.com/simdex-org/pit-wall`.
@@ -104,6 +110,13 @@ members, and use the driver's ZeroTier address. With **Tailscale**: sign both PC
 and use the driver's `100.x.x.x` address. Everything else is the same.
 
 ## Driver: running it
+
+**With PitWall.exe:** your Hamachi address (`25.x.x.x`) is already filled in, and you can pick another from the list. The port
+(8765) and the key can be changed; the window remembers them. Tick *Press the pit page through vJoy* if you use vJoy (below).
+Click **Start**: the window shows the link for the engineer, with **Copy**. Minimise it while you drive; closing it stops Pit
+Wall. Any arguments given to the exe go to `bridge.py` (e.g. `PitWall.exe --simulate-acc` for the demo). Then step 2.
+
+**From a terminal:**
 
 1. Start the bridge on your Hamachi address (the `25.x.x.x` at the top of the Hamachi window), in a terminal in this folder:
 
@@ -322,6 +335,10 @@ server/bridge.py         the page, Server-Sent Events out (GET /events?hz=), GET
 server/acc_telemetry.py  ACC shared memory: laps, sectors, stints, fuel, the strategy figures, advice and debrief; self-test, --probe
 server/acc_broadcast.py  ACC broadcasting API: the field's standings, gaps, pits and lap history; --enable; self-test
 server/acc_pit.py        ACC pit page: MFD key presses (or vJoy), reading it back, the plan logic; self-test
+server/launcher.py       PitWall.exe: the start window and the update from GitHub; self-test. Build it with
+                         python -m PyInstaller --onefile --windowed --name PitWall server/launcher.py
+                         and attach dist/PitWall.exe to a GitHub release. Rebuild only when the launcher changes, or when the
+                         server starts importing a standard-library module the launcher does not list.
 web/                     index.html, css/ (app.css, modules-1.css, modules-2.css), js/ (one file per concern, below), data/tracks.js
 docs/                    screenshots
 ```
