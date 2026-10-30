@@ -12,6 +12,7 @@ const Manager = {
   },
   draw(){
     const d = $('dlgTemplates'), cur = Tpl.cur, inc = this.incAp;
+    const fa = document.activeElement, tr = d.open && d.contains(fa) && fa.closest('tr'), was = d.open && d.contains(fa) ? [tr && tr.dataset.id, fa.dataset.tm || (fa.classList.contains('tm-ren') ? 'ren' : '')] : null;   // redrawn below: focus is given back
     const date = s => { const t = Date.parse(s); return isNaN(t) ? '' : new Date(t).toLocaleDateString([], {year:'numeric', month:'short', day:'numeric'}); };
     const row = t => { const bi = Tpl.isBuiltin(t.id), id = esc(t.id);
       return `<tr data-id="${id}"${t.id === cur.id ? ' class="focus" aria-selected="true"' : ''}>
@@ -28,6 +29,10 @@ const Manager = {
         <label class="check"><input type="checkbox" id="tmIncAp"${inc ? ' checked' : ''}>Include my appearance when exporting</label><span class="top-gap"></span><button class="btn primary" value="">Done</button></div></form>`;
     refreshIcons(d);
     const r = d.querySelector('.tm-ren'); if (r) { r.focus(); r.select(); }
+    else if (was) {   // the same button, else the active template's row (a deleted row is gone), else Done
+      const row = was[0] && [...d.querySelectorAll('tr[data-id]')].find(x => x.dataset.id === was[0]), b = row && was[1] && row.querySelector(`[data-tm="${was[1]}"]:not(:disabled)`);
+      (b || d.querySelector('tr.focus [data-tm="dup"]') || d.querySelector('.btn.primary')).focus({preventScroll:true});
+    }
   },
   say(t){ this.status = t; const s = $('dlgTemplates').querySelector('.tm-status'); if (s) s.textContent = t; },
   async act(a, id){
@@ -78,11 +83,12 @@ const Manager = {
     const t = res.t, ap = t.appearance; delete t.appearance;
     t.id = Tpl.newId('t-');
     t.name = Tpl.uniqueName(t.name); t.created = t.updated = new Date().toISOString();
-    if (ap && await ask('This template carries an appearance. Apply it?', [['apply', 'Apply', true], ['', 'Keep mine']]) === 'apply') Appearance.adopt(ap);
+    let apWhy = '';
+    if (ap && await ask('This template carries an appearance. Apply it?', [['apply', 'Apply', true], ['', 'Keep mine']]) === 'apply') { const a = Appearance.adopt(ap); apWhy = a ? Appearance.notApplied(a) : ''; }
     if (!(await Editor.leave())) return;
     Tpl.save(t); Tpl.use(t.id);
     const nm = t.workspaces.reduce((a, w) => a + w.modules.length, 0), nd = res.dropped.length;
-    this.say(`Imported '${t.name}': ${t.workspaces.length} workspace${t.workspaces.length === 1 ? '' : 's'}, ${nm} module${nm === 1 ? '' : 's'}${nd ? `, ${nd} unknown module${nd === 1 ? '' : 's'} dropped` : ''}${res.fixed ? `, ${res.fixed} value${res.fixed === 1 ? '' : 's'} corrected` : ''}`);
+    this.say(`Imported '${t.name}': ${t.workspaces.length} workspace${t.workspaces.length === 1 ? '' : 's'}, ${nm} module${nm === 1 ? '' : 's'}${nd ? `, ${nd} unknown module${nd === 1 ? '' : 's'} dropped` : ''}${res.fixed ? `, ${res.fixed} value${res.fixed === 1 ? '' : 's'} corrected` : ''}${apWhy ? `. Its appearance was kept but not applied: ${apWhy}` : ''}`);
     this.draw();
   },
 
