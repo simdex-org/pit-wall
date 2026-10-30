@@ -36,7 +36,7 @@
       const out = mapDraw(inst); if (!out) return;
       if (out.empty) return inst.setState('empty', 'No layout for this track yet: the map is drawn as the car laps it.');
       const fld = inst.opts.field && fieldOn(c);
-      inst.setInfo(out.info + (fld && out.noField ? ' · Field positions appear after your first whole lap' : fld ? ` · ${NO_RIVAL}` : ''));
+      inst.setInfo(out.info + (fld && out.noField ? ' · Field positions appear after your first whole lap' : ''));   // the rival-data note lives in Standings
     }});
 
   // ---------- driver inputs ----------
@@ -114,7 +114,7 @@
         o.corrections && pl && ['Next stop', pl.psi.map(p => { const d = mid - p, x = un('press').f(d) - un('press').f(0); return `<td class="n">${Math.abs(d) < 0.05 ? '0' : (d > 0 ? '▲ +' : '▼ ' + MINUS) + Math.abs(x).toFixed(un('press').d)}</td>`; })]].filter(Boolean);
       setHtml(inst.body.querySelector('tbody'), rows.map(([l, v]) => `<tr><td>${l}</td>${v.join('')}</tr>`).join(''));
       inst.setInfo(`stint ${c.s ? plural(c.s.stint_laps, 'lap') : '—'} · window ${fv('press', lo)}–${fv('press', hi)} ${un('press').u} (${r.fixed.car_class || 'GT3'} ${c.wet ? 'wet' : 'dry'})`);
-      const w = worst(ps.concat(ts, o.brakes ? bs : [])); inst.setAlert(w, w ? ps.concat(ts, bs).filter(s => s !== 'ok' && s !== 'none').length : 0);
+      inst.setAlert(worst(ps.concat(ts, o.brakes ? bs : [])));   // one alert per module: the tab badge counts problems, not corners
     }});
 
   // ---------- tyre history ----------
@@ -127,7 +127,7 @@
       setHtml(inst.body.querySelector('tbody'), L.slice().reverse().map(l => { const cx = {th:c.th, wet:l.wet};
         return `<tr><td class="n">${l.n}</td><td class="n">${l.wet ? 'W' : 'D'}${nf(l.set, 0)}</td>${l.psi.map(p => { const s = pressState(p, cx); return `<td class="n ${stCls(s)}">${fv('press', p)}${stateGlyph(s)}</td>`; }).join('')}`
           + `${(l.core || []).map(t => { const s = tyreState(t, cx); return `<td class="n ${stCls(s)}">${fv('temp', t)}${stateGlyph(s)}</td>`; }).join('')}<td class="n">${fv('temp', l.track_c, 1)}</td></tr>`; }).join(''));
-      inst.setInfo(`${L.length} laps · ${un('press').u}, ${un('temp').u}`);
+      inst.setInfo(`${plural(L.length, 'lap')} · ${un('press').u}, ${un('temp').u}`);
     }});
 
   // ---------- brakes ----------
