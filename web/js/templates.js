@@ -15,7 +15,7 @@ const BUILTIN_WS = {   // workspaces shared by several built-ins
 };
 const BUILTIN_SRC = [
   ['builtin-race', 'Race engineer', ['live', 'timing', 'strategy', 'car', 'laps', 'analysis', 'log']],
-  ['builtin-strategist', 'Strategist', [['w-overview', 'Overview', [['standings', 0, 0, 6, 14, {cols:['gap', 'int', 'last', 'best', 'pits', 'stint', 'net']}], ['pit-activity', 0, 14, 6, 8], ['track-map', 6, 0, 6, 9, {labels:'number'}],
+  ['builtin-strategist', 'Strategist', [['w-overview', 'Overview', [['standings', 0, 0, 6, 14, {cols:['gap', 'int', 'last', 'best', 'pits', 'stint', 'net']}], ['pit-activity', 0, 14, 6, 8], ['track-map', 6, 0, 6, 9],
     ['stop-options', 6, 9, 6, 6], ['battle', 6, 15, 3, 7], ['rejoin', 9, 15, 3, 7]]], 'timing', 'strategy', 'laps', 'log']],
   ['builtin-coach', 'Driver coach', [['w-live', 'Live', [['track-map', 0, 0, 7, 14], ['channels', 0, 14, 4, 8], ['lap-timer', 7, 0, 5, 4], ['car-status', 7, 4, 5, 7], ['tyres', 7, 11, 5, 11, {corrections:false}], ['gg', 4, 14, 3, 8]]],
     'laps', 'analysis', 'car', 'log']],
