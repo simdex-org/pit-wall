@@ -4,8 +4,9 @@
     python server/launcher.py --selftest
     PitWall.exe --simulate-acc             any other arguments go to bridge.py as they are
 
-Build PitWall.exe (one file; needs pip install pyinstaller):
-    python -m PyInstaller --onefile --windowed --name PitWall --icon server/pitwall.ico --add-data "server/pitwall.ico;." server/launcher.py
+The window needs pip install customtkinter pillow (the bridge itself stays standard library only).
+Build PitWall.exe (one file; needs pip install pyinstaller as well):
+    python -m PyInstaller --onefile --windowed --name PitWall --icon server/pitwall.ico --add-data "server/pitwall.ico;." --add-data "server/pitwall-logo.png;." --collect-data customtkinter server/launcher.py
 
 The exe loads server/bridge.py from the folder it sits in, so an update changes the bridge without a new exe.
 Next to a git clone it updates with git pull; anywhere else it downloads main as a zip (the first start too).
@@ -39,6 +40,9 @@ ROOT = os.path.dirname(os.path.abspath(sys.executable)) if getattr(sys, "frozen"
 PREFS = os.path.join(ROOT, "pitwall-launcher.json")
 VERSION = os.path.join(ROOT, ".pitwall-version")
 NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+# the dashboard's colours (web/css/app.css)
+BG, PANEL, RAISE, LINE, TXT, MUT, DIM = "#0a0b0d", "#101216", "#171a1f", "#262a31", "#e6e8eb", "#a1a7b0", "#7a818b"
+ACC, ACC_H, OK, OK_H, NEW, NEW_H, BAD = "#2ad4c4", "#22b3a5", "#3ddc84", "#32b56c", "#f5c518", "#d4aa12", "#ff5468"
 
 
 def pick_ip(ips):
@@ -77,7 +81,7 @@ def check():
     if is_clone():
         git("fetch", "-q", "origin", "main")
         n = int(git("rev-list", "--count", "HEAD..FETCH_HEAD"))
-        return n > 0, f"{n} new change{'s' * (n != 1)} on GitHub" if n else "Up to date"
+        return n > 0, f"New version: {n} change{'s' * (n != 1)} on GitHub" if n else "You have the latest version"
     sha = remote_sha()
     try:
         with open(VERSION) as f:
@@ -85,8 +89,8 @@ def check():
     except OSError:
         mine = ""
     if sha == mine:
-        return False, f"Up to date ({sha[:7]})"
-    return True, "Update available" if mine else "Pit Wall's files need downloading"
+        return False, f"You have the latest version ({sha[:7]})"
+    return True, "A new version is on GitHub" if mine else "Pit Wall's files need downloading"
 
 
 def extract(data, root):
@@ -151,9 +155,14 @@ def run_bridge(ip, port, key, vjoy, out):
         print(f"Pit Wall stopped: {e!r}")
 
 
+def asset(name):   # bundled into the exe; from source it sits next to this file
+    return os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), name)
+
+
 def gui():
-    import tkinter as tk
-    from tkinter import messagebox, ttk
+    import customtkinter as ctk
+    from tkinter import messagebox
+    from PIL import Image
 
     try:
         with open(PREFS) as f:
@@ -161,118 +170,165 @@ def gui():
     except (OSError, ValueError):
         prefs = {}
     ips = my_ips()
-    root = tk.Tk()
+    ctk.set_appearance_mode("dark")
+    root = ctk.CTk(fg_color=BG)
     root.title("Pit Wall")
-    try:  # the exe carries the icon in its bundle; from source it sits next to this file
-        root.iconbitmap(os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "pitwall.ico"))
-    except tk.TclError:
+    try:
+        root.iconbitmap(asset("pitwall.ico"))
+    except Exception:
         pass
     root.resizable(False, False)
-    pad = {"padx": 10, "pady": 4}
     q, live = queue.Queue(), {"on": False}
+    font = lambda size=13, weight="normal": ctk.CTkFont("Segoe UI", size, weight)   # noqa: E731
+    field = {"height": 38, "corner_radius": 6, "border_width": 1, "fg_color": RAISE, "border_color": LINE, "text_color": TXT, "font": font(14)}
 
     def later(fn):   # run fn off the window's thread; fn returns a callable to run back on it
         threading.Thread(target=lambda: q.put(fn()), daemon=True).start()
 
+    def fit():   # CTk opens at 600x500; size the window to what it holds
+        root.update_idletasks()
+        k = root._get_window_scaling()
+        root.geometry(f"{round(root.winfo_reqwidth() / k)}x{round(root.winfo_reqheight() / k)}")
+
+    def label(master, text, size=13, color=TXT, weight="normal", **kw):
+        return ctk.CTkLabel(master, text=text, text_color=color, font=font(size, weight), anchor="w", justify="left", **kw)
+
+    head = ctk.CTkFrame(root, fg_color="transparent")
+    head.pack(fill="x", padx=28, pady=(24, 0))
+    ctk.CTkLabel(head, text="", image=ctk.CTkImage(Image.open(asset("pitwall-logo.png")), size=(171, 46))).pack(side="left")
+    label(head, "Race engineer bridge\nAssetto Corsa Competizione", 12, DIM).pack(side="right")
+
     # ---------- setup ----------
-    setup = ttk.Frame(root, padding=8)
-    setup.grid()
-    ttk.Label(setup, text="PIT WALL", font=("Segoe UI", 14, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", **pad)
-    ttk.Label(setup, text="Your VPN address").grid(row=1, column=0, sticky="w", **pad)
-    ip = tk.StringVar(value=prefs.get("ip") if prefs.get("ip") in ips else pick_ip(ips))
-    ttk.Combobox(setup, textvariable=ip, values=sorted(ips, key=lambda a: a != pick_ip(ips)), width=22).grid(row=1, column=1, columnspan=2, sticky="we", **pad)
-    ttk.Label(setup, text="Port").grid(row=2, column=0, sticky="w", **pad)
-    port = tk.StringVar(value=str(prefs.get("port", 8765)))
-    ttk.Entry(setup, textvariable=port, width=8).grid(row=2, column=1, sticky="w", **pad)
-    ttk.Label(setup, text="Key").grid(row=3, column=0, sticky="w", **pad)
-    key = tk.StringVar(value=prefs.get("key") or secrets.token_urlsafe(6))
-    ttk.Entry(setup, textvariable=key, width=24).grid(row=3, column=1, columnspan=2, sticky="we", **pad)
-    vjoy = tk.BooleanVar(value=bool(prefs.get("vjoy")))
-    ttk.Checkbutton(setup, text="Press the pit page through vJoy", variable=vjoy).grid(row=4, column=1, columnspan=2, sticky="w", **pad)
-    err = ttk.Label(setup, foreground="#c0392b", wraplength=320)
-    err.grid(row=5, column=0, columnspan=3, sticky="w", **pad)
-    start = ttk.Button(setup, text="Start")
-    start.grid(row=6, column=0, columnspan=3, sticky="we", **pad)
-    ttk.Separator(setup).grid(row=7, column=0, columnspan=3, sticky="we", pady=6)
-    upd_text = ttk.Label(setup, text="Checking for updates…", wraplength=230)
-    upd_text.grid(row=8, column=0, columnspan=2, sticky="w", **pad)
-    upd = ttk.Button(setup, text="Update", state="disabled")
-    upd.grid(row=8, column=2, sticky="e", **pad)
+    setup = ctk.CTkFrame(root, fg_color="transparent")
+    setup.pack(fill="x", padx=28, pady=(20, 24))
+    card = ctk.CTkFrame(setup, fg_color=PANEL, border_color=LINE, border_width=1, corner_radius=10)
+    card.pack(fill="x")
+    card.grid_columnconfigure(1, weight=1)
+    label(card, "VPN ADDRESS", 11, MUT, "bold").grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(18, 4))
+    ip = ctk.StringVar(value=prefs.get("ip") if prefs.get("ip") in ips else pick_ip(ips))
+    ctk.CTkComboBox(card, variable=ip, values=sorted(ips, key=lambda a: a != pick_ip(ips)) or ["127.0.0.1"], width=420,
+                    button_color=LINE, button_hover_color="#363b44", dropdown_fg_color=RAISE, dropdown_hover_color=LINE,
+                    dropdown_text_color=TXT, dropdown_font=font(14), **field).grid(row=1, column=0, columnspan=2, sticky="we", padx=20)
+    label(card, "Your Hamachi address (25.x) is picked for you; change it if your engineer connects another way.", 11, DIM,
+          wraplength=420).grid(row=2, column=0, columnspan=2, sticky="w", padx=20, pady=(4, 0))
+    label(card, "PORT", 11, MUT, "bold").grid(row=3, column=0, sticky="w", padx=(20, 10), pady=(14, 4))
+    label(card, "KEY", 11, MUT, "bold").grid(row=3, column=1, sticky="w", padx=(0, 20), pady=(14, 4))
+    port = ctk.StringVar(value=str(prefs.get("port", 8765)))
+    ctk.CTkEntry(card, textvariable=port, width=110, **field).grid(row=4, column=0, sticky="w", padx=(20, 10))
+    key = ctk.StringVar(value=prefs.get("key") or secrets.token_urlsafe(6))
+    ctk.CTkEntry(card, textvariable=key, **field).grid(row=4, column=1, sticky="we", padx=(0, 20))
+    vjoy = ctk.BooleanVar(value=bool(prefs.get("vjoy")))
+    ctk.CTkSwitch(card, text="Press the pit page through vJoy", variable=vjoy, font=font(13), text_color=TXT, fg_color=LINE,
+                  progress_color=ACC, button_color=TXT, button_hover_color="#ffffff").grid(row=5, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 18))
+    err = label(setup, "", 12, BAD, wraplength=460)
+    err.pack(fill="x", pady=(6, 0))
+    start = ctk.CTkButton(setup, text="Start Pit Wall", height=48, corner_radius=8, font=font(16, "bold"),
+                          fg_color=ACC, hover_color=ACC_H, text_color=BG, text_color_disabled=DIM)
+    start.pack(fill="x", pady=(4, 0))
+    bar = ctk.CTkFrame(setup, fg_color=PANEL, border_color=LINE, border_width=1, corner_radius=10)
+    bar.pack(fill="x", pady=(14, 0))
+    upd_text = label(bar, "", 12, MUT, wraplength=290)
+    upd_text.pack(side="left", fill="x", expand=True, padx=(18, 10), pady=14)
+    upd = ctk.CTkButton(bar, width=140, height=36, corner_radius=8, font=font(14, "bold"))
+    upd.pack(side="right", padx=(0, 12))
+    st = {"avail": False}
 
     def have_code():
         return os.path.isfile(os.path.join(ROOT, "server", "bridge.py"))
+
+    def can_start():
+        on = have_code()
+        start.configure(state="normal" if on else "disabled", fg_color=ACC if on else RAISE)
+
+    def show_upd(kind, text):
+        """ok: green; new (an update, or the first download): yellow; checking/busy: disabled; fail: Retry."""
+        color, hover = {"ok": (OK, OK_H), "new": (NEW, NEW_H), "busy": (NEW, NEW)}.get(kind, (RAISE, LINE))
+        name = {"checking": "Checking…", "busy": "Updating…", "ok": "✓  Up to date", "fail": "Retry",
+                "new": "Update" if have_code() else "Download"}[kind]
+        st["avail"] = kind == "new"
+        ink = BG if color != RAISE else TXT
+        upd.configure(text=name, fg_color=color, hover_color=hover, text_color=ink, text_color_disabled=ink if color != RAISE else DIM,
+                      state="disabled" if kind in ("checking", "busy") else "normal")
+        upd_text.configure(text=text, text_color=NEW if kind == "new" else BAD if kind == "fail" else MUT)
 
     def checked(fn):
         def work():
             try:
                 avail, text = fn()
+                kind = "new" if avail else "ok"
             except Exception as e:
-                avail, text = not have_code(), f"Could not reach GitHub: {e}"
-            def show():
-                upd_text.config(text=text)
-                upd.config(state="normal" if avail or not have_code() else "disabled", text="Update" if have_code() else "Download")
-                start.config(state="normal" if have_code() else "disabled")
-            return show
-        upd_text.config(text="Checking for updates…")
+                kind, text = "fail" if have_code() else "new", f"Could not reach GitHub: {e}"
+            return lambda: (show_upd(kind, text), can_start())
+        show_upd("checking", "Checking GitHub for a newer Pit Wall…")
         later(work)
 
     def do_update():
-        upd.config(state="disabled")
-        upd_text.config(text="Updating…")
+        show_upd("busy", "Downloading the latest Pit Wall…")
         def work():
             try:
                 text = update()
-                return lambda: (upd_text.config(text=text), start.config(state="normal" if have_code() else "disabled"))
+                return lambda: (show_upd("ok", text), can_start())
             except Exception as e:
-                return lambda: (upd_text.config(text=f"Update failed: {e}"), upd.config(state="normal"))
+                return lambda: show_upd("new", f"Update failed: {e}")
         later(work)
-    upd.config(command=do_update)
+    upd.configure(command=lambda: do_update() if st["avail"] else checked(check))   # the green button checks again
 
     # ---------- running ----------
     def do_start():
         a, k = ip.get().strip(), key.get().strip()
         if not re.fullmatch(r"\d{1,5}", port.get().strip()) or not 0 < int(port.get()) < 65536:
-            return err.config(text="The port is a number from 1 to 65535 (8765 if unsure).")
+            return err.configure(text="The port is a number from 1 to 65535 (8765 if unsure).")
         if not re.fullmatch(r"[A-Za-z0-9_-]{4,64}", k):
-            return err.config(text="The key: 4 to 64 letters, digits, - or _.")
+            return err.configure(text="The key: 4 to 64 letters, digits, - or _.")
         p = int(port.get())
         s = socket.socket()
         try:
             s.bind((a, p))
         except OSError as e:
-            return err.config(text=bind_error(e, a, p))
+            return err.configure(text=bind_error(e, a, p))
         finally:
             s.close()
         with open(PREFS, "w") as f:
             json.dump({"ip": a, "port": p, "key": k, "vjoy": vjoy.get()}, f)
-        setup.grid_remove()
-        run = ttk.Frame(root, padding=8)
-        run.grid()
+        setup.pack_forget()
+        run = ctk.CTkFrame(root, fg_color="transparent")
+        run.pack(fill="x", padx=28, pady=(20, 24))
         url = f"http://{a}:{p}/?key={k}"
-        ttk.Label(run, text=f"● Running on {a}:{p}", font=("Segoe UI", 11, "bold"), foreground="#1e8449").grid(row=0, column=0, columnspan=3, sticky="w", **pad)
-        ttk.Label(run, text="Send this link to your engineer:").grid(row=1, column=0, columnspan=3, sticky="w", **pad)
-        link = ttk.Entry(run, width=44)
+        status = ctk.CTkFrame(run, fg_color=PANEL, border_color=LINE, border_width=1, corner_radius=10)
+        status.pack(fill="x")
+        label(status, "●", 18, OK).pack(side="left", padx=(18, 8), pady=10)
+        label(status, "Running", 15, TXT, "bold").pack(side="left")
+        ctk.CTkLabel(status, text=f"{a}:{p}", font=ctk.CTkFont("Consolas", 13), text_color=MUT).pack(side="right", padx=18)
+        label(run, "SEND THIS LINK TO YOUR ENGINEER", 11, MUT, "bold").pack(fill="x", pady=(18, 6))
+        row = ctk.CTkFrame(run, fg_color="transparent")
+        row.pack(fill="x")
+        link = ctk.CTkEntry(row, **{**field, "font": ctk.CTkFont("Consolas", 13), "text_color": ACC})
         link.insert(0, url)
-        link.config(state="readonly")
-        link.grid(row=2, column=0, sticky="we", **pad)
+        link.configure(state="readonly")
+        link.pack(side="left", fill="x", expand=True)
 
         def copy_link():
             root.clipboard_clear()
             root.clipboard_append(url)
-            cp.config(text="Copied ✓")
-            root.after(1500, lambda: cp.config(text="Copy"))
-        cp = ttk.Button(run, text="Copy", command=copy_link, width=9)
-        cp.grid(row=2, column=1)
-        ttk.Button(run, text="Open", command=lambda: webbrowser.open(url), width=7).grid(row=2, column=2, padx=(0, 10))
-        log = tk.Text(run, height=9, width=64, font=("Consolas", 8), state="disabled", relief="flat", background="#f4f4f4")
-        log.grid(row=3, column=0, columnspan=3, sticky="we", **pad)
-        ttk.Label(run, text="Leave this window open (minimise it) while you drive. Closing it stops Pit Wall.",
-                  foreground="#666").grid(row=4, column=0, columnspan=3, sticky="w", **pad)
+            cp.configure(text="✓  Copied", fg_color=OK, hover_color=OK_H)
+            root.after(1500, lambda: cp.configure(text="Copy", fg_color=ACC, hover_color=ACC_H))
+        ctk.CTkButton(row, text="Open", width=72, height=38, corner_radius=6, font=font(14, "bold"), fg_color=RAISE, hover_color=LINE,
+                      border_width=1, border_color=LINE, text_color=TXT, command=lambda: webbrowser.open(url)).pack(side="right", padx=(8, 0))
+        cp = ctk.CTkButton(row, text="Copy", width=96, height=38, corner_radius=6, font=font(14, "bold"), fg_color=ACC, hover_color=ACC_H,
+                           text_color=BG, command=copy_link)
+        cp.pack(side="right", padx=(8, 0))
+        label(run, "LOG", 11, MUT, "bold").pack(fill="x", pady=(18, 6))
+        log = ctk.CTkTextbox(run, height=190, width=520, corner_radius=8, border_width=1, fg_color=PANEL, border_color=LINE,
+                             text_color=MUT, font=ctk.CTkFont("Consolas", 11), scrollbar_button_color=LINE, wrap="none")
+        log.configure(state="disabled")
+        log.pack(fill="x")
+        label(run, "Leave this window open (minimise it) while you drive. Closing it stops Pit Wall.", 12, DIM).pack(fill="x", pady=(12, 0))
+        fit()
         live["on"], live["log"] = True, log
         out = queue.Queue()
         live["out"] = out
         threading.Thread(target=run_bridge, args=(a, p, k, vjoy.get(), Out(out)), daemon=True).start()
-    start.config(command=do_start)
+    start.configure(command=do_start)
 
     def pump():
         while not q.empty():
@@ -283,11 +339,11 @@ def gui():
                 text += live["out"].get()
             if text:
                 log = live["log"]
-                log.config(state="normal")
+                log.configure(state="normal")
                 log.insert("end", text)
                 log.delete("1.0", "end-300l")
                 log.see("end")
-                log.config(state="disabled")
+                log.configure(state="disabled")
         root.after(200, pump)
 
     def close():
@@ -299,9 +355,9 @@ def gui():
     if have_code():
         checked(check)
     else:
-        upd_text.config(text="Pit Wall's files are not in this folder yet. Click Download.")
-        start.config(state="disabled")
-        upd.config(state="normal", text="Download")
+        show_upd("new", "Pit Wall's files are not in this folder yet. Click Download.")
+        can_start()
+    fit()
     pump()
     root.mainloop()
 
