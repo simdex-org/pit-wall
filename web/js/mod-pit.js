@@ -11,8 +11,8 @@
   const LABEL = Object.fromEntries(GROUPS.flatMap(([, , rows]) => rows.map(r => [r[0], r[1]])));
   const GROUP_OF = Object.fromEntries(GROUPS.flatMap(([, only, rows]) => rows.map(r => [r[0], only])));
   const RES = {fuel:'fuel', tyres:'tyres', compound:'compound', tyre_set:'tyre_set', p0:'fl', p1:'fr', p2:'rl', p3:'rr', brakes:'brakes', front_pad:'front_pad', rear_pad:'rear_pad', flip_suspension:'flip_suspension', flip_bodywork:'flip_bodywork'};
-  // DEF is only the fallback while nothing is stored and the MFD is not live: a new page seeds the plan from the last plan sent,
-  // or from the MFD (seed()), so it opens with no changes and Send cannot zero the driver's fuel.
+  // DEF is only the fallback while nothing is stored and the MFD is not live: a new page seeds the plan from the MFD, with the
+  // blocks the last send typed on top (seed()), so it opens with no changes and Send cannot zero the driver's fuel.
   const DEF = {fuel:0, tyres:false, compound:'dry', tyre_set:1, pressures:[26.5, 26.5, 26.5, 26.5], brakes:false, front_pad:1, rear_pad:1, flip_suspension:false, flip_bodywork:false};
   const OK_RES = ['ok', 'sent', 'skipped', 'switched on for the pressures'];   // acc_pit results that are not failures
   const RES_TEXT = {'switched on for the pressures':['on', 'Tyre change switched on: ACC fits the pressures only with a tyre change']};
@@ -103,6 +103,7 @@
   };
   async function send(inst, only, confirmed){
     const el = inst.body, p = readPlan(el), st = inst.state, c = Pit.ctx;
+    if (st.sending) return;   // one POST at a time: a double click would only earn a 409
     lsSet('pitwall.plan', p);
     if (st.confirm && !confirmed) {
       const ch = changes(p, c && c.pit, only, c), box = el.querySelector('.pp-confirm');
@@ -110,16 +111,21 @@
       box.hidden = false; st.pending = only || ''; box.querySelector('[data-go]').focus(); return;
     }
     el.querySelector('.pp-confirm').hidden = true;
-    st.msg = only ? `Sending ${only}…` : 'Sending the whole plan…'; Pit.dirty('pit');
-    const r = await Pit.post('/pit', only ? Object.assign({}, p, {only:[only]}) : p);
+    st.msg = only ? `Sending ${only}…` : 'Sending the whole plan…'; st.sending = true; Pit.dirty('pit');
+    const n0 = JOBS_DONE, r = await Pit.post('/pit', only ? Object.assign({}, p, {only:[only]}) : p);
+    st.sending = false;
     if (r.status === 202 && (!only || only === 'repairs')) {   // a repair switch is one-shot: off again once sent
       p.flip_suspension = p.flip_bodywork = false; lsSet('pitwall.plan', p); for (const i of INSTS) fill(i.body, p);
     }
-    st.msg = r.status === 0 ? r.text : r.status === 202 ? "Sent. Typing it into the driver's pit page; keep ACC focused on the driver's PC."
-      : r.status === 403 ? 'Wrong or missing access key: Settings › Connection.' : r.status === 409 ? 'Busy (409): a plan is still being typed.' : 'Refused: ' + r.text;
+    // a job ended while the POST was in flight (a short send, VPN latency): its outcome is already showing, so no "Sent…"/"Busy"
+    st.msg = (r.status === 202 || r.status === 409) && JOBS_DONE !== n0 ? ''
+      : r.status === 0 ? r.text : r.status === 202 ? "Sent. Typing it into the driver's pit page; keep ACC focused on the driver's PC."
+      : r.status === 403 ? 'Wrong or missing access key: Settings › Connection.' : r.status === 409 ? 'Busy (409): ' + r.text + '.' : 'Refused: ' + r.text;
     st.flash = new Set(); Pit.dirty('pit');
   }
-  Pit.on('pitjob', j => { if (j && j.state !== 'running') for (const i of INSTS) i.state.msg = ''; });   // the job's own outcome replaces "Sent…"
+  // the job's own outcome replaces "Sent…"; JOBS_DONE counts endings (not job.t against Date.now(): clocks on two PCs)
+  let JOBS_DONE = 0;
+  Pit.on('pitjob', j => { if (j && j.state !== 'running') { JOBS_DONE++; for (const i of INSTS) i.state.msg = ''; } });
   Pit.on('plan', patch => {   // from race-plan ("Put in pit plan") and press-fix ("Use in pit plan")
     if (!isObj(patch)) return;
     const p = Object.assign(plan(), patch), keys = Object.keys(patch).flatMap(k => k === 'pressures' ? ['p0', 'p1', 'p2', 'p3'] : [k]);
@@ -170,10 +176,11 @@
           b.disabled = true; inst.state.closeUntil = performance.now() + 2000; setTimeout(() => { b.disabled = false; Pit.dirty('pit'); }, 2000);
           inst.state.msg = 'Closing the pit page…'; Pit.dirty('pit');
           return Pit.post('/mfd/close', {}).then(r => {
-            const m = r.status === 202 ? `Cycle MFD sent ${hms(new Date())}: ACC does not say which MFD page shows, check with the driver`
+            const m = r.status === 202 ? `Cycle MFD queued ${hms(new Date())}: the event log confirms the press; ACC does not say which MFD page shows, check with the driver`
               : r.status === 403 ? 'Wrong or missing access key: Settings › Connection.' : r.status === 0 ? r.text : 'Refused: ' + r.text;   // 409: the bridge says why
             inst.state.msg = m; Pit.dirty('pit');
-            if (r.status === 202) setTimeout(() => { if (inst.state.msg === m) { inst.state.msg = ''; Pit.dirty('pit'); } }, 8000);
+            const clear = () => { if (inst.state.msg !== m) return; if (Pit.ctx.pit && Pit.ctx.pit.busy === 'close') return setTimeout(clear, 2000); inst.state.msg = ''; Pit.dirty('pit'); };
+            if (r.status === 202) setTimeout(clear, 8000);   // shown for 8 s once the press is done, not while it waits for the driver
           });
         }
         if (b.dataset.only) return send(inst, b.dataset.only);
@@ -182,12 +189,13 @@
     destroy(inst){ INSTS.delete(inst); },
     render(c, inst){
       seed(c);
-      const p = c.pit, job = c.pitJob, live = p && p.status === 'live', busy = (job && job.state === 'running') || !!(p && p.busy), el = inst.body, st = inst.state, P = readPlan(el);
+      const p = c.pit, job = c.pitJob, live = p && p.status === 'live', running = job && job.state === 'running', busy = running || !!(p && p.busy), el = inst.body, st = inst.state, P = readPlan(el);
+      const closing = busy && !running && p.busy === 'close';   // a Close pit page holds the bridge, not a plan
       if (st.unit !== Pit.prefs.units.press) { st.unit = Pit.prefs.units.press; for (const i of el.querySelectorAll('[data-f^="p"]')) i.step = pstep(); for (const u of el.querySelectorAll('.pp-in .u')) if (u.parentNode.querySelector('[data-f]').dataset.f[0] === 'p') u.textContent = ' ' + un('press').u; fill(el, plan()); }
       el.querySelectorAll('[data-only],[data-whole],[data-go],[data-close]').forEach(b => {
         const close = b.hasAttribute('data-close');
-        b.disabled = !live || busy || !Pit.key || (close && st.closeUntil > performance.now());
-        b.title = !Pit.key ? 'Needs the access key: Settings › Connection' : !live ? 'ACC is not live on the driver\'s PC' : busy ? 'A plan is still being typed'
+        b.disabled = !live || busy || !Pit.key || (close ? st.closeUntil > performance.now() : !!st.sending);
+        b.title = !Pit.key ? 'Needs the access key: Settings › Connection' : !live ? 'ACC is not live on the driver\'s PC' : closing ? 'The pit page is being closed' : busy ? 'A plan is still being typed'
           : close ? "Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)" : '';
       });
       const wet = P.compound === 'wet';   // wet tyres have no sets in ACC: the bridge skips the tyre set
@@ -208,10 +216,10 @@
       for (const td of el.querySelectorAll('[data-r]')) {
         const k = td.closest('[data-row]').dataset.row, r = wet && k === 'tyre_set' ? {txt:'n/a (wet)', cls:'s-dim', title:'Wet tyres have no sets in ACC'} : resOf(job, k, P); td.textContent = r ? r.txt : ''; td.className = 'pr-res ' + (r ? r.cls : ''); td.title = r ? r.title : ''; }
       const vals = Object.values(res), verified = vals.length && vals.every(v => OK_RES.includes(v)), when = job && job.t ? hms(new Date(job.t * 1000)) : '';
-      el.querySelector('[data-state]').textContent = !p ? 'No pit control' : busy ? (p.waiting_lift ? 'Applying: waiting for the driver to lift' : 'Applying…')
+      el.querySelector('[data-state]').textContent = !p ? 'No pit control' : busy ? (closing ? 'Closing the pit page' : 'Applying') + (p.waiting_lift ? ': waiting for the driver to lift' : '…')
         : st.msg ? st.msg : job && job.state === 'error' ? 'Failed: ' + job.msg : job && job.state === 'done' ? `Applied ${when}${job.by ? ' by ' + job.by : ''}${verified ? ' · verified' : ' · check the results'}${n ? ` · draft: ${n} change${n === 1 ? '' : 's'}` : ''}` : `Draft (${n} change${n === 1 ? '' : 's'})`;
       el.querySelector('[data-state]').className = 'pp-state' + (job && job.state === 'error' && !st.msg ? ' s-bad' : busy ? ' s-warn' : '');
-      setHtml(el.querySelector('.pp-sets'), live ? kvHtml([['MFD current set', nf(p.current_set, 0)], ['MFD strategy set', nf(p.strategy_set, 0)]]) : '');
+      setHtml(el.querySelector('.pp-sets'), live ? kvHtml([['Tyre set on the car', nf(p.current_set, 0)], ['Strategy tyre set', nf(p.strategy_set, 0)]]) : '');
       inst.setInfo(live ? 'ACC live' + (p.in_pit_lane ? ' · in pit lane' : '') + (Pit.key ? '' : ' · no key') : p ? `ACC ${p.status}` : '');
     }});
 
