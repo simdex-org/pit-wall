@@ -80,7 +80,8 @@ Limits, plainly:
 **Driver's PC** (Windows; ACC runs here), the easy way: download
 **[PitWall.exe](https://github.com/simdex-org/pit-wall/releases/latest/download/PitWall.exe)** into an empty folder and open it.
 It needs no Python, not even for the one-time setup below: **Turn on field timing** and **Bind vJoy in ACC** are buttons in its
-window. The first time, click **Download** to fetch Pit Wall into that folder. Windows may warn that the program is
+window. **Stop** ends the connection without closing the program; **Start** brings it back. The first time, click **Download**
+to fetch Pit Wall into that folder. Windows may warn that the program is
 unknown (it is not signed): *More info → Run anyway*. Each time it opens, it checks GitHub, and **Update** brings the folder up
 to date with `main` (by `git pull` when the folder is a git clone).
 
