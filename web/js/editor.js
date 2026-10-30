@@ -7,7 +7,8 @@
 const Editor = {
   active: false, snap: null, undo: [], redo: [], sel: null, drag: null, forked: null,
   ws(){ return Tpl.cur.workspaces.find(w => w.id === WS.wsId) || Tpl.cur.workspaces[0]; },
-  changed(){ return !!this.snap && JSON.stringify(Tpl.cur) !== JSON.stringify(this.snap); },
+  // a fork made by this session differs in id, name and dates only: compare its layout, so a no-op fork is no change
+  changed(){ if (!this.snap) return false; return this.forked ? JSON.stringify(Tpl.cur.workspaces) !== JSON.stringify(this.snap.workspaces) : JSON.stringify(Tpl.cur) !== JSON.stringify(this.snap); },
   // The tab's template made user-owned: a built-in is forked once, with no dialog.
   own(){
     const t = Tpl.cur; if (!Tpl.isBuiltin(t.id)) return t;
@@ -38,6 +39,7 @@ const Editor = {
     const t = Tpl.cur, raw = lsGet('pitwall.templates', null), stored = raw && Array.isArray(raw.items) ? raw.items.find(x => x && x.id === t.id) : null;
     if (stored && this.snap && this.snap.id === t.id && stored.updated !== this.snap.updated
       && await ask('This template was changed in another tab. Overwrite it?', [['ow', 'Overwrite', true], ['', 'Cancel']]) !== 'ow') return false;
+    if (this.forked && !this.changed()) { this.discard(); return true; }   // forked, then undone or a no-op: no identical copy
     if (this.changed()) { Tpl.save(t); lsSet('pitwall.active', t.id); Pit.say(`Saved '${t.name}'`); }
     this.exit(); return true;
   },
@@ -235,7 +237,6 @@ const Editor = {
     d.innerHTML = `<form method="dialog" class="dlg-body"><header class="dlg-h"><h2>${esc(m.title || def.title)} <span class="note">options</span></h2><button class="btn icon" value="" aria-label="Close"><i data-lucide="x"></i></button></header>
       <div class="dlg-scroll">
         <label class="fld"><span>Title</span><input type="text" data-c="title" maxlength="40" value="${esc(m.title || '')}" placeholder="${esc(def.title)}"></label>
-        ${def.linkable ? `<label class="fld check"><input type="checkbox" data-c="linked"${m.linked !== false ? ' checked' : ''}><span>Follow the focus car</span></label>` : ''}
         <label class="fld check"><input type="checkbox" data-c="header"${m.header !== false ? ' checked' : ''}><span>Show header</span></label>
         ${def.options.map(field).join('')}
       </div>
@@ -330,7 +331,6 @@ $('ws').addEventListener('pointerdown', e => {
 $('dlgModule').addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.c === 'title') return Editor.setOpt(m => { m.title = cleanText(t.value, 40); });
-  if (t.dataset.c === 'linked') return Editor.setOpt(m => { m.linked = t.checked; });
   if (t.dataset.c === 'header') return Editor.setOpt(m => { m.header = t.checked; });
   if (t.dataset.o) return Editor.setOpt((m, def) => {
     const op = def.options.find(o => o.key === t.dataset.o), v = op.type === 'toggle' ? t.checked : op.type === 'number' ? +t.value : t.value;

@@ -17,11 +17,12 @@
       });
       el.querySelector('input').addEventListener('input', e => { inst.state.q = e.target.value.trim().toLowerCase(); again(); });
     },
+    // the lap column is the lap in progress when the line was logged; a LAP line reports the lap just completed, so it shows that one
     render(c, inst){
       const st = inst.state, all = c.log || [];
       const L = all.filter(e => !st.off.has(e.cat) && (!st.q || String(e.text).toLowerCase().includes(st.q)));
       const tb = inst.body.querySelector('tbody');
-      const h = L.length ? L.slice(0, 300).map(e => `<tr><td class="n">${hms(new Date(e.t * 1000))}</td><td class="n">L${nf(e.lap, 0)}</td><td><b class="tag">${esc(e.cat)}</b></td><td class="ev-t">${sevLine(e.sev, e.text)}</td></tr>`).join('')
+      const h = L.length ? L.slice(0, 300).map(e => `<tr><td class="n">${hms(new Date(e.t * 1000))}</td><td class="n">L${nf(e.cat === 'LAP' ? e.lap - 1 : e.lap, 0)}</td><td><b class="tag">${esc(e.cat)}</b></td><td class="ev-t">${sevLine(e.sev, e.text)}</td></tr>`).join('')
         : `<tr><td class="note">${all.length ? 'Nothing matches the filter.' : 'Events appear here as they happen.'}</td></tr>`;
       if (tb._h !== h) { setHtml(tb, h); refreshIcons(tb); }
       inst.setInfo(`${L.length}${L.length !== all.length ? ' of ' + all.length : ''} events`);
