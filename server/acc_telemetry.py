@@ -176,7 +176,7 @@ class AccPages:
             "susp_damage": _f(p, 680, 4), "water": _f(p, 712), "brake_press": _f(p, 716, 4),
             "front_pad_compound": _i(p, 732), "rear_pad_compound": _i(p, 736), "pad": _f(p, 740, 4), "disc": _f(p, 756, 4),
             "laps": _i(g, 132), "position": _i(g, 136), "cur_ms": _i(g, 140), "last_ms": _i(g, 144), "best_ms": _i(g, 148),
-            "time_left": _f(g, 152), "in_box": _i(g, 160), "sector": _i(g, 164), "compound": _w(g, 176), "track_pos": _f(g, 248),
+            "time_left": _f(g, 152), "in_box": _i(g, 160), "sector": _i(g, 164), "last_sector_ms": _i(g, 168), "compound": _w(g, 176), "track_pos": _f(g, 248),
             "xyz": _f(g, 256 + 12 * car, 3), "me": me, "penalty_time": _f(g, 1220), "flag": _i(g, 1224), "penalty": _i(g, 1228),
             "pit_lane": _i(g, 1236), "mandatory_done": _i(g, 1244), "wind": _f(g, 1248), "wind_dir": _f(g, 1252),
             "tc": _i(g, 1268), "tc_cut": _i(g, 1272), "map": _i(g, 1276), "abs": _i(g, 1280), "fuel_per_lap": _f(g, 1284),
@@ -231,8 +231,9 @@ class Telemetry:
             self.stint_road = r["road"]
         if self.stint_start is None or r["pit_lane"]:
             self.stint_start, self.stint = r["laps"], []
-        if p and r["sector"] > p["sector"]:
-            self.splits.append(r["cur_ms"])
+        if p and r["sector"] > p["sector"]:   # ACC's exact sector time; the frame's lap time is up to a frame late, so it is the fallback
+            at = (self.splits[-1] if self.splits else 0) + r["last_sector_ms"]   # ponytail: the 250 ms guard drops a stale lastSectorTime
+            self.splits.append(at if 0 < r["last_sector_ms"] < 600000 and 0 <= r["cur_ms"] - at < 250 else r["cur_ms"])
         self.lap_brake_max = max(self.lap_brake_max, *r["brake_temp"])
         self.lap_saw_pit = self.lap_saw_pit or bool(r["pit_lane"])
         if p:
@@ -240,7 +241,7 @@ class Telemetry:
             self._pits(r, p, now)
         if p and r["laps"] > p["laps"]:
             self._lap_done(r, p, ext)
-        self._sample(r)
+        self._sample(r, now)
         self.prev, self.t_prev = r, now
         mp, po, pc = r["missing_pits"], r["pit_open"], r["pit_close"]
         win = 0 < po < pc
@@ -333,10 +334,12 @@ class Telemetry:
                                               f"+{added:.1f} L, set {st['set']}→{r['tyre_set']}"))
 
     # ---------- laps ----------
-    def _sample(self, r):
+    def _sample(self, r, now):
         p, x, z = r["track_pos"], r["xyz"][0], r["xyz"][2]
-        if self.line and math.hypot(self.line[-1][0] - x, self.line[-1][1] - z) > 60:   # a jump (garage, reset): the lap is no longer whole
-            self.cur, self.line = [], []
+        if (x or z) and self.line:   # a jump (garage, reset): the lap is no longer whole. Farther than the car could go since the last frame
+            d, dt = math.hypot(self.line[-1][0] - x, self.line[-1][1] - z), max(1 / 30, now - (self.t_prev or now))
+            if d > 60 and d > r["speed"] / 3.6 * dt * 1.5 + 20:
+                self.cur, self.line = [], []
         c = self.cur
         if not c or p > c[-1]["p"]:   # position must advance; drops jitter and the wrap after the line
             c.append({"p": p, "t": r["cur_ms"], "speed": r["speed"], "thr": r["gas"], "brk": r["brake"], "steer": r["steer"],
@@ -648,23 +651,27 @@ class FakePages:
         el = (self.clock() - self.t0) * 1000
         t = el + 3.5 * self.lap
         pos, laps, w = (t % self.lap) / self.lap, int(t // self.lap), (t % self.lap) / self.lap * 2 * math.pi
-        sp = 175 + 70 * math.sin(w * 6)
+        u = t / self.lap % 18   # the stint: every 18 laps a stop, in the lane for the last 5 % of a lap and the first 8 % of the next
+        lane, box = u > 17.95 or u < 0.08, 0.01 <= u < 0.06   # stood in the box for 3 s of a 60 s lap, taking the fuel
+        burn = 3.1 * (u + 18 * (1 - max(0.0, min(1.0, (u - 0.01) / 0.05))))   # the last stint's burn until the box, refilled in it
+        sp = 0.0 if box else 60.0 if lane else 175 + 70 * math.sin(w * 6)
         yellow = laps % 7 == 3 and 0.33 < pos < 0.66
         return {
-            "status": 2, "session": self.session, "gas": max(0.0, min(1.0, 0.6 + 0.5 * math.sin(w * 6 + 0.4))), "brake": max(0.0, -math.sin(w * 6 + 0.4) - 0.5),
-            "fuel": 60 - (t / self.lap % 18) * 3.1, "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": int(5200 + 2200 * math.sin(w * 25) ** 2),
+            "status": 2, "session": self.session, "gas": 0.0 if box else 0.3 if lane else max(0.0, min(1.0, 0.6 + 0.5 * math.sin(w * 6 + 0.4))),
+            "brake": 0.0 if lane else max(0.0, -math.sin(w * 6 + 0.4) - 0.5), "fuel": 60 - burn, "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": int(5200 + 2200 * math.sin(w * 25) ** 2),
             "steer": 0.3 * math.sin(w * 5), "speed": sp, "acc_g": [1.2 * math.sin(w * 5), 0.0, 0.8 * math.cos(w * 5)],
-            "pressure": [27.6, 27.8, 26.6, 26.8], "core_temp": [84.0, 86.0, 79.0, 81.0], "damage": [0.0] * 5, "tyres_out": 0, "limiter": 0,
+            "pressure": [27.6, 27.8, 26.6, 26.8], "core_temp": [84.0, 86.0, 79.0, 81.0], "damage": [0.0] * 5, "tyres_out": 0, "limiter": int(lane),
             "air": 22.4, "road": 29.1, "brake_temp": [412.0, 405.0, 330.0, 338.0], "clutch": 0.0, "bias": 0.565, "tc_on": 0, "abs_on": 0,
             "susp_damage": [0.0] * 4, "water": 92.0, "brake_press": [0.0] * 4, "front_pad_compound": 0, "rear_pad_compound": 0,
             "pad": [round(x - t / self.lap * k, 2) for x, k in zip([24.1, 24.0, 25.2, 25.3], [0.21, 0.2, 0.12, 0.12])], "disc": [31.8, 31.8, 31.9, 31.9],
             "laps": laps, "position": 7, "cur_ms": int(t % self.lap), "last_ms": self.lap - 500 + 110 * laps + laps * 7919 % 400 if laps else 0,
-            "best_ms": self.lap - 120 if laps > 1 else 2147483647, "time_left": 3.2e6 - t, "in_box": 0, "sector": int(pos * 3),
+            "best_ms": self.lap - 120 if laps > 1 else 2147483647, "time_left": 3.2e6 - t, "in_box": int(box), "sector": int(pos * 3),
+            "last_sector_ms": self.lap // 3,
             "compound": "dry_compound", "track_pos": pos, "xyz": self._where(w, laps), "me": 7, "penalty_time": 0.0,
-            "flag": 2 if yellow else 0, "penalty": 0, "pit_lane": 0, "mandatory_done": int(laps >= 20), "wind": 2.3, "wind_dir": 3.73,
+            "flag": 2 if yellow else 0, "penalty": 0, "pit_lane": int(lane), "mandatory_done": int(laps >= 20), "wind": 2.3, "wind_dir": 3.73,
             "tc": 3, "tc_cut": 2, "map": 0, "abs": 2, "fuel_per_lap": 3.0, "rain_lights": 0, "lights_stage": 0, "exhaust": 610.0, "wiper": 0,
             "stint_total_left": int(3600000 - el), "stint_left": int(3600000 - el), "rain_tyres": 0, "session_index": 0,
-            "used_fuel": (t / self.lap % 18) * 3.1, "delta_ms": int(-214 + 100 * math.sin(w)), "est_lap_ms": self.lap, "valid": int(laps % 5 != 2),
+            "used_fuel": burn, "delta_ms": int(-214 + 100 * math.sin(w)), "est_lap_ms": self.lap, "valid": int(laps % 5 != 2),
             "fuel_laps": 12.0, "track_status": "", "missing_pits": int(laps < 20) if self.session == 2 else 255, "clock": 14 * 3600 + el / 1000,
             "g_flags": [0, 0, int(yellow), 0, 0, 0, 0, 0], "grip": 2, "rain": [0, 1, 2], "tyre_set": 3,
             "gap_ahead": int(1840 - 90 * (t / self.lap)), "gap_behind": int(950 + 60 * (t / self.lap)),
@@ -679,7 +686,8 @@ def probe():
     while True:
         r = pages.read()
         print(f"pit_open={r['pit_open']} pit_close={r['pit_close']} missing_pits={r['missing_pits']} "
-              f"track_len={r['track_len']:.1f} timed={r['timed']}   (session {r['session']}, lap {r['laps'] + 1})", flush=True)
+              f"track_len={r['track_len']:.1f} timed={r['timed']} "
+              f"sector={r['sector']} last_sector_ms={r['last_sector_ms']} cur_ms={r['cur_ms']}   (session {r['session']}, lap {r['laps'] + 1})", flush=True)
         time.sleep(1)
 
 
@@ -751,6 +759,15 @@ def selftest():
         tt.update(raw)
     jumped = [l["n"] for l in tt.laps if l["n"] % 2 == 0]   # lap n is driven while raw["laps"] is n - 1
     assert jumped and all(tt.lap_trace(n) is None for n in jumped) and any(l["trace"] for l in tt.laps), tt.laps
+
+    tp, tt = FakePages(lap_ms=60000, clock=lambda: now[0]), Telemetry(clock=lambda: now[0])   # the demo's own stop at lap 18
+    n0 = now[0]
+    while now[0] < n0 + 16.2 * 60:
+        now[0] += 1 / 10
+        tt.update(tp.read())
+    st = tt.stops
+    assert len(st) == 1 and st[0]["lap"] == 18 and abs(st[0]["box_ms"] - 3000) < 200 and st[0]["fuel_added_l"] > 50, st
+    assert tt.laps[-1]["s"][:2] == [20000, 20000] and [l["n"] for l in tt.laps if l["in"] or l["out"]] == [18, 19], tt.laps
 
     c = clean_config({"thresholds": {"GT4": {"dry_psi": [25, 26.5]}}, "strategy": {"mandatory_stops": 1}})
     assert c["thresholds"]["GT4"]["dry_psi"] == [25.0, 26.5] and c["thresholds"]["GT3"]["dry_psi"] == [26.0, 27.0] and c["strategy"]["mandatory_stops"] == 1
