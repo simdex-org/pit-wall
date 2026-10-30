@@ -94,8 +94,9 @@ const CAR3D = {
       const nn = g.attributes.normal.array, P = i => [pos[3 * i], pos[3 * i + 1], pos[3 * i + 2]], N = i => [nn[3 * i], nn[3 * i + 1], nn[3 * i + 2]];
       for (const [a, b, c, d] of quads) {
         const m = [0, 1, 2].map(j => (P(a)[j] + P(b)[j] + P(c)[j] + P(d)[j]) / 4);
-        if (inArch(...m)) continue;   // the wheel arch openings
-        tri('shell', P(a), P(b), P(c), N(a), N(b), N(c), zoneAt, 'body'); tri('shell', P(a), P(c), P(d), N(a), N(c), N(d), zoneAt, 'body');
+        const ny = (N(a)[1] + N(b)[1] + N(c)[1] + N(d)[1]) / 4, kind = m[2] < .15 ? 'carbon' : 'body';   // the floor is carbon, not a zone's paint
+        if (inArch(...m) && Math.abs(ny) > .55) continue;   // the wheel arch openings: cut in the side only; the fender stays over the wheel
+        tri('shell', P(a), P(b), P(c), N(a), N(b), N(c), zoneAt, kind); tri('shell', P(a), P(c), P(d), N(a), N(c), N(d), zoneAt, kind);
       }
       g.dispose();
       for (const [r, part, dir] of [[R[0], 'rear', -1], [R[R.length - 1], 'front', 1]]) {   // tail and nose caps
@@ -108,21 +109,21 @@ const CAR3D = {
       const lip = [];
       for (let k = 0; k <= 24; k++) { const a = -.25 + (Math.PI + .5) * k / 24, x = ax + (AR + .005) * Math.cos(a), z = .34 + (AR + .005) * Math.sin(a); const zc = Math.min(z, secAt(x)[3] - .05); lip.push([x, s * (sideY(x, zc) - .004), zc]); }   // never above the fender
       tube('shell', lip, .022, false, ax > 0 ? 'front' : 'rear', 'carbon');
-      geo('inner', new T.CylinderGeometry(AR + .02, AR + .02, .42, 24, 1, true, Math.PI * .95, Math.PI * 1.1), M(ax, s * .80, .34), 'well', 'well');   // the drum over the wheel
-      geo('inner', new T.CircleGeometry(AR + .02, 24), M(ax, s * .59, .34, Math.PI / 2), 'well', 'well');
+      geo('inner', new T.CylinderGeometry(.395, .395, .36, 24, 1, true, Math.PI * .95, Math.PI * 1.1), M(ax, s * .82, .34), 'well', 'well');   // the drum over the wheel, inside the fender
+      geo('inner', new T.CircleGeometry(.395, 24), M(ax, s * .64, .34, Math.PI / 2), 'well', 'well');
     });
     // ---- the cabin: a teardrop canopy; windscreen, side windows and rear window are glass in black frames ----
     const CK = smooth([[0.98, .74, .76, .68, .78], [0.62, .79, .78, .62, 1.05], [0.20, .81, .81, .57, 1.17], [-0.50, .83, .86, .56, 1.19], [-1.00, .82, .90, .62, 1.07],
       [-1.40, .78, .94, .70, .97]], 4), CN = 10;
-    const cab = CK.map(([x, wb, zb, wr, zr]) => { const top = []; for (let k = 0; k <= CN; k++) { const y = wr * (1 - 2 * k / CN); top.push([x, y, zr + .035 * (1 - (y / wr) ** 2)]); } return [[x, wb, zb], ...top, [x, -wb, zb]]; });
+    const cab = CK.map(([x, wb, zb, wr, zr]) => { const top = []; for (let k = 0; k <= CN; k++) { const y = wr * (1 - 2 * k / CN); top.push([x, y, zr + .035 * (1 - (y / wr) ** 2)]); } return [[x, wb + .03, zb - .07], ...top, [x, -wb - .03, zb - .07]]; });   // the base sinks into the bodywork: no gap under the windows
     const xs = cab.map(r => r[0][0]), WS = [0.98, 0.30], RW = [-0.62, -1.40], SW = [0.80, -1.02];   // windscreen, rear window, side window x ranges
     const inR = (x, [a, b]) => x <= Math.max(a, b) + 1e-6 && x >= Math.min(a, b) - 1e-6, m = cab[0].length;
     for (let i = 0; i < cab.length - 1; i++) {
       const a = cab[i], b = cab[i + 1], xm = (xs[i] + xs[i + 1]) / 2, glassTop = inR(xm, WS) || inR(xm, RW);
       for (let k = 1; k < m - 2; k++) quad(glassTop ? 'glass' : 'shell', a[k], a[k + 1], b[k + 1], b[k], 'centre', glassTop ? 'glass' : 'body');
-      for (const [p, q] of [[0, 1], [m - 1, m - 2]]) {   // the sides: window glass over a body-colour strip, or a pillar
+      for (const [p, q] of [[0, 1], [m - 1, m - 2]]) {   // the sides: window glass over the door's top, or a pillar
         const mid = c => c[p].map((v, e) => v + (c[q][e] - v) * .22);
-        if (inR(xm, SW)) { quad('shell', a[p], b[p], mid(b), mid(a), 'centre', 'body'); quad('glass', mid(a), mid(b), b[q], a[q], 'centre', 'glass'); }
+        if (inR(xm, SW)) { quad('shell', a[p], b[p], mid(b), mid(a), p === 0 ? 'left' : 'right', 'body'); quad('glass', mid(a), mid(b), b[q], a[q], 'centre', 'glass'); }
         else quad('shell', a[p], b[p], b[q], a[q], 'centre', 'body');
       }
     }
