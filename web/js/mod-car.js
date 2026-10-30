@@ -79,40 +79,37 @@
     }});
 
   // ---------- tyres: the car from above ----------
-  function tyreSvg(c, s, cap, ctx, brakes){
-    const W = 320, H = 214, tw = 92, th_ = 66, bw = 14, gap = 6, pos = [[18, 30], [W - 18 - tw, 30], [18, 118], [W - 18 - tw, 118]];
-    const one = i => {
-      const [x, y] = pos[i], left = i % 2 === 0, front = i < 2, p = c.tyre_pressure_psi[i], ps = pressState(p, ctx), core = coreT(c, i, cap);
-      const temps = cap.tyre_edge_temps ? [c.tyre_temp_inner_c[i], c.tyre_temp_middle_c[i], c.tyre_temp_outer_c[i]] : [core];   // three bands only when the game sends them
-      const bands = (left ? temps.slice().reverse() : temps).map((t, k) => `<rect class="t-${tyreState(t, ctx)}" x="${x + k * tw / temps.length}" y="${y}" width="${tw / temps.length}" height="${th_}"/>`).join('');
-      const bx = left ? x + tw + gap : x - gap - bw, ty = front ? y - 9 : y + th_ + 18, tx = left ? x : x + tw, bs = brakeState(c.brake_temp_c[i], front ? 'front' : 'rear', ctx), ts = tyreState(core, ctx);
-      return `<g>${bands}<rect class="tyre-edge" x="${x}" y="${y}" width="${tw}" height="${th_}" rx="5"/><text class="ty-temp" x="${x + tw / 2}" y="${y + th_ / 2 + 6}" text-anchor="middle">${fv('temp', core)}°${stateGlyph(ts)}</text>
-        ${brakes ? `<rect class="b-${bs}" x="${bx}" y="${y + 9}" width="${bw}" height="${th_ - 18}" rx="2"><title>${CORNERS[i]} brake ${fv('temp', c.brake_temp_c[i])}°${stateGlyph(bs)}</title></rect>` : ''}
-        <text class="ty-psi ${ps}" x="${tx}" y="${ty}" text-anchor="${left ? 'start' : 'end'}">${fv('press', p)}${stateGlyph(ps)} <tspan class="u">${un('press').u}</tspan></text></g>`;
+  // one tile per corner: core temperature, pressure and brake, each as a number and a position inside its window
+  const gauge = (v, lo, hi, min, max, s) => { const pc = x => clamp((x - min) / (max - min) * 100, 0, 100).toFixed(1);
+    return `<div class="tg"><i style="left:${pc(lo)}%;width:${(pc(hi) - pc(lo)).toFixed(1)}%"></i><b class="${stCls(s)}" style="left:${pc(v)}%"></b></div>`; };
+  function tyreTiles(c, s, cap, ctx, brakes){
+    const [tlo, thi] = th(ctx).tyre_c, [plo, phi] = psiWindow(ctx), wet = !!s.rain_tyres;
+    const tile = i => {
+      const front = i < 2, core = coreT(c, i, cap), p = c.tyre_pressure_psi[i], bt = c.brake_temp_c[i], [blo, bhi] = (th(ctx).brake_c[front ? 'front' : 'rear'] || th(ctx).brake_c.front);
+      const ts = tyreState(core, ctx), ps = pressState(p, ctx), bs = brakeState(bt, front ? 'front' : 'rear', ctx), w = [ts, ps, bs].includes('bad') ? 'bad' : [ts, ps, bs].includes('warn') ? 'warn' : [ts, ps, bs].includes('cold') ? 'cold' : 'ok';
+      const word = [ts, ps, bs].map(x => STATE_WORD[x]).find(Boolean) || '';
+      return `<div class="tz-c ${stCls(w)}"><div class="tz-h"><b>${CORNERS[i]}</b><span class="tz-w">${word}</span></div>
+        <div class="tz-v ${stCls(ts)}">${fv('temp', core)}<span class="u">${un('temp').u}</span><i>${stateGlyph(ts)}</i></div>${gauge(core, tlo, thi, Math.max(0, tlo - 30), thi + 30, ts)}
+        <div class="tz-r"><span>Pressure</span><b class="${stCls(ps)}">${fv('press', p)}${stateGlyph(ps)} <span class="u">${un('press').u}</span></b></div>${gauge(p, plo, phi, plo - 2, phi + 2.5, ps)}
+        ${brakes ? `<div class="tz-br"><div class="tz-r"><span>Brake</span><b class="${stCls(bs)}">${fv('temp', bt)}${stateGlyph(bs)} <span class="u">${un('temp').u}</span></b></div>${gauge(bt, blo, bhi - 100, 0, bhi + 150, bs)}</div>` : ''}</div>`;
     };
-    const wet = !!s.rain_tyres;
-    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tyres: pressure, core temperature and brake temperature at each corner"><rect class="chassis" x="${W / 2 - 34}" y="22" width="68" height="${H - 44}" rx="16"/>
-      ${[0, 1, 2, 3].map(one).join('')}<circle class="ty-ring${wet ? ' wet' : ''}" cx="${W / 2}" cy="${H / 2 - 8}" r="11"/><text class="ty-ringt${wet ? ' wet' : ''}" x="${W / 2}" y="${H / 2 - 3.5}" text-anchor="middle">${wet ? 'W' : 'D'}</text>
-      <text class="ty-comp" x="${W / 2}" y="${H / 2 + 22}" text-anchor="middle">SET ${esc(s.tyre_set || '—')}</text></svg>`;
+    return `<div class="tz-bar"><span class="tz-comp${wet ? ' wet' : ''}">${wet ? 'WET' : 'DRY'}</span><span>Set ${esc(s.tyre_set || '—')}</span></div><div class="tz-grid">${[0, 1, 2, 3].map(tile).join('')}</div>`;
   }
   const worst = ss => ss.includes('bad') ? 2 : ss.some(s => s === 'warn' || s === 'cold') ? 1 : 0;
   Pit.module({type:'tyres', title:'Tyres', group:'Car', blurb:'Pressures, core temperatures and brakes on a car seen from above, and the next stop\'s correction.',
-    size:{w:4, h:10, minW:3, minH:7}, needs:['reading', 'summary', 'config'], requires:['reading'], rate:5,
+    size:{w:4, h:12, minW:3, minH:6}, needs:['reading', 'summary', 'config'], requires:['reading'], rate:5,
     options:[{key:'corrections', label:'Show the next stop\'s correction', type:'toggle', def:true}, {key:'brakes', label:'Show brakes', type:'toggle', def:true}],
-    build(el){ el.innerHTML = '<div class="tyre-svg"></div><table class="tt ty-t"><thead><tr><th></th>' + CORNERS.map(x => `<th class="n">${x}</th>`).join('') + '</tr></thead><tbody></tbody></table><p class="note">ACC publishes core temperature only and no tyre wear: Pace shows what the tyres cost in lap time.</p>'; },
+    build(el){ el.innerHTML = '<div class="tz"></div><table class="tt ty-t"><thead><tr><th></th>' + CORNERS.map(x => `<th class="n">${x}</th>`).join('') + '</tr></thead><tbody></tbody></table><p class="note">ACC publishes core temperature only (no inner, middle or outer) and no tyre wear: Pace shows what the tyres cost in lap time.</p>'; },
     render(c, inst){
       const r = c.r, a = r.car, o = inst.opts, pl = c.s && c.s.press_line, cap = r.capabilities || {};
       const k = JSON.stringify([a.tyre_pressure_psi.map(v => v.toFixed(1)), a.tyre_core_temp_c.map(Math.round), a.brake_temp_c.map(v => Math.round(v / 5)), r.session.tyre_set, c.wet, Pit.prefs.units, c.th, o.brakes]);
-      if (inst.state.k !== k) { inst.state.k = k; inst.body.firstChild.innerHTML = tyreSvg(a, r.session, cap, c, o.brakes); }
-      const B = inst.body; B.classList.toggle('ty-wide', B.clientWidth > 1.6 * B.clientHeight);   // wide and low: the car at the left, the table beside it
+      if (inst.state.k !== k) { inst.state.k = k; inst.body.firstChild.innerHTML = tyreTiles(a, r.session, cap, c, o.brakes); }
       const [lo, hi] = psiWindow(c), mid = (lo + hi) / 2, cell = (v, s) => `<td class="n ${stCls(s)}">${v}${stateGlyph(s)}${s === 'cold' && v !== '—' ? ' <span class="note">COLD</span>' : ''}</td>`;
       const ps = a.tyre_pressure_psi.map(p => pressState(p, c)), ts = [0, 1, 2, 3].map(i => tyreState(coreT(a, i, cap), c)), bs = a.brake_temp_c.map((t, i) => brakeState(t, i < 2 ? 'front' : 'rear', c));
-      const rows = [['Pressure now', a.tyre_pressure_psi.map((p, i) => cell(fv('press', p), ps[i]))],
-        pl && ['Avg at line', pl.psi.map(p => cell(fv('press', p), pressState(p, c)))],
-        [`Core ${un('temp').u}`, [0, 1, 2, 3].map(i => cell(fv('temp', coreT(a, i, cap)), ts[i]))],
-        o.brakes && [`Brake ${un('temp').u}`, a.brake_temp_c.map((t, i) => cell(fv('temp', t), bs[i]))],
+      const rows = [pl && ['Avg at line', pl.psi.map(p => cell(fv('press', p), pressState(p, c)))],
         o.corrections && pl && ['Next stop', pl.psi.map(p => { const d = mid - p, x = un('press').f(d) - un('press').f(0); return `<td class="n">${Math.abs(d) < 0.05 ? '0' : (d > 0 ? '▲ +' : '▼ ' + MINUS) + Math.abs(x).toFixed(un('press').d)}</td>`; })]].filter(Boolean);
       setHtml(inst.body.querySelector('tbody'), rows.map(([l, v]) => `<tr><td>${l}</td>${v.join('')}</tr>`).join(''));
+      inst.body.querySelector('.ty-t').hidden = !rows.length;
       inst.setInfo(`stint ${c.s ? plural(c.s.stint_laps, 'lap') : '—'} · window ${fv('press', lo)}–${fv('press', hi)} ${un('press').u} (${r.fixed.car_class || 'GT3'} ${c.wet ? 'wet' : 'dry'})`);
       inst.setAlert(worst(ps.concat(ts, o.brakes ? bs : [])));   // one alert per module: the tab badge counts problems, not corners
     }});

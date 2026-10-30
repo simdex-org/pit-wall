@@ -256,7 +256,7 @@ label.btn{cursor:pointer}
 :root[data-panel=flat] .mod{background:var(--panel);border-radius:var(--r)}
 .mod:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .mh{display:flex;align-items:center;gap:8px;flex:none;height:var(--hh);padding:0 4px 0 var(--pad);min-width:0}
-:root[data-panel=ruled] .mh{padding-left:0;border-bottom:1px solid var(--line2)}
+:root[data-panel=ruled] .mh{border-bottom:1px solid var(--line2)}
 :root[data-panel=boxed] .mh{border-bottom:1px solid var(--line)}
 .mt{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:var(--t-sm);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
@@ -283,7 +283,6 @@ label.btn{cursor:pointer}
 @media (hover:none){.mtools{opacity:1}}
 .medit,.mgrip{display:none}
 .mb{flex:1 1 auto;min-height:0;min-width:0;overflow:auto;padding:var(--pad);display:flex;flex-direction:column}
-:root[data-panel=ruled] .mb{padding-left:0;padding-right:0}
 .mod.stale .mb{opacity:.45}
 .mod.no-header .mh{display:none}
 /* the no-data / not-available state: centred in the body */
