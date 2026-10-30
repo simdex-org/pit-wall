@@ -204,7 +204,7 @@ class Telemetry:
         self._new_session()
 
     def _new_session(self):
-        self.prev, self.splits, self.debrief = None, [], []
+        self.prev, self.splits, self.debrief, self.sec_pos = None, [], [], []
         self.stint_start = self.fuel_at_line = None
         self.lap_fuel, self.lap_brake_max, self.best, self.stint = [], 0.0, None, []
         self.laps, self.lap_start_pit, self.lap_saw_pit, self.laps_ver = [], False, False, 0   # every lap of the session, for the Laps tab
@@ -236,6 +236,7 @@ class Telemetry:
             self.stint_start, self.stint = r["laps"], []
         if p and r["sector"] > p["sector"]:   # ACC's exact sector time; the frame's lap time is up to a frame late, so it is the fallback
             at = (self.splits[-1] if self.splits else 0) + r["last_sector_ms"]   # ponytail: the 250 ms guard drops a stale lastSectorTime
+            self.sec_pos.append(r["track_pos"])   # where the sector line is, for the map's sector colours
             self.splits.append(at if 0 < r["last_sector_ms"] < 600000 and 0 <= r["cur_ms"] - at < 250 else r["cur_ms"])
         self.lap_brake_max = max(self.lap_brake_max, *r["brake_temp"])
         self.lap_saw_pit = self.lap_saw_pit or bool(r["pit_lane"])
@@ -386,7 +387,7 @@ class Telemetry:
                     "psi": list(r["pressure"]), "core": list(r["core_temp"]), "track_c": r["road"], "trace": False}
             c = self.cur
             if len(c) > 60 and c[0]["p"] < 0.1 and c[-1]["p"] > 0.9:   # only whole laps: a part lap cannot be compared
-                self.traces[n] = {"ms": ms, "valid": item["valid"], "ch": resample(c, ms), "line": self.line}
+                self.traces[n] = {"ms": ms, "valid": item["valid"], "ch": resample(c, ms), "line": self.line, "sec": self.sec_pos}
                 item["trace"] = True
             self.laps.append(item)
             del self.laps[:-200]
@@ -400,7 +401,7 @@ class Telemetry:
             if a and b and pd["ref"]:
                 pd["rec"]["loss_ms"] = int(a + b - 2 * pd["ref"])
                 self.events.append((0, "PIT", f"Stop L{pd['in']} cost {pd['rec']['loss_ms'] / 1000:.1f} s"))
-        self.splits, self.lap_brake_max, self.fuel_at_line = [], 0.0, r["fuel"]
+        self.splits, self.sec_pos, self.lap_brake_max, self.fuel_at_line = [], [], 0.0, r["fuel"]
         self.lap_start_pit = self.lap_saw_pit = bool(r["pit_lane"])
         self.cur, self.line = [], []
 
@@ -413,6 +414,15 @@ class Telemetry:
         for i, l in enumerate(self.laps):
             if l["trace"] and l["n"] not in self.traces:
                 self.laps[i] = dict(l, trace=False)
+
+    def best_layout(self):
+        """The track layout worth keeping: the fastest valid whole lap's line (else the fastest whole lap's) and its sector lines, or None."""
+        ts = [(not t["valid"], t["ms"], n) for n, t in self.traces.items() if len(t["line"]) > 100]
+        if not ts:
+            return None
+        inv, ms, n = min(ts)
+        t = self.traces[n]
+        return {"valid": not inv, "ms": ms, "sec": [round(v, 5) for v in t["sec"]], "line": [[round(x, 1), round(z, 1), round(q, 5)] for x, z, q in t["line"]]}
 
     def lap_trace(self, n):
         """GET /lap?n=N: a whole lap's 400-point channels and its racing line, or None."""
@@ -754,6 +764,8 @@ def selftest():
     assert traced and not tel.laps[0]["trace"], tel.laps   # the first lap was joined halfway
     lt = tel.lap_trace(traced[-1]["n"])
     assert len(lt["ch"]["t"]) == NB and abs(lt["ch"]["t"][-1] - lt["ms"]) < 0.01 and len(lt["line"]) > 1000 and tel.lap_trace(999) is None
+    lay = tel.best_layout()   # the saved layout: the line and the two sector lines (3 sectors) in lap order
+    assert lay and len(lay["line"]) > 1000 and len(lay["sec"]) == 2 and 0 < lay["sec"][0] < lay["sec"][1] < 1, lay and lay["sec"]
     cats = {c for _, c, _ in tel.events}
     assert {"LAP", "ENG", "FLAG"} <= cats, cats
 

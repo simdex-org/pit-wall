@@ -15,6 +15,7 @@ const REC = {
   spread: null,                   // how far, on average, the last line was from the best line: {m, last, best}
   maxRpm: 0, fuelMax: 0,
   gHist: {maxLat:0, maxLon:0},    // session peaks; the plot itself reads the trace ring
+  layout: null, layoutTried: '',  // the track's saved layout from the bridge: {track, pts:[[x, z, spl], …], sec:[spl of each sector line]}
   prevLaps: null, prevValid: true, pending: new Set(), failed: new Set(), imp: 0,
 };
 for (const k of TRACE_KEYS) REC.trace[k] = new Float32Array(TRACE_N);
@@ -103,7 +104,7 @@ function onReading(r){
   if (REC.prevLaps != null && s.completed_laps < REC.prevLaps) resetSession();
   if (REC.prevLaps != null && s.completed_laps > REC.prevLaps) { if (s.last_lap_ms > 0) finishLap(s.completed_laps, s.last_lap_ms, REC.prevValid); else { REC.cur = []; REC.curLine = []; } }
   REC.prevLaps = s.completed_laps; REC.prevValid = s.lap_is_valid;
-  pushTrace(c, cap); recSample(s, c);
+  pushTrace(c, cap); recSample(s, c); ensureLayout(r);
   const p = s.car_position_m;
   if (p && (p[0] || p[2])) {
     const l = REC.curLine[REC.curLine.length - 1], d = l ? Math.hypot(l[0] - p[0], l[1] - p[2]) : 0, now = performance.now();
@@ -115,6 +116,15 @@ function onReading(r){
 }
 
 // ---------- laps from the bridge: fetched once each, so a reload or a late joiner sees them too ----------
+async function ensureLayout(r){     // once per track (and again after the first whole lap, when the bridge has saved one)
+  const t = r && r.fixed.track; if (!t || (REC.layout && REC.layout.track === t)) return;
+  const k = t + '|' + REC.lines.length; if (REC.layoutTried === k) return; REC.layoutTried = k;
+  const j = await Pit.get('/track');
+  if (!j || !Array.isArray(j.line) || j.line.length < 100) return;
+  REC.layout = {track:t, pts:j.line.filter(q => Array.isArray(q) && q.length > 2 && q.every(isFinite)).map(q => [q[0], q[1], q[2]]), sec:(Array.isArray(j.sec) ? j.sec : []).filter(isFinite).sort((a, b) => a - b)};
+  bumpRec();
+}
+const layoutFor = t => REC.layout && REC.layout.track === t ? REC.layout : null;
 async function ensureLap(n){
   n = n | 0;
   if (!(n > 0) || REC.pending.has(n) || REC.failed.has(n) || REC.laps.some(l => l.id === 'lap-' + n && l.src === 'bridge')) return;
@@ -135,7 +145,7 @@ function wantLaps(){                // map lines (newest 12 traced), the best va
   want.push(lapNo(c.sel.ref), lapNo(c.sel.cmp));
   for (const n of new Set(want)) if (n) ensureLap(n);
 }
-Pit.on('laps', wantLaps);
+Pit.on('laps', () => { wantLaps(); if (Pit.ctx) ensureLayout(Pit.ctx.r); });
 Pit.on('select', wantLaps);
 
 // ---------- export / import ----------

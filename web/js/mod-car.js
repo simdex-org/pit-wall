@@ -11,7 +11,8 @@
     size:{w:6, h:14, minW:3, minH:6}, linkable:true, needs:['reading', 'rec', 'field', 'entries', 'focus', 'sel'], requires:['reading'], rate:30,
     options:[
       {key:'field', label:'Show the field', type:'toggle', def:true},
-      {key:'labels', label:'Car labels', type:'select', choices:[['none', 'None'], ['number', 'Race number'], ['short', 'Driver code']], def:'number'},
+      {key:'labels', label:'Car labels', type:'select', choices:[['none', 'None'], ['number', 'Race number'], ['short', 'Driver code']], def:'short'},
+      {key:'sectors', label:'Colour the sectors', type:'toggle', def:true},
       {key:'lines', label:'Lap lines', type:'select', choices:[['all', 'Every recorded lap'], ['best', 'Best and current only']], def:'all'},
       {key:'colourBy', label:'Colour the line by', type:'select', choices:[['none', 'Nothing'], ['delta', 'Δ CMP vs REF (Analysis)']], def:'none'},
       {key:'follow', label:'Start following the car', type:'toggle', def:false},
@@ -34,7 +35,7 @@
     },
     render(c, inst){
       const out = mapDraw(inst); if (!out) return;
-      if (out.empty) return inst.setState('empty', 'No layout for this track yet: the map is drawn as the car laps it.');
+      if (out.empty) return inst.setState('empty', 'No layout for this track yet: it is drawn as the car laps it, then saved for every later session.');
       const fld = inst.opts.field && fieldOn(c);
       inst.setInfo(out.info + (fld && out.noField ? ' · Field positions appear after your first whole lap' : ''));   // the rival-data note lives in Standings
     }});
