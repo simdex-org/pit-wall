@@ -81,11 +81,11 @@ const Manager = {
     for (let v = raw.schemaVersion; v < Tpl.SCHEMA; v++) { if (!Tpl.MIGRATE[v]) return this.say(`Cannot read schema version ${raw.schemaVersion}.`); raw = Tpl.MIGRATE[v](raw); }
     let res; try { res = Tpl.sanitize(raw, {keepAppearance:true}); } catch (e) { return this.say('Not a Pit Wall template file.'); }
     const t = res.t, ap = t.appearance; delete t.appearance;
+    if (!(await Editor.leave())) return;   // before the appearance question: 'Keep editing' must leave nothing adopted
     t.id = Tpl.newId('t-');
     t.name = Tpl.uniqueName(t.name); t.created = t.updated = new Date().toISOString();
     let apWhy = '';
     if (ap && await ask('This template carries an appearance. Apply it?', [['apply', 'Apply', true], ['', 'Keep mine']]) === 'apply') { const a = Appearance.adopt(ap); apWhy = a ? Appearance.notApplied(a) : ''; }
-    if (!(await Editor.leave())) return;
     Tpl.save(t); Tpl.use(t.id);
     const nm = t.workspaces.reduce((a, w) => a + w.modules.length, 0), nd = res.dropped.length;
     this.say(`Imported '${t.name}': ${t.workspaces.length} workspace${t.workspaces.length === 1 ? '' : 's'}, ${nm} module${nm === 1 ? '' : 's'}${nd ? `, ${nd} unknown module${nd === 1 ? '' : 's'} dropped` : ''}${res.fixed ? `, ${res.fixed} value${res.fixed === 1 ? '' : 's'} corrected` : ''}${apWhy ? `. Its appearance was kept but not applied: ${apWhy}` : ''}`);

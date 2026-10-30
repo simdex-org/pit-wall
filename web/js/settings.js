@@ -47,7 +47,7 @@ const Settings = {
         const cls = this.thClass || (ctx.r && ctx.r.fixed.car_class) || 'GT3', T = ctx.cfg && ctx.cfg.thresholds, t = T ? T[cls] || T.GT3 : DEF_TH;
         const copy = cls !== 'GT3' && T && JSON.stringify(T[cls]) === JSON.stringify(T.GT3);
         const pu = un('press').u, tu = un('temp').u, dis = key ? '' : ' disabled';
-        const pair = (id, label, kind, v) => `<div class="fld pair"><span>${label}</span><input type="number" step="any" data-th="${id}.0" data-k="${kind}" value="${esc(fv(kind, v[0]))}"${dis} aria-label="${label}, low"><span>–</span><input type="number" step="any" data-th="${id}.1" data-k="${kind}" value="${esc(fv(kind, v[1]))}"${dis} aria-label="${label}, high"><span class="u">${esc(un(kind).u)}</span></div>`;
+        const pair = (id, label, kind, v) => `<div class="fld pair"><span>${label}</span><input type="number" step="any" data-th="${id}.0" data-k="${kind}" data-v="${esc(v[0])}" value="${esc(fv(kind, v[0]))}"${dis} aria-label="${label}, low"><span>–</span><input type="number" step="any" data-th="${id}.1" data-k="${kind}" data-v="${esc(v[1])}" value="${esc(fv(kind, v[1]))}"${dis} aria-label="${label}, high"><span class="u">${esc(un(kind).u)}</span></div>`;
         return `<h3 class="mt">Thresholds <span class="note">shared</span></h3>
           ${lsRaw('pitwall.oldThresholds') ? `<div class="banner"><i data-lucide="info"></i><span>This browser had custom thresholds.</span><button type="button" class="btn" data-old="send">Send to bridge</button><button type="button" class="btn" data-old="discard">Discard</button></div>` : ''}
           <p class="banner"><i data-lucide="users"></i>Shared with everyone watching this bridge.</p>${keyNote}
@@ -119,7 +119,8 @@ const Settings = {
     let bad = '';
     for (const i of pane.querySelectorAll('[data-th]')) {
       const v = parseFloat(i.value); if (!isFinite(v)) { bad = 'Every threshold needs a number.'; break; }
-      const val = i.dataset.k ? +UNITS[i.dataset.k][Pit.prefs.units[i.dataset.k]].b(v).toFixed(2) : v, path = i.dataset.th.split('.');
+      // an untouched field sends its stored value: converting the rounded display value back would drift it (bar/kPa -> psi)
+      const val = i.dataset.v != null && i.value === i.defaultValue ? +i.dataset.v : i.dataset.k ? +UNITS[i.dataset.k][Pit.prefs.units[i.dataset.k]].b(v).toFixed(2) : v, path = i.dataset.th.split('.');
       if (path[0] === 'fuel_low_laps') continue;
       let p = o; for (let j = 0; j < path.length - 1; j++) { const k = isFinite(path[j + 1]) ? [] : {}; p = p[path[j]] = p[path[j]] || k; }
       p[path[path.length - 1]] = val;
