@@ -161,6 +161,7 @@ def asset(name):   # bundled into the exe; from source it sits next to this file
 
 def gui():
     import customtkinter as ctk
+    import tkinter as tk
     from tkinter import messagebox
     from PIL import Image
 
@@ -177,7 +178,6 @@ def gui():
         root.iconbitmap(asset("pitwall.ico"))
     except Exception:
         pass
-    root.resizable(False, False)
     q, live = queue.Queue(), {"on": False}
     font = lambda size=13, weight="normal": ctk.CTkFont("Segoe UI", size, weight)   # noqa: E731
     field = {"height": 38, "corner_radius": 6, "border_width": 1, "fg_color": RAISE, "border_color": LINE, "text_color": TXT, "font": font(14)}
@@ -193,6 +193,52 @@ def gui():
     def label(master, text, size=13, color=TXT, weight="normal", **kw):
         return ctk.CTkLabel(master, text=text, text_color=color, font=font(size, weight), anchor="w", justify="left", **kw)
 
+    # ---------- title bar: the native one is stripped in frameless() below ----------
+    bar_top = ctk.CTkFrame(root, fg_color=PANEL, corner_radius=0, height=36)
+    bar_top.pack(fill="x")
+    bar_top.pack_propagate(False)
+    ctk.CTkLabel(bar_top, text="", image=ctk.CTkImage(Image.open(asset("pitwall.ico")), size=(16, 16))).pack(side="left", padx=(12, 8))
+    label(bar_top, "Pit Wall", 12, MUT).pack(side="left")
+
+    def caption(glyph, cmd, hover):   # Segoe MDL2 Assets: E921 minimise, E922 maximise, E923 restore, E8BB close
+        b = ctk.CTkButton(bar_top, text=glyph, width=46, height=36, corner_radius=0, fg_color="transparent", hover_color=hover,
+                          text_color=TXT, font=ctk.CTkFont("Segoe MDL2 Assets", 10), command=cmd)
+        b.pack(side="right")
+        return b
+
+    def toggle_max():
+        zoomed = root.state() == "zoomed"
+        root.state("normal" if zoomed else "zoomed")
+        maxb.configure(text="" if zoomed else "")
+
+    def minimise():
+        root.state("iconic")
+    caption("", lambda: root.event_generate("<<Close>>"), BAD)
+    maxb = caption("", toggle_max, LINE)
+    caption("", minimise, LINE)
+
+    def drag(e):   # close the dropdown, then hand the drag to Windows: it snaps, tiles and maximises like any window
+        close_pop()
+        ctypes.windll.user32.ReleaseCapture()
+        ctypes.windll.user32.PostMessageW(root_hwnd(), 0xA1, 2, 0)   # WM_NCLBUTTONDOWN, HTCAPTION; Post, as a Send runs the drag loop with the GIL released
+
+    def root_hwnd():
+        return ctypes.windll.user32.GetParent(root.winfo_id())
+
+    def frameless():
+        root.update_idletasks()
+        u, h = ctypes.windll.user32, root_hwnd()
+        style = u.GetWindowLongW(h, -16)
+        # no WS_CAPTION or WS_THICKFRAME (its top edge shows as a red strip); keep MINIMIZEBOX / MAXIMIZEBOX for the taskbar and minimise
+        u.SetWindowLongW(h, -16, (style & ~0x00C40000) | 0x00020000 | 0x00010000)
+        u.SetWindowPos(h, 0, 0, 0, 0, 0, 0x0027)   # SWP_FRAMECHANGED | NOMOVE | NOSIZE | NOZORDER
+        rgb = int(LINE[5:7] + LINE[3:5] + LINE[1:3], 16)   # COLORREF is 0x00BBGGRR
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(h, 34, ctypes.byref(ctypes.c_int(rgb)), 4)   # DWMWA_BORDER_COLOR (Windows 11): the accent-red outline
+    for w in (bar_top, *bar_top.winfo_children()[:2]):
+        w.bind("<ButtonPress-1>", drag)
+        w.bind("<Double-Button-1>", lambda e: toggle_max())
+    root.bind("<<Close>>", lambda e: close())
+
     head = ctk.CTkFrame(root, fg_color="transparent")
     head.pack(fill="x", padx=28, pady=(24, 0))
     ctk.CTkLabel(head, text="", image=ctk.CTkImage(Image.open(asset("pitwall-logo.png")), size=(171, 46))).pack(side="left")
@@ -206,9 +252,52 @@ def gui():
     card.grid_columnconfigure(1, weight=1)
     label(card, "VPN ADDRESS", 11, MUT, "bold").grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(18, 4))
     ip = ctk.StringVar(value=prefs.get("ip") if prefs.get("ip") in ips else pick_ip(ips))
-    ctk.CTkComboBox(card, variable=ip, values=sorted(ips, key=lambda a: a != pick_ip(ips)) or ["127.0.0.1"], width=420,
-                    button_color=LINE, button_hover_color="#363b44", dropdown_fg_color=RAISE, dropdown_hover_color=LINE,
-                    dropdown_text_color=TXT, dropdown_font=font(14), **field).grid(row=1, column=0, columnspan=2, sticky="we", padx=20)
+    choices = sorted(ips, key=lambda a: a != pick_ip(ips)) or ["127.0.0.1"]
+    drop = {"pop": None, "closed": 0}
+
+    def close_pop(*_):
+        if drop["pop"]:
+            drop["pop"].destroy()
+            drop["pop"], drop["closed"] = None, time.time()
+
+    def open_pop():   # our own list instead of tk's white native menu
+        if drop["pop"]:
+            return close_pop()
+        if time.time() - drop["closed"] < 0.2:   # the click that closed it must not reopen it
+            return
+        pop = drop["pop"] = tk.Toplevel(root, bg=LINE)
+        pop.overrideredirect(True)
+        inner = ctk.CTkFrame(pop, fg_color=RAISE, corner_radius=0)
+        inner.pack(fill="both", expand=True, padx=1, pady=1)
+        for a in choices:
+            on = a == ip.get()
+            ctk.CTkButton(inner, text=a + ("      Hamachi" if a.startswith("25.") else ""), anchor="w", height=36, corner_radius=4,
+                          fg_color=LINE if on else "transparent", hover_color=LINE, text_color=ACC if on else TXT, font=font(14),
+                          command=lambda a=a: (ip.set(a), close_pop())).pack(fill="x", padx=4, pady=3)
+        pop.update_idletasks()
+        pop.geometry(f"{sel.winfo_width()}x{pop.winfo_reqheight()}+{sel.winfo_rootx()}+{sel.winfo_rooty() + sel.winfo_height() + 4}")
+        spot["at"] = (root.winfo_x(), root.winfo_y(), root.winfo_width(), root.winfo_height())
+        pop.focus_force()
+        pop.bind("<Escape>", close_pop)
+        pop.bind("<FocusOut>", lambda e: pop.after(60, lambda: drop["pop"] is pop and not pop.focus_displayof() and close_pop()))
+
+    sel = ctk.CTkFrame(card, height=38, corner_radius=6, border_width=1, fg_color=RAISE, border_color=LINE, cursor="hand2")
+    sel.grid(row=1, column=0, columnspan=2, sticky="we", padx=20)
+    sel.pack_propagate(False)
+    shown = ctk.CTkLabel(sel, textvariable=ip, font=font(14), text_color=TXT, anchor="w")
+    shown.pack(side="left", fill="x", expand=True, padx=(12, 0))
+    chev = ctk.CTkLabel(sel, text="", font=ctk.CTkFont("Segoe MDL2 Assets", 11), text_color=MUT)
+    chev.pack(side="right", padx=14)
+    for w in (sel, shown, chev):
+        w.bind("<ButtonRelease-1>", lambda e: open_pop())
+    spot = {"at": None}
+
+    def moved(e):   # moved or resized: the popup would be left behind (Configure also fires for nothing, so compare)
+        at = (root.winfo_x(), root.winfo_y(), root.winfo_width(), root.winfo_height())
+        if e.widget is root and at != spot["at"]:
+            spot["at"] = at
+            close_pop()
+    root.bind("<Configure>", moved)
     label(card, "Your Hamachi address (25.x) is picked for you; change it if your engineer connects another way.", 11, DIM,
           wraplength=420).grid(row=2, column=0, columnspan=2, sticky="w", padx=20, pady=(4, 0))
     label(card, "PORT", 11, MUT, "bold").grid(row=3, column=0, sticky="w", padx=(20, 10), pady=(14, 4))
@@ -219,6 +308,7 @@ def gui():
     ctk.CTkEntry(card, textvariable=key, **field).grid(row=4, column=1, sticky="we", padx=(0, 20))
     vjoy = ctk.BooleanVar(value=bool(prefs.get("vjoy")))
     ctk.CTkSwitch(card, text="Press the pit page through vJoy", variable=vjoy, font=font(13), text_color=TXT, fg_color=LINE,
+                  switch_width=44, switch_height=24, border_width=3, button_length=0, cursor="hand2",
                   progress_color=ACC, button_color=TXT, button_hover_color="#ffffff").grid(row=5, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 18))
     err = label(setup, "", 12, BAD, wraplength=460)
     err.pack(fill="x", pady=(6, 0))
@@ -357,7 +447,9 @@ def gui():
     else:
         show_upd("new", "Pit Wall's files are not in this folder yet. Click Download.")
         can_start()
+    frameless()
     fit()
+    root.minsize(root.winfo_reqwidth(), root.winfo_reqheight())
     pump()
     root.mainloop()
 
