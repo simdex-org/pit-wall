@@ -5,7 +5,7 @@
     PitWall.exe --simulate-acc             any other arguments go to bridge.py as they are
 
 Build PitWall.exe (one file; needs pip install pyinstaller):
-    python -m PyInstaller --onefile --windowed --name PitWall server/launcher.py
+    python -m PyInstaller --onefile --windowed --name PitWall --icon server/pitwall.ico --add-data "server/pitwall.ico;." server/launcher.py
 
 The exe loads server/bridge.py from the folder it sits in, so an update changes the bridge without a new exe.
 Next to a git clone it updates with git pull; anywhere else it downloads main as a zip (the first start too).
@@ -163,6 +163,10 @@ def gui():
     ips = my_ips()
     root = tk.Tk()
     root.title("Pit Wall")
+    try:  # the exe carries the icon in its bundle; from source it sits next to this file
+        root.iconbitmap(os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "pitwall.ico"))
+    except tk.TclError:
+        pass
     root.resizable(False, False)
     pad = {"padx": 10, "pady": 4}
     q, live = queue.Queue(), {"on": False}
