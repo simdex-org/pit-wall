@@ -462,10 +462,10 @@ def start_field(args, pages):
         except (OSError, ValueError) as e:
             cfg = {"port": 0, "password": "", "command_password": ""}
             if args.broadcast_port is None:
-                return off(f"Field timing off: could not read broadcasting.json ({e}). Run  python server/acc_broadcast.py --enable  then restart ACC.")
+                return off(f"Field timing off: could not read broadcasting.json ({e}). In PitWall.exe click Turn on field timing (or run  python server/acc_broadcast.py --enable), then restart ACC.")
         port = args.broadcast_port if args.broadcast_port is not None else cfg["port"]
         if not port:
-            return off("Field timing off: broadcasting.json has updListenerPort 0. Run  python server/acc_broadcast.py --enable  then restart ACC.")
+            return off("Field timing off: broadcasting.json has updListenerPort 0. In PitWall.exe click Turn on field timing (or run  python server/acc_broadcast.py --enable), then restart ACC.")
         pw = args.broadcast_password if args.broadcast_password is not None else cfg["password"]
         src, f = acc_broadcast.Client(port, pw), acc_broadcast.Field()   # no command password: Pit Wall only reads
         atexit.register(src.close)

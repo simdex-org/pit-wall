@@ -79,7 +79,8 @@ Limits, plainly:
 
 **Driver's PC** (Windows; ACC runs here), the easy way: download
 **[PitWall.exe](https://github.com/simdex-org/pit-wall/releases/latest/download/PitWall.exe)** into an empty folder and open it.
-It needs no Python. The first time, click **Download** to fetch Pit Wall into that folder. Windows may warn that the program is
+It needs no Python, not even for the one-time setup below: **Turn on field timing** and **Bind vJoy in ACC** are buttons in its
+window. The first time, click **Download** to fetch Pit Wall into that folder. Windows may warn that the program is
 unknown (it is not signed): *More info → Run anyway*. Each time it opens, it checks GitHub, and **Update** brings the folder up
 to date with `main` (by `git pull` when the folder is a git clone).
 
@@ -107,7 +108,7 @@ The engineer's browser reaches the driver's PC on port **8765** over the VPN. No
    Set-NetConnectionProfile -InterfaceAlias "Hamachi" -NetworkCategory Private
    ```
 
-   Then, the first time `bridge.py` starts, allow Python on **Private** networks only. Hamachi may need the command again after it
+   Then, the first time Pit Wall starts, allow PitWall.exe (or Python) on **Private** networks only. Hamachi may need the command again after it
    reinstalls its adapter. (ZeroTier's and Tailscale's adapters are named differently: `Get-NetConnectionProfile` lists them.)
 
 Using **ZeroTier** instead: create a network at my.zerotier.com, join it from both PCs with its network ID, tick *Auth* for both
@@ -145,7 +146,8 @@ Wall. Any arguments given to the exe go to `bridge.py` (e.g. `PitWall.exe --simu
 ### Field timing: the other cars
 
 Standings, relative, battle, pit lane, rejoin and the cars on the map come from ACC's **broadcasting API**, which ACC only opens
-when its `broadcasting.json` says so. Once, with ACC closed:
+when its `broadcasting.json` says so. Once, with ACC closed: in PitWall.exe click **Turn on field timing** (it shows
+*✓ Field timing on* when it already is), or from a terminal:
 
 ```bash
 python server/acc_broadcast.py --enable
@@ -163,7 +165,8 @@ holding. A virtual controller avoids that: the MFD buttons are pressed on it, an
 
 1. Install [vJoy](https://github.com/BrunnerInnovation/vJoy/releases) (free, open source). In *Configure vJoy*, device 1 needs at least
    6 buttons (the default 8 is fine).
-2. Bind ACC's MFD to it, once. In a terminal in this folder:
+2. Bind ACC's MFD to it, once. In PitWall.exe switch on *Press the pit page through vJoy* and click **Bind vJoy in ACC**, or in
+   a terminal in this folder:
 
    ```bash
    python server/acc_pit.py --bind-vjoy
