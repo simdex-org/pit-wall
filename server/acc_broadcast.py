@@ -3,7 +3,8 @@
 
 ACC sends positions, lap and sector times, pit-lane state and the entry list of every car over
 UDP to a client that registers on the port set in
-Documents\\Assetto Corsa Competizione\\Config\\broadcasting.json (updListenerPort; 0 = off).
+Documents\\Assetto Corsa Competizione\\Config\\broadcasting.json (updListenerPort; 0 = off), in the real
+Documents folder, also when OneDrive or folder redirection moved it (acc_config_dir).
 Protocol version 4, little-endian, laid out as in Kunos' ksBroadcastingNetwork SDK.
 
 This client only listens. It registers, asks for the entry list and the track data, and sends
@@ -666,9 +667,16 @@ class FakeField(Field):
         raw = self.pages.read()
         me = {"laps": raw["laps"], "spl": raw["track_pos"], "loc": 1, "kmh": int(raw["speed"]), "gear": raw["gear"] - 1,
               "cur": raw["cur_ms"], "valid": bool(raw["valid"]), "out": False}
+        third = self.pages.lap // 3   # FakePages' sectors start at a third and two thirds of its lap, as the telemetry records them
+        split = lambda ms: (third, third, ms - 2 * third)
         if raw["laps"] > 0:
             ms = raw["last_ms"]
-            me["last"] = self._lapd(ms, (int(ms * .33), int(ms * .34), ms - int(ms * .33) - int(ms * .34)), (raw["laps"] - 1) % 5 != 2, car=7)
+            me["last"] = self._lapd(ms, split(ms), (raw["laps"] - 1) % 5 != 2, car=7)
+        if "last" in me and me["last"]["valid"] and (self.me_best is None or me["last"]["ms"] < self.me_best["ms"]):
+            self.me_best = me["last"]
+        best = self.me_best   # as Telemetry.best_lap has it (the KPI strip): the best valid lap seen, else the game's best
+        if best is None and 0 < raw["best_ms"] < 3.6e6:
+            best = self._lapd(raw["best_ms"], split(raw["best_ms"]), car=7)
         if not self.started:
             self.started = True
             out.append((5, {"conn": 1, "name": "Demo circuit", "id": 0, "meters": 5000}))
@@ -680,9 +688,7 @@ class FakeField(Field):
                             "drivers": [{"first": raw["name"], "last": "", "short": raw["name"][:3].upper(), "dcat": 1, "nat": 0}]}))
         for i, c in self.sim.items():
             self._advance(i, c, t, dt)
-        if "last" in me and me["last"]["valid"] and (self.me_best is None or me["last"]["ms"] < self.me_best["ms"]):
-            self.me_best = me["last"]
-        rows = list(self.sim.items()) + [(7, dict(me, best=self.me_best, last=me.get("last")))]
+        rows = list(self.sim.items()) + [(7, dict(me, best=best, last=me.get("last")))]
         if self.quali:   # qualifying: best lap first, cars without one after, by distance
             key = lambda r: (r[1]["best"] is None, r[1]["best"]["ms"] if r[1]["best"] else -(r[1]["laps"] + r[1]["spl"]))
         else:

@@ -21,12 +21,14 @@
   const pstep = () => ({psi:0.1, bar:0.01, kpa:1}[Pit.prefs.units.press] || 0.1);
   const pin = psi => +un('press').f(psi).toFixed(un('press').d);   // psi → the input's unit
   const INSTS = new Set();
-  function seed(c){   // no stored plan: the last plan sent from any screen, else the MFD as it is now. true when seeded.
+  // the plan keys each block sends: a block send fills the others with the bridge's placeholders, which are not a plan
+  const KEYS = {fuel:['fuel'], tyres:['tyres', 'compound', 'tyre_set', 'pressures'], pressures:['pressures'], brakes:['brakes', 'front_pad', 'rear_pad'], repairs:[]};
+  function seed(c){   // no stored plan: the MFD as it is now, with the blocks the last send typed on top. true when seeded.
     if (lsRaw('pitwall.plan') != null) return false;
     const job = c.pitJob, p = c.pit;
     let q = null;
-    if (job && isObj(job.plan)) { q = Object.assign({}, DEF); for (const k of Object.keys(DEF)) if (job.plan[k] !== undefined) q[k] = job.plan[k]; }
-    else if (p && p.status === 'live') q = Object.assign({}, DEF, {fuel:Math.round(p.fuel), tyre_set:p.tyre_set || 1, pressures:Array.isArray(p.pressures) ? p.pressures.map(v => +v.toFixed(1)) : DEF.pressures.slice()});
+    if (p && p.status === 'live') q = Object.assign({}, DEF, {fuel:Math.round(p.fuel), tyre_set:p.tyre_set || 1, pressures:Array.isArray(p.pressures) ? p.pressures.map(v => +v.toFixed(1)) : DEF.pressures.slice()});
+    if (job && isObj(job.plan)) { q = q || Object.assign({}, DEF); for (const g of Array.isArray(job.only) ? job.only : Object.keys(KEYS)) for (const k of KEYS[g] || []) if (job.plan[k] !== undefined) q[k] = job.plan[k]; }
     if (!q) return false;
     if (!Array.isArray(q.pressures) || q.pressures.length !== 4 || !q.pressures.every(v => typeof v === 'number' && isFinite(v))) q.pressures = DEF.pressures.slice();
     lsSet('pitwall.plan', q); for (const i of INSTS) fill(i.body, q);
@@ -49,23 +51,28 @@
     if (/^p\d$/.test(k)) return pit.pressures ? pit.pressures[+k[1]] : null;
     return null;
   };
-  // a field ACC does not publish: the value the last finished send typed into it (undefined when no send touched it), so a
-  // switch that was sent and not changed since is no change
-  const sentVal = (job, k) => {
-    if (!job || job.state !== 'done' || !isObj(job.plan) || !job.res) return undefined;
-    const r = job.res[RES[k]]; if (r == null || r === 'skipped' || !OK_RES.includes(r)) return undefined;
-    return pv(Object.assign({pressures:[]}, job.plan), k);
+  // a field ACC does not publish: the value the latest send that typed it put in (undefined when none did or it failed), so a
+  // switch that was sent and not changed since is no change, also after later sends of other blocks
+  const sentVal = (c, k) => {
+    const L = c && Array.isArray(c.pitLog) ? c.pitLog : [];
+    for (let i = L.length - 1; i >= 0; i--) {
+      const e = L[i]; if (!e || e.state !== 'done' || !isObj(e.plan) || !e.res) continue;
+      const r = e.res[RES[k]]; if (r == null || r === 'skipped') continue;
+      return OK_RES.includes(r) ? pv(Object.assign({pressures:[]}, e.plan), k) : undefined;
+    }
+    return undefined;
   };
   const show = (k, v) => v == null ? '—' : typeof v === 'boolean' ? (v ? 'yes' : 'no') : /^p\d$/.test(k) ? fv('press', v) : k === 'fuel' ? Math.round(v) : String(v);
   const same = (k, a, b) => /^p\d$/.test(k) ? Math.abs(a - b) < 0.05 : k === 'fuel' ? Math.round(a) === Math.round(b) : a === b;
-  function changes(p, pit, only, job){   // what this send would change, as text: "Fuel 42 → 58 L · FL 26.4 → 26.0 psi"
+  function changes(p, pit, only, c){   // what this send would change, as text: "Fuel 42 → 58 L · FL 26.4 → 26.0 psi"
     const out = [];
     for (const [, g, rows] of GROUPS) {
       if (only && only !== g) continue;
       for (const [k] of rows) {
+        if (k === 'tyre_set' && p.compound === 'wet') continue;   // wet tyres have no sets in ACC: never typed
         const v = pv(p, k), n = nowOf(pit, k), u = /^p\d$/.test(k) ? ' ' + un('press').u : k === 'fuel' ? ' L' : '';
         if (n != null) { if (!same(k, n, v)) out.push(`${LABEL[k]} ${show(k, n)} → ${show(k, v)}${u}`); }
-        else if ((v === true || ['compound', 'front_pad', 'rear_pad'].includes(k) && (only || p[k === 'compound' ? 'tyres' : 'brakes'])) && !(sentVal(job, k) !== undefined && same(k, sentVal(job, k), v))) out.push(`${LABEL[k]} → ${show(k, v)}`);
+        else if ((v === true || ['compound', 'front_pad', 'rear_pad'].includes(k) && (only || p[k === 'compound' ? 'tyres' : 'brakes'])) && !(sentVal(c, k) !== undefined && same(k, sentVal(c, k), v))) out.push(`${LABEL[k]} → ${show(k, v)}`);
       }
     }
     return out;
@@ -98,7 +105,7 @@
     const el = inst.body, p = readPlan(el), st = inst.state, c = Pit.ctx;
     lsSet('pitwall.plan', p);
     if (st.confirm && !confirmed) {
-      const ch = changes(p, c && c.pit, only, c && c.pitJob), box = el.querySelector('.pp-confirm');
+      const ch = changes(p, c && c.pit, only, c), box = el.querySelector('.pp-confirm');
       box.querySelector('p').textContent = (only ? `Send ${only}: ` : 'Send the whole plan: ') + (ch.length ? ch.join(' · ') : 'nothing differs from the MFD');
       box.hidden = false; st.pending = only || ''; box.querySelector('[data-go]').focus(); return;
     }
@@ -159,10 +166,15 @@
           lsSet('pitwall.plan', q); fill(el, q); inst.state.flash = new Set(); inst.state.msg = 'MFD copied into the plan.'; Pit.dirty('pit'); return;
         }
         if (b.hasAttribute('data-whole')) return send(inst);
-        if (b.hasAttribute('data-close')) {
+        if (b.hasAttribute('data-close')) {   // one Cycle MFD per 2 s: a second one would move the driver's MFD on to another page
+          b.disabled = true; inst.state.closeUntil = performance.now() + 2000; setTimeout(() => { b.disabled = false; Pit.dirty('pit'); }, 2000);
           inst.state.msg = 'Closing the pit page…'; Pit.dirty('pit');
-          return Pit.post('/mfd/close', {}).then(r => { inst.state.msg = r.status === 202 ? "Closing the pit page on the driver's screen; the log says when it is done."
-            : r.status === 409 ? 'Busy (409): a plan is still being typed.' : r.status === 403 ? 'Wrong or missing access key: Settings › Connection.' : 'Refused: ' + r.text; Pit.dirty('pit'); });
+          return Pit.post('/mfd/close', {}).then(r => {
+            const m = r.status === 202 ? `Cycle MFD sent ${hms(new Date())}: ACC does not say which MFD page shows, check with the driver`
+              : r.status === 403 ? 'Wrong or missing access key: Settings › Connection.' : r.status === 0 ? r.text : 'Refused: ' + r.text;   // 409: the bridge says why
+            inst.state.msg = m; Pit.dirty('pit');
+            if (r.status === 202) setTimeout(() => { if (inst.state.msg === m) { inst.state.msg = ''; Pit.dirty('pit'); } }, 8000);
+          });
         }
         if (b.dataset.only) return send(inst, b.dataset.only);
       });
@@ -170,23 +182,31 @@
     destroy(inst){ INSTS.delete(inst); },
     render(c, inst){
       seed(c);
-      const p = c.pit, job = c.pitJob, live = p && p.status === 'live', busy = job && job.state === 'running', el = inst.body, st = inst.state, P = readPlan(el);
+      const p = c.pit, job = c.pitJob, live = p && p.status === 'live', busy = (job && job.state === 'running') || !!(p && p.busy), el = inst.body, st = inst.state, P = readPlan(el);
       if (st.unit !== Pit.prefs.units.press) { st.unit = Pit.prefs.units.press; for (const i of el.querySelectorAll('[data-f^="p"]')) i.step = pstep(); for (const u of el.querySelectorAll('.pp-in .u')) if (u.parentNode.querySelector('[data-f]').dataset.f[0] === 'p') u.textContent = ' ' + un('press').u; fill(el, plan()); }
-      el.querySelectorAll('[data-only],[data-whole],[data-go],[data-close]').forEach(b => { b.disabled = !live || busy || !Pit.key; b.title = !Pit.key ? 'Needs the access key: Settings › Connection' : !live ? 'ACC is not live on the driver\'s PC' : busy ? 'A plan is still being typed' : ''; });
+      el.querySelectorAll('[data-only],[data-whole],[data-go],[data-close]').forEach(b => {
+        const close = b.hasAttribute('data-close');
+        b.disabled = !live || busy || !Pit.key || (close && st.closeUntil > performance.now());
+        b.title = !Pit.key ? 'Needs the access key: Settings › Connection' : !live ? 'ACC is not live on the driver\'s PC' : busy ? 'A plan is still being typed'
+          : close ? "Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)" : '';
+      });
+      const wet = P.compound === 'wet';   // wet tyres have no sets in ACC: the bridge skips the tyre set
+      for (const i of el.querySelectorAll('[data-row="tyre_set"] input, [data-row="tyre_set"] .step')) { i.disabled = wet; i.title = wet ? 'Wet tyres have no sets in ACC' : ''; }
       el.querySelector('[data-copy]').disabled = !live;
       let n = 0;
       for (const td of el.querySelectorAll('[data-now]')) {
         const k = td.dataset.now, v = nowOf(p, k), chg = el.querySelector(`[data-chg="${k}"]`), pl = pv(P, k), u = k === 'fuel' ? ' L' : '';
         td.textContent = v == null ? '—' : show(k, v) + u; td.classList.toggle('s-dim', v == null); td.title = v === null ? 'ACC does not publish this field' : '';
-        const diff = v != null && pl != null && !same(k, v, pl);
+        const diff = !(wet && k === 'tyre_set') && v != null && pl != null && !same(k, v, pl);
         const matters = typeof pl === 'boolean' ? pl : GROUP_OF[k] === 'tyres' ? P.tyres : GROUP_OF[k] === 'brakes' ? P.brakes : true;   // pads only matter with a brake change
-        const sv = v === null ? sentVal(job, k) : undefined, sent = sv !== undefined && pl != null && same(k, sv, pl);   // unpublished: as the last send typed it
+        const sv = v === null ? sentVal(c, k) : undefined, sent = sv !== undefined && pl != null && same(k, sv, pl);   // unpublished: as the last send typed it
         setHtml(chg, diff ? `<span class="diff"><s>${esc(show(k, v))}</s>→<b>${esc(show(k, pl))}</b>${u}</span>` : v === null && matters && !sent ? `<span class="s-dim">→ ${esc(show(k, pl))}</span>` : '');
         if (diff || (v === null && pl === true && !sent)) n++;   // a switch ACC does not publish counts as a change until a send typed it
         el.querySelector(`[data-row="${k}"]`).classList.toggle('pp-new', st.flash.has(k));
       }
       const res = job && job.state === 'done' ? job.res || {} : {};
-      for (const td of el.querySelectorAll('[data-r]')) { const r = resOf(job, td.closest('[data-row]').dataset.row, P); td.textContent = r ? r.txt : ''; td.className = 'pr-res ' + (r ? r.cls : ''); td.title = r ? r.title : ''; }
+      for (const td of el.querySelectorAll('[data-r]')) {
+        const k = td.closest('[data-row]').dataset.row, r = wet && k === 'tyre_set' ? {txt:'n/a (wet)', cls:'s-dim', title:'Wet tyres have no sets in ACC'} : resOf(job, k, P); td.textContent = r ? r.txt : ''; td.className = 'pr-res ' + (r ? r.cls : ''); td.title = r ? r.title : ''; }
       const vals = Object.values(res), verified = vals.length && vals.every(v => OK_RES.includes(v)), when = job && job.t ? hms(new Date(job.t * 1000)) : '';
       el.querySelector('[data-state]').textContent = !p ? 'No pit control' : busy ? (p.waiting_lift ? 'Applying: waiting for the driver to lift' : 'Applying…')
         : st.msg ? st.msg : job && job.state === 'error' ? 'Failed: ' + job.msg : job && job.state === 'done' ? `Applied ${when}${job.by ? ' by ' + job.by : ''}${verified ? ' · verified' : ' · check the results'}${n ? ` · draft: ${n} change${n === 1 ? '' : 's'}` : ''}` : `Draft (${n} change${n === 1 ? '' : 's'})`;

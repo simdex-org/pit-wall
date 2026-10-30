@@ -58,8 +58,8 @@ Limits, plainly:
   it early. A driving key pressed in the middle of an MFD keypress is pressed again until it is let go. To know which keys are held,
   the program watches only those (W, A, S, D and the gas, brake and steering keys in ACC's `controls.json`) with a keyboard hook;
   nothing else typed is seen. A few antivirus programs dislike keyboard hooks. On a wheel nothing waits.
-- **The arrow keys and P must be ACC's MFD keys** (they are by default). If the driver rebound them,
-  pass the pitstop key with `--pit-key`. Arrow keys must not be bound to anything else.
+- **The arrow keys and P must be ACC's MFD keys** (they are by default), and Insert must be *Cycle MFD* (used by *Close pit
+  page*). If the driver rebound the pitstop key, pass it with `--pit-key`. Arrow keys must not be bound to anything else.
 - Changes apply **without the driver confirming**: the engineer presses *Send* and it happens.
 - The engineer's advice uses GT3 numbers: hot pressures 26.0–27.0 psi dry and 29.5–31.0 psi wet, brakes hot above 750 °C,
   pads low under 12 mm. Other classes need their own (`server/acc_telemetry.py`).
@@ -133,7 +133,8 @@ when its `broadcasting.json` says so. Once, with ACC closed:
 python server/acc_broadcast.py --enable
 ```
 
-It sets `updListenerPort` in `Documents\Assetto Corsa Competizione\Config\broadcasting.json` (keeping a backup), and the bridge reads
+It sets `updListenerPort` in `Documents\Assetto Corsa Competizione\Config\broadcasting.json` (your real Documents folder, also
+when OneDrive moved it; keeping a backup), and the bridge reads
 the port and password from there. The bridge talks to that port on 127.0.0.1 only and only listens: it never moves the driver's
 camera or HUD. `--broadcast-port 0` turns field timing off; the page then says so instead of showing the other cars.
 
@@ -243,8 +244,8 @@ in lap time instead.
 
 ### Pit stop
 
-- **MFD now** is what the driver's pit page holds right now, read from the game. A new browser starts its plan from the last plan
-  sent, or from the MFD, so it opens with nothing to change.
+- **MFD now** is what the driver's pit page holds right now, read from the game. A new browser starts its plan from the MFD, with the
+  blocks of the last send on top, so it opens with nothing to change.
 - **Plan** is the next stop. *Copy MFD into plan* starts from the current values; *Put in pit plan* (Fuel to the flag) and *Use in pit
   plan* (Pressure correction) fill it from those modules. **Change** shows what a send would change.
 - Each block (**Fuel**, **Tyres**, **Pressures**, **Brakes**, **Repairs**) has its own *Send* button, and only that block is touched
@@ -253,6 +254,9 @@ in lap time instead.
 - **Result** then says, row by row: `✓ verified` (read back from the game), `sent` (pressed, but ACC does not publish it), or the
   problem. *Pit sends* keeps every send, by whom and what came back.
 - *Repair suspension / bodywork* are switches: ticking one flips that row once (yes ↔ no), since ACC does not say which it currently is.
+- Wet tyres have no sets in ACC: with *Compound* wet the tyre set is not sent, and its row says so.
+- *Close pit page* takes the pit page off the driver's screen with ACC's Cycle MFD (Insert, or vJoy button 6); the event log says
+  when it was pressed.
 
 The page also works on a phone (the driver checking the plan): the workspace stacks into one column and tables scroll sideways.
 Edit mode needs a window at least 1100 px wide.
@@ -306,6 +310,7 @@ Self-tests:
 | *Failed: ACC is not the focused window* | The driver alt-tabbed, or a notification took focus. Click into ACC and send again. |
 | *Failed: could not find the tyre rows* | The pitstop key opened something else. Check ACC's *Controls → MFD Pitstop* binding and pass it with `--pit-key`. |
 | Values land one row off, or presses are missed | Raise `--key-ms` to 60 or 80. |
+| *Close pit page* does nothing | Bind ACC's *Cycle MFD* to Insert (keyboard) or to vJoy button 6 (`python server/acc_pit.py --bind-vjoy`). |
 | *Wrong or missing access key* | Open the link with `?key=…` the bridge printed this time; the key changes on every start unless `--key` is given. |
 | Brake bias reads a few points off the in-game figure | ACC publishes the raw bias; the game adds a per-car offset to what it displays. |
 
@@ -313,7 +318,7 @@ Self-tests:
 
 ```
 server/bridge.py         the page, Server-Sent Events out (GET /events?hz=), GET /lap?n= (a lap's trace), GET /field/laps?car=
-                         (another car's laps); POST /pit and POST /config in (both need the X-Pit-Key header)
+                         (another car's laps); POST /pit, POST /config and POST /mfd/close in (all need the X-Pit-Key header)
 server/acc_telemetry.py  ACC shared memory: laps, sectors, stints, fuel, the strategy figures, advice and debrief; self-test, --probe
 server/acc_broadcast.py  ACC broadcasting API: the field's standings, gaps, pits and lap history; --enable; self-test
 server/acc_pit.py        ACC pit page: MFD key presses (or vJoy), reading it back, the plan logic; self-test
