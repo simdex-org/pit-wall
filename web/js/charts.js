@@ -43,8 +43,8 @@ function drawLive(cv, rows, T, hover, o){
   let range = null;
   rows.forEach((id, r) => {
     const def = ROWDEFS[id]; if (!def) return;
-    const top = r * lh;
-    g.save(); g.translate(0, top); chGrid(g, w, lh, tk); g.restore();
+    const top = r * lh, tb = 16;   // a title band per lane: the plot starts under it, so the title never covers a trace
+    g.save(); g.translate(0, top + tb); chGrid(g, w, lh - tb, tk); g.restore();
     if (r) { g.strokeStyle = tk.line; g.beginPath(); g.moveTo(0, Math.round(top) + .5); g.lineTo(w, Math.round(top) + .5); g.stroke(); }
     let sym = 0.05;
     for (const s of def.series) if (s.sym) for (let k = 0; k < n; k++) sym = Math.max(sym, Math.abs(at(T[s.k], k)));
@@ -52,7 +52,7 @@ function drawLive(cv, rows, T, hover, o){
     for (const s of def.series) {
       const arr = T[s.k], lo = s.sym ? -sym : s.min, hi = s.sym ? sym : s.max();
       if (n > 1) {
-        g.beginPath(); for (let k = 0; k < n; k++) { const y = chY(at(arr, k), lo, hi, top, lh); k ? g.lineTo(xOf(k), y) : g.moveTo(xOf(k), y); }
+        g.beginPath(); for (let k = 0; k < n; k++) { const y = chY(at(arr, k), lo, hi, top + tb, lh - tb); k ? g.lineTo(xOf(k), y) : g.moveTo(xOf(k), y); }
         g.strokeStyle = tk[s.c]; g.lineWidth = 1.5; g.lineJoin = 'round'; g.stroke();
       }
       if (!range && n) { let a = Infinity, b = -Infinity; for (let k = 0; k < n; k++) { const v = at(arr, k); a = Math.min(a, v); b = Math.max(b, v); } range = {lo:a, hi:b, s}; }
