@@ -172,6 +172,17 @@ function atSpl(pts, s){             // the point at ACC's lap fraction s (each p
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 const PIT_LOCS =['pit', 'entry', 'exit'];
+// a car in the pit lane sits where its track position is, so draw it at the nearest point of the drawn pit lane instead
+// (within 150 m; no pit lane drawn for the track, or none that near: it stays where it is)
+function onPitLane(pit, q){
+  let best = null, bd = 150 * 150;
+  for (let i = 0; i < pit.length - 1; i++) {
+    const [ax, az] = pit[i], dx = pit[i + 1][0] - ax, dz = pit[i + 1][1] - az, l2 = dx * dx + dz * dz;
+    const t = l2 ? clamp(((q[0] - ax) * dx + (q[1] - az) * dz) / l2, 0, 1) : 0, x = ax + t * dx, z = az + t * dz, d = (x - q[0]) ** 2 + (z - q[1]) ** 2;
+    if (d < bd) { bd = d; best = [x, z]; }
+  }
+  return best || q;
+}
 // The field comes every 250 ms or so: between updates each car carries on at its own pace, and the step a new update makes
 // is blended away over ~150 ms, so the dots glide instead of jumping. SMOOTH: car index -> {s, t, v, e, te, last}.
 const SMOOTH = new Map();
@@ -221,12 +232,11 @@ function drawMap(cv, view, c, o){
   const [g, w, h] = fitCanvas(cv), tk = Pit.tokens(), r = c.r, out = {hits:[], info:'', empty:false, noField:false};
   if (!r) return out;
   const lines = REC.lines, curLine = REC.curLine, p = r.session.car_position_m, own = p && (p[0] || p[2]);
-  const shown = o.lines === 'best' ? [] : lines, best = bestLine();
+  const shown = o.lines === 'all' || o.lines == null ? lines : [], best = bestLine();
   const t = trackFor(r.fixed.track), L = layoutFor(r.fixed.track);   // L: the layout saved by the bridge, there from the start of the session
   if (!t && !(own && (L || lines.length || curLine.length > 2))) { out.empty = true; return out; }
   // the drawn layout (tracks.js) under your lines, once a line has fixed where it lies; until then it is the map, in its own frame
-  const B = t && own ? alignLayout(r.fixed.track, t, best ? best.pts : lines.length ? lines[0].pts : L ? L.pts : curLine) : null;
-  const onDrawing = !!t && !B && !lines.length && !(L && own);
+  const B = null, onDrawing = !!t;   // a track with a drawn layout is only ever that layout: your laps are never drawn over it
   const D = onDrawing ? {loop:[...t.loop, t.loop[0]], pit:t.pit, labels:t.labels} : B;
   const me = onDrawing ? atFrac(t.loop, r.session.track_position) : [p[0], p[2]];
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
@@ -238,7 +248,7 @@ function drawMap(cv, view, c, o){
     for (const car of c.cars.values()) {
       if (car.i === c.me) continue;
       const q = geo && car.spl != null ? atSpl(geo.pts, smoothSpl(car, now)) : F.xz_ok && Array.isArray(car.xz) ? car.xz : null;
-      if (q) cars.push([car, q]);
+      if (q) cars.push([car, PIT_LOCS.includes(car.loc) && D ? onPitLane(D.pit, q) : q]);
     }
     out.noField = !geo && !F.xz_ok;
   }
@@ -248,18 +258,19 @@ function drawMap(cv, view, c, o){
   const cx = view.follow ? tgt[0] : (x0 + x1) / 2 + view.dx, cz = view.follow ? tgt[1] : (z0 + z1) / 2 + view.dy;
   const X = x => w / 2 + (x - cx) * sc, Y = z => h / 2 + (z - cz) * sc;
   view.sc = sc; view.mid = [(x0 + x1) / 2, (z0 + z1) / 2]; view.c = [cx, cz];   // for panning out of follow
-  const path = (pts, color, width, alpha) => { if (pts.length < 2) return; g.globalAlpha = alpha; g.strokeStyle = color; g.lineWidth = width; g.beginPath(); pts.forEach(([x, z], i) => i ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z))); g.stroke(); };
+  const path = (pts, color, width, alpha) => { if (pts.length < 2) return; g.globalAlpha = alpha; g.strokeStyle = color; g.lineWidth = width; g.beginPath(); pts.forEach(([x, z], i) => i && Math.hypot(x - pts[i - 1][0], z - pts[i - 1][1]) < 60 ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z))); g.stroke(); };   // a jump over 60 m (garage, reset) breaks the line, never a straight across
   g.lineJoin = g.lineCap = 'round';
+  const keepL = onDrawing || o.lines === 'saved' && !!L;   // the saved layout alone: finished laps are not drawn again
   const avoid = [];
   if (D) {   // the drawn layout: road and pit lane dashed; your lines go on top
     g.setLineDash([4, 3]); path(D.pit, tk.line, 2, 1); g.setLineDash([]);
     path(D.loop, tk.line, 16, 1); if (!lines.length && !L) path(D.loop, tk.muted, 2, 1);
   }
-  if (L) path(L.pts, tk.line, 14, 1);
-  lines.forEach(l => path(l.pts, tk.line, 14, 1));                       // the width of road this driver uses
-  shown.slice().reverse().forEach((l, i, arr) => path(l.pts, tk.muted, 1.5, 0.15 + 0.5 * (i + 1) / arr.length));   // older laps fainter
-  if (best) path(best.pts, o.colourBy === 'delta' ? tk.muted : tk.pb, 2.5, 1);   // your best: ● --pb (◆ --best is the field's session best)
-  if (L && L.sec.length && o.sectors !== false && o.colourBy !== 'delta') {   // sector colours, as on a timing screen: S1 blue, S2 red, S3 green
+  if (L && !onDrawing) path(L.pts, tk.line, 14, 1);
+  if (!keepL) lines.forEach(l => path(l.pts, tk.line, 14, 1));                       // the width of road this driver uses
+  if (!onDrawing) shown.slice().reverse().forEach((l, i, arr) => path(l.pts, tk.muted, 1.5, 0.15 + 0.5 * (i + 1) / arr.length));   // older laps fainter
+  if (best && !keepL) path(best.pts, o.colourBy === 'delta' ? tk.muted : tk.pb, 2.5, 1);   // your best: ● --pb (◆ --best is the field's session best)
+  if (!onDrawing && L && L.sec.length && o.sectors !== false && o.colourBy !== 'delta') {   // sector colours, as on a timing screen: S1 blue, S2 red, S3 green
     const SC = [tk.chLap, tk.chBrk, tk.chThr], b = [0, ...L.sec, 1];
     for (let k = 0; k < b.length - 1; k++) {
       const seg = L.pts.filter(q => q[2] >= b[k] && q[2] <= b[k + 1]); path(seg, SC[k % 3], 3.5, .9);
@@ -267,7 +278,7 @@ function drawMap(cv, view, c, o){
     }
     g.globalAlpha = 1;
   }
-  if (!onDrawing) path(curLine, tk.chLap, 2.5, 1);
+  if (!onDrawing && !keepL) path(curLine, tk.chLap, 2.5, 1);
   g.globalAlpha = 1;
   if (D && o.corners !== false) {   // corner names over the lines; car labels keep clear of them
     const fz = Math.round(10 * mapScale(o)); g.font = `500 ${fz}px ${tk.font}`; g.fillStyle = tk.dim; g.textBaseline = 'middle'; g.textAlign = 'left';
@@ -295,7 +306,7 @@ function drawMap(cv, view, c, o){
   const dots = cars.map(([car, [x, z]]) => ({car, sx:X(x), sy:Y(z)})), mx = X(me[0]), my = Y(me[1]);
   drawField(g, tk, c, o, dots, mx, my, foc && foc[0], r.session.in_pit_lane, w, h, out, avoid);
   if (c.me != null) out.hits.push({i:c.me, x:mx, y:my});
-  if (onDrawing) { out.info = [`${(r.session.track_position * 100).toFixed(1)} % of lap`, cars.length ? `${cars.length + 1} cars` : '', 'your line is drawn over this layout from a third of a lap', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · '); return out; }
+  if (onDrawing) { out.info = [`${(r.session.track_position * 100).toFixed(1)} % of lap`, cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · '); return out; }
   out.info = [lines.length ? `${lines.length} lap${lines.length > 1 ? 's' : ''}` : L ? 'saved layout' : 'first lap', best ? `● fastest traced L${best.n}` : '',
     REC.spread ? `line spread ${REC.spread.m.toFixed(1)} m` : '', cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · ');
   return out;
@@ -324,6 +335,7 @@ function drawField(g, tk, c, o, dots, mx, my, foc, inPit, w, h, out, avoid = [])
     const pri = d => d.car === foc ? -1e9 : d.car.rel != null && isFinite(d.car.rel) ? Math.abs(d.car.rel) : 1e6 + (d.car.pos || 99);
     for (const d of dots.slice().sort((a, b) => pri(a) - pri(b))) {
       const lb = o.labels === 'gap' ? (d.car.rel != null && isFinite(d.car.rel) ? fmtRel(d.car.rel) : '') : o.labels === 'short' ? Pit.carName(d.car, 'code')
+        : o.labels === 'name' ? Pit.carName(d.car, 'last') : o.labels === 'both' ? `${d.car.num != null ? d.car.num : ''} ${Pit.carName(d.car, 'code')}`.trim()
         : d.car.num != null ? String(d.car.num) : ''; if (!lb) continue;
       const tw = g.measureText(lb).width, th = fs + 1;
       const o8 = 8 * k, spot = [[d.sx + o8, d.sy - th / 2], [d.sx - o8 - tw, d.sy - th / 2], [d.sx - tw / 2, d.sy - o8 - th], [d.sx - tw / 2, d.sy + o8]].map(([x, y]) => [x, y, tw, th])

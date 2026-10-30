@@ -156,35 +156,36 @@ label.btn{cursor:pointer}
 #ws:empty::before{content:"This workspace is empty. Press E or Edit to add modules.";grid-column:1 / -1;padding:24px;color:var(--mut)}
 
 /* ---------- topbar (40 px) ---------- */
-#top{display:flex;align-items:center;gap:8px;height:40px;padding:0 8px 0 16px;border-bottom:1px solid var(--line);min-width:0}
-.wordmark{font-size:13px;font-weight:700;letter-spacing:.16em;white-space:nowrap;margin-right:8px;flex:none}
-#tplBtn{display:inline-flex;align-items:center;gap:4px;height:28px;max-width:220px;padding:0 4px 0 8px;flex:none;
-  border:1px solid var(--line);border-radius:var(--r);color:var(--txt);font-weight:500;anchor-name:--tpl}
-#tplBtn:hover{border-color:var(--dim)}
+#top{display:flex;align-items:center;gap:8px;height:48px;padding:0 12px 0 16px;border-bottom:1px solid var(--line);background:var(--panel);min-width:0}
+.wordmark{display:inline-flex;align-items:center;gap:10px;font-size:14px;font-weight:700;letter-spacing:.18em;white-space:nowrap;margin-right:4px;flex:none}
+.wordmark::before{content:"";width:4px;height:18px;background:var(--acc);transform:skewX(-14deg)}
+#tplBtn{display:inline-flex;align-items:center;gap:4px;height:28px;max-width:220px;padding:0 4px 0 10px;flex:none;
+  border:1px solid transparent;border-radius:var(--r);background:var(--raise);color:var(--mut);font-weight:500;anchor-name:--tpl}
+#tplBtn:hover{color:var(--txt);border-color:var(--dim)}
 #tplBtn svg{color:var(--mut)}
 #tplName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#tabs{display:flex;align-self:stretch;min-width:0;margin-left:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#tabs{display:flex;align-self:stretch;min-width:0;margin-left:12px;padding-left:12px;border-left:1px solid var(--line);overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
 #tabs::-webkit-scrollbar{display:none}
 .tabw{display:flex;align-items:center;flex:none}
-#tabs [role=tab]{display:inline-flex;align-items:center;gap:4px;height:100%;padding:0 12px;white-space:nowrap;
-  font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+#tabs [role=tab]{display:inline-flex;align-items:center;gap:4px;height:100%;padding:0 14px;white-space:nowrap;
+  font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
 #tabs [role=tab]:hover{color:var(--txt)}
-#tabs [role=tab][aria-selected=true]{color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+#tabs [role=tab][aria-selected=true]{color:var(--txt);box-shadow:inset 0 -3px 0 var(--acc)}
 #tabs [role=tab]:focus-visible{outline-offset:-2px}
 .tab-alert{font:600 var(--t-xs)/1 var(--num);letter-spacing:0}
 .tab-sel{display:none;align-self:center;max-width:160px}
 .tab-menu{margin-left:-8px;width:24px!important;height:24px;font-size:var(--t-lg);line-height:1}
 .tab-add{width:28px;height:28px;margin:0 4px;align-self:center;flex:none;border:1px dashed var(--line);border-radius:var(--r);color:var(--mut);font-size:var(--t-lg)}
 .tab-add:hover{color:var(--txt);border-color:var(--dim)}
-#clock{font:500 15px var(--num);white-space:nowrap;margin:0 8px;flex:none}
-#link{height:24px;flex:none}
+#clock{font:500 16px var(--num);white-space:nowrap;margin:0 4px 0 8px;padding:0 12px;border-left:1px solid var(--line);line-height:28px;flex:none}
+#link{height:24px;flex:none;padding:0 10px;border-radius:12px}
 #top>.btn.icon{flex:none}
 
 /* ---------- popovers: template switcher, workspace menu ---------- */
 .pop{min-width:240px;max-width:min(360px,calc(100vw - 16px));max-height:70vh;overflow:auto;padding:4px 0;
   background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:var(--r)}
 .pop:popover-open{animation:fadein .12s}
-#tplPop{inset:auto;margin:0;top:44px;left:96px}
+#tplPop{inset:auto;margin:0;top:52px;left:96px}
 @supports (top:anchor(bottom)){#tplPop{position-anchor:--tpl;top:calc(anchor(bottom) + 4px);left:anchor(left)}}
 .pop button{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 12px;text-align:left;white-space:nowrap;color:var(--txt)}
 .pop button:hover,.pop button:focus-visible{background:var(--raise);outline:0}
@@ -197,13 +198,17 @@ label.btn{cursor:pointer}
 .pop-h{padding:8px 12px 4px;font-size:var(--t-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .pop hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 
-/* ---------- KPI strip (44 px): one ruled row; cells drop from the end when narrow (main.js measures scrollWidth) ---------- */
-#kpi{display:flex;align-items:stretch;height:44px;border-bottom:1px solid var(--line);overflow:hidden;min-width:0}
-.kc{display:flex;flex-direction:column;justify-content:center;gap:2px;flex:none;padding:0 16px 0 12px;border-right:1px solid var(--line);white-space:nowrap}
-.kc:first-child{padding-left:16px}
-.kl{font-size:var(--t-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);line-height:1}
+/* ---------- KPI strip (64 px): instrument tiles in three groups (race, timing, car); the key figures are big.
+   Tiles drop from the end when narrow (main.js measures scrollWidth) ---------- */
+#kpi{display:flex;align-items:stretch;gap:6px;height:64px;padding:6px 8px;border-bottom:1px solid var(--line);overflow:hidden;min-width:0}
+.kc{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;flex:none;padding:0 14px;white-space:nowrap;
+  background:var(--panel);border:1px solid var(--line2);border-radius:var(--r)}
+#kpi .kc:is([data-k=ahead],[data-k=fuel]){margin-left:10px}
+.kl{font-size:var(--t-xs);font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);line-height:1}
 .kn{font:500 var(--t-lg)/1.1 var(--num);color:var(--txt);display:flex;align-items:center;gap:4px}
-.kn .u{font-size:var(--t-sm)}
+#kpi .kc:is([data-k=pos],[data-k=lap],[data-k=fuel],[data-k=boxIn],[data-k=last],[data-k=best]) .kn{font-size:var(--t-xl);font-weight:600;line-height:1}
+#kpi .kc[data-k=pos]{box-shadow:inset 3px 0 0 var(--acc);padding-left:16px}
+.kn .u{font-size:var(--t-sm);font-weight:400;color:var(--mut)}
 .kn .tag{margin-left:2px}
 .kpi-end{display:flex;align-items:center;gap:8px;margin-left:auto;padding:0 8px;flex:none}
 .kpi-edit{align-self:center;color:var(--mut)}
@@ -212,8 +217,8 @@ label.btn{cursor:pointer}
 .focus-chip:hover{background:var(--acc-soft)}
 .kpi-edit:hover{color:var(--txt)}
 
-/* ---------- edit bar (44 px, replaces the KPI strip in edit mode) ---------- */
-#editBar{display:flex;align-items:center;gap:8px;height:44px;padding:0 8px 0 16px;border-bottom:1px solid var(--line);box-shadow:inset 0 2px 0 var(--acc);min-width:0}
+/* ---------- edit bar (64 px, replaces the KPI strip in edit mode) ---------- */
+#editBar{display:flex;align-items:center;gap:8px;height:64px;padding:0 8px 0 16px;border-bottom:1px solid var(--line);box-shadow:inset 0 2px 0 var(--acc);min-width:0}
 .eb-title{font-size:var(--t-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-right:8px}
 .eb-name{display:inline-flex;align-items:center;gap:8px;margin-right:8px}
 .eb-name input{width:160px}
@@ -595,8 +600,8 @@ table.tt{width:100%;border-collapse:collapse}
 .chip.on{color:var(--txt);border-color:var(--dim)}
 .chip.alert{color:var(--bad);border-color:var(--bad)}
 #link{font-family:var(--num);letter-spacing:.04em}
-#link.s-ok{border-color:var(--ok)}
-#link.s-warn{border-color:var(--warn)}
+#link.s-ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+#link.s-warn{border-color:var(--warn);background:var(--warn-soft)}
 
 /* ---------- tyre widget: car from above (mod-car.js); blocks coloured by state, value written on each ---------- */
 :is(.tyre-svg,.tyreviz){min-height:0}
@@ -667,9 +672,9 @@ table.tt{width:100%;border-collapse:collapse}
   #tabs .tab-sel{display:block}
   #tabs [role=tab]{padding:0 8px}
   #link{max-width:20px;padding:0 5px;overflow:hidden}   /* the glyph only (■ ◐ ○, coloured); the words stay in the title and the status text */
-  #kpi{height:auto;flex-wrap:wrap}
-  #kpi .kc{flex:1 0 50%;height:40px;padding:4px 8px;border-bottom:1px solid var(--line)}
-  #kpi .kc:nth-child(2n){border-right:0}
+  #kpi{height:auto;flex-wrap:wrap;gap:4px;padding:4px}
+  #kpi .kc{flex:1 0 calc(50% - 4px);height:40px;padding:4px 8px;margin-left:0!important}
+  #kpi .kc[data-k] .kn{font-size:var(--t-lg)}
   #top>#btnKeys{display:none}
   #banner{padding:8px}
   .dlg-foot{justify-content:flex-start}
