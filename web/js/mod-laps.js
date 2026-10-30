@@ -5,8 +5,9 @@
   let themeVer = 0; Pit.on('theme', () => { themeVer++; });
   const lapName = l => l.src === 'import' ? `${l.label} L${l.n}` : `L${l.n}`;
   const hasTrace = (c, n) => c.laps.some(l => l.n === n && l.trace) || !!lapById('lap-' + n);
+  const autoSel = {ref:true, cmp:true};   // the lap picker keeps choosing REF and CMP until the user picks one by hand
   function pick(which, id){
-    const c = Pit.ctx; Pit.select(which, c.sel[which] === id ? null : id);
+    const c = Pit.ctx; autoSel[which] = false; Pit.select(which, c.sel[which] === id ? null : id);
     const n = lapNo(id); if (n) ensureLap(n);
   }
   const selBtns = (c, id) => ['ref', 'cmp'].map(w => `<button type="button" class="btn sel-${w}" data-sel="${w}" data-id="${esc(id)}" aria-pressed="${c.sel[w] === id}" title="${w === 'ref' ? 'Reference lap (solid)' : 'Comparison lap (dashed)'}">${w.toUpperCase()}</button>`).join('');
@@ -36,17 +37,20 @@
       if (o.onlyStint && !other) L = L.filter(l => (l.stint || 1) === cs);
       const ok = L.filter(l => l.valid && l.ms > 0), best = ok.length ? Math.min(...ok.map(l => l.ms)) : null;
       const sBest = [0, 1, 2].map(k => Math.min(...ok.map(l => (l.s || [])[k]).filter(v => v > 0), Infinity));
+      // ◆ is the session best of the whole field (as in standings), never just this list's best, which is ● like any improvement
+      const F = fieldOn(c) ? c.field : null, fb = F && F.best && F.best.ms > 0 ? F.best.ms : null, cars = F ? [...c.cars.values()] : [];
+      const fS = [0, 1, 2].map(k => Math.min(...cars.map(x => (x.best_s || [])[k]).filter(v => v > 0), Infinity));
       // personal improvements: faster than every earlier valid lap (lap and each sector)
       const pb = new Map(); { let lb = Infinity, sb = [Infinity, Infinity, Infinity]; for (const l of L) { if (!l.valid) continue; pb.set(l.n, [l.ms < lb, ...[0, 1, 2].map(k => (l.s || [])[k] > 0 && l.s[k] < sb[k])]); lb = Math.min(lb, l.ms); for (const k of [0, 1, 2]) if ((l.s || [])[k] > 0) sb[k] = Math.min(sb[k], l.s[k]); } }
-      const mark = (v, isBest, isPb, f) => !okMs(v) ? '—' : isBest ? `<span class="t-best">◆ ${f(v)}</span>` : isPb ? `<span class="t-pb">● ${f(v)}</span>` : f(v);
+      const mark = (v, isSb, isPb, f) => !okMs(v) ? '—' : isSb ? `<span class="t-best">◆ ${f(v)}</span>` : isPb ? `<span class="t-pb">● ${f(v)}</span>` : f(v);
       const own = !other;
       setHtml(inst.body.querySelector('thead'), `<tr>${own ? '<th class="lp-sel"></th>' : ''}<th class="n">Lap</th><th class="n">Time</th><th class="n">Δ best</th><th class="n">S1</th><th class="n">S2</th><th class="n">S3</th>${own ? '<th class="n">Fuel L</th>' : ''}<th class="n">Pos</th><th class="n">Gap</th><th></th></tr>`);
       const ncol = own ? 11 : 9;
       const row = l => {
         const id = 'lap-' + l.n, p = pb.get(l.n) || [], inv = !l.valid, isB = !inv && l.ms === best, ref = own && c.sel.ref === id, cmp = own && c.sel.cmp === id;
         return `<tr class="${[ref && 'ref', cmp && 'cmp'].filter(Boolean).join(' ')}">${own ? `<td class="lp-sel">${hasTrace(c, l.n) ? selBtns(c, id) : ''}</td>` : ''}<td class="n">${l.n}</td>`
-          + `<td class="n">${inv ? `<span class="t-inv">${fmtLap(l.ms)}</span>` : mark(l.ms, isB, p[0], fmtLap)}</td><td class="n">${isB || inv || best == null ? '' : fmtDelta(l.ms - best)}</td>`
-          + [0, 1, 2].map(k => { const v = (l.s || [])[k]; return `<td class="n">${inv ? `<span class="s-dim">${fmtSector(v)}</span>` : mark(v, v === sBest[k], p[k + 1], fmtSector)}</td>`; }).join('')
+          + `<td class="n">${inv ? `<span class="t-inv">${fmtLap(l.ms)}</span>` : mark(l.ms, l.ms === fb, isB || p[0], fmtLap)}</td><td class="n">${isB || inv || best == null ? '' : fmtDelta(l.ms - best)}</td>`
+          + [0, 1, 2].map(k => { const v = (l.s || [])[k]; return `<td class="n">${inv ? `<span class="s-dim">${fmtSector(v)}</span>` : mark(v, v <= fS[k], v === sBest[k] || p[k + 1], fmtSector)}</td>`; }).join('')
           + (own ? `<td class="n">${nf(l.fuel, 2)}</td>` : '') + `<td class="n">${l.pos ? 'P' + l.pos : '—'}</td><td class="n">${l.gap != null ? fmtGap(l.gap) : '—'}</td>`
           + `<td class="tags">${[l.out && '<b class="tag out">OUT</b>', l.in && '<b class="tag in">IN</b>', inv && '<b class="tag inv">INV</b>', ref && '<b class="tag ref">REF</b>', cmp && '<b class="tag cmp">CMP</b>'].filter(Boolean).join(' ')}</td></tr>`;
       };
@@ -56,7 +60,7 @@
         for (const n of [...new Set(L.map(l => l.stint || 1))].sort((a, b) => b - a)) {
           const ls = L.filter(l => (l.stint || 1) === n), info = stints.find(t => t.n === n) || {}, folded = st.fold.has(n);
           const clean = ls.filter(l => l.valid && !l.out && !l.in), avg = clean.length ? clean.reduce((a, l) => a + l.ms, 0) / clean.length : null, fu = ls.filter(l => l.fuel > 0);
-          html += `<tr class="tt-group"><td colspan="${ncol}"><button type="button" class="fold" data-st="${n}" aria-expanded="${!folded}" aria-label="Fold stint ${n}"></button>Stint ${n} · ${info.wet || (ls[0] && ls[0].wet) ? 'W' : 'D'} set ${nf(info.tyre_set != null ? info.tyre_set : ls[ls.length - 1].set, 0)} · ${ls.length} laps · best ${fmtLap(info.best_ms != null ? info.best_ms : Math.min(...ls.filter(l => l.valid).map(l => l.ms), Infinity))} · avg clean ${fmtLap(avg)} · ${fu.length ? nf(fu.reduce((a, l) => a + l.fuel, 0) / fu.length, 2) : '—'} L/lap</td></tr>`;
+          html += `<tr class="tt-group"><td colspan="${ncol}"><button type="button" class="fold" data-st="${n}" aria-expanded="${!folded}" aria-label="Fold stint ${n}"></button>Stint ${n} · ${info.wet || (ls[0] && ls[0].wet) ? 'W' : 'D'} set ${nf(info.tyre_set != null ? info.tyre_set : ls[ls.length - 1].set, 0)} · ${plural(ls.length, 'lap')} · best ${fmtLap(info.best_ms != null ? info.best_ms : Math.min(...ls.filter(l => l.valid).map(l => l.ms), Infinity))} · avg clean ${fmtLap(avg)} · ${fu.length ? nf(fu.reduce((a, l) => a + l.fuel, 0) / fu.length, 2) : '—'} L/lap</td></tr>`;
           if (!folded) html += ls.slice().reverse().map(row).join('');
         }
       } else html = L.slice().reverse().map(row).join('');
@@ -67,7 +71,8 @@
       const ideal = full.length ? [0, 1, 2].reduce((a, k) => a + Math.min(...full.map(l => l.s[k])), 0) : null, bl = ok.find(l => l.ms === best);
       const why = !ideal ? '' : bl && !full.includes(bl) ? ` · best lap L${bl.n} had no sectors` : best != null ? ` · ${fmtDelta(ideal - best)} vs best` : '';
       setHtml(inst.body.querySelector('tfoot'), ideal ? `<tr><td colspan="${ncol}">Ideal ${fmtLap(ideal)} <span class="note">(Σ best sectors, ${plural(full.length, 'lap')})${why}</span></td></tr>` : '');
-      inst.setInfo(other ? `#${other.num} ${Pit.carName(other, 'short')} · ${L.length} laps` : `${L.length} laps${best ? ' · ◆ ' + fmtLap(best) : ''}`);
+      const bm = best == null ? '' : best === fb ? ' · ◆ ' + fmtLap(best) : ' · ● ' + fmtLap(best);
+      inst.setInfo(other ? `#${other.num} ${Pit.carName(other, 'short')} · ${plural(L.length, 'lap')}${bm}` : `${o.who === 'focus' ? 'yours · click a car to see theirs · ' : ''}${plural(L.length, 'lap')}${bm}`);
     }});
 
   // ---------- debrief ----------
@@ -81,7 +86,7 @@
       el.innerHTML = '<table class="tt lk"><tbody></tbody></table><div class="lk-foot"><button type="button" class="btn" data-exp>Export laps</button><label class="btn">Import laps<input type="file" accept=".json,application/json" hidden></label><button type="button" class="btn" data-clr>Clear CMP</button></div><p class="note" role="status"></p>';
       selClick(el);
       el.querySelector('[data-exp]').addEventListener('click', exportLaps);
-      el.querySelector('[data-clr]').addEventListener('click', () => Pit.select('cmp', null));
+      el.querySelector('[data-clr]').addEventListener('click', () => { autoSel.cmp = false; Pit.select('cmp', null); });
       el.querySelector('input[type=file]').addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; el.querySelector('.note').textContent = await importLaps(f); e.target.value = ''; });
     },
     render(c, inst){
@@ -89,14 +94,14 @@
       for (const l of c.laps) if (l.trace && !have.has('lap-' + l.n)) have.set('lap-' + l.n, {id:'lap-' + l.n, n:l.n, ms:l.ms, valid:l.valid, src:'bridge', label:'', data:null});
       const rows = [...have.values()].sort((a, b) => (a.src === 'import') - (b.src === 'import') || (a.src === 'import' ? b.id.localeCompare(a.id, undefined, {numeric:true}) : b.n - a.n));
       if (!rows.length) return inst.setState('empty', 'Laps with traces appear here after the first whole lap. You can also import a laps file.', {label:'Import laps…', fn:() => inst.body.querySelector('input[type=file]').click()});
-      // each empty slot is filled once, when there is a lap for it: REF the best valid lap, CMP the newest other valid lap.
-      // Once filled (or cleared by hand) it is left alone.
-      const auto = inst.state.auto || (inst.state.auto = {}), own = rows.filter(l => l.src !== 'import'), set = (w, l) => { auto[w] = true; Pit.select(w, l.id); const n = lapNo(l.id); if (n) ensureLap(n); };
-      if (!c.sel.ref && !auto.ref && rows.length) { const ok = own.filter(l => l.valid); set('ref', ok.length ? ok.reduce((a, x) => x.ms < a.ms ? x : a) : rows[0]); }
-      if (!c.sel.cmp && !auto.cmp) { const n = own.find(l => l.id !== c.sel.ref && l.valid) || own.find(l => l.id !== c.sel.ref); if (n) set('cmp', n); }
+      // until the user picks one by hand, REF follows the best valid lap and CMP the newest other valid lap ("last vs best"),
+      // re-chosen as laps complete; a click on REF or CMP anywhere (or Clear CMP) stops that slot following
+      const own = rows.filter(l => l.src !== 'import'), set = (w, l) => { if (c.sel[w] === l.id) return; Pit.select(w, l.id); const n = lapNo(l.id); if (n) ensureLap(n); };
+      if (autoSel.ref && rows.length) { const ok = own.filter(l => l.valid); set('ref', ok.length ? ok.reduce((a, x) => x.ms < a.ms ? x : a) : rows[0]); }
+      if (autoSel.cmp) { const n = own.find(l => l.id !== c.sel.ref && l.valid) || own.find(l => l.id !== c.sel.ref); if (n) set('cmp', n); }
       setHtml(inst.body.querySelector('tbody'), rows.map(l => { const r = c.sel.ref === l.id, m = c.sel.cmp === l.id;
-        return `<tr class="${[r && 'ref', m && 'cmp'].filter(Boolean).join(' ')}"><td class="lp-sel">${selBtns(c, l.id)}</td><td class="lk-n" title="${esc(lapName(l))}">${esc(lapName(l))}</td><td class="n">${l.valid ? fmtLap(l.ms) : `<span class="t-inv">${fmtLap(l.ms)}</span>`}</td><td class="tags">${l.valid ? '' : '<b class="tag inv">INV</b>'}${!l.data ? (REC.pending.has(l.n) ? '<span class="note">loading</span>' : '') : ''}</td></tr>`; }).join(''));
-      inst.setInfo(`${rows.length} laps`);
+        return `<tr class="${[r && 'ref', m && 'cmp'].filter(Boolean).join(' ')}"><td class="lp-sel">${selBtns(c, l.id)}</td><td class="lk-n" title="${esc(lapName(l))}">${esc(lapName(l))}</td><td class="n">${l.valid ? fmtLap(l.ms) : `<span class="t-inv">${fmtLap(l.ms)}</span>`}</td><td class="tags">${l.valid ? '' : '<b class="tag inv">INV</b>'}${m && autoSel.cmp ? '<b class="tag s-dim" title="Follows the newest lap until you pick one">auto</b>' : ''}${!l.data ? (REC.pending.has(l.n) ? '<span class="note">loading</span>' : '') : ''}</td></tr>`; }).join(''));
+      inst.setInfo(plural(rows.length, 'lap'));
     }});
 
   // ---------- traces ----------
@@ -157,13 +162,15 @@
       }
       const where = x => len > 0 ? `${Math.round(x.a * binM)}–${Math.round(x.b * binM)} m` : `${(x.a / (NB - 1) * 100).toFixed(0)}–${(x.b / (NB - 1) * 100).toFixed(0)} %`;
       const cur = c.sel.cursor;
-      // differences under 10 ms are noise between two laps of the same driver: not listed
-      const shown = segs.filter(x => Math.abs(x.d) >= 10).sort((x, y) => y.d - x.d);
-      inst.body.querySelector('thead').hidden = !shown.length;
-      setHtml(inst.body.querySelector('.sg-none'), shown.length ? '' : '<div class="empty">No part of the lap differs by 0.01 s or more.</div>');
-      setHtml(inst.body.querySelector('tbody'), shown.map((x, i) => `<tr data-f="${((x.a + x.b) / 2 / (NB - 1)).toFixed(4)}" class="${cur != null && cur * (NB - 1) >= x.a && cur * (NB - 1) <= x.b ? 'sg-on' : ''}" title="Show this part on the traces and the map"><td class="n">${i + 1}</td><td class="n">${where(x)}</td><td class="n">${deltaHtml(x.d)}</td><td class="sg-why">${esc(x.why)}</td></tr>`).join(''));
-      const gain = segs.filter(x => x.d < 0).reduce((a, x) => a + x.d, 0), loss = segs.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0);
-      setHtml(inst.body.querySelector('tfoot'), `<tr><td colspan="4">Gains <span class="s-ok">▼ ${fmtDelta(gain)}</span> · losses <span class="s-bad">▲ ${fmtDelta(loss)}</span></td></tr>`);
+      // every part, ranked by time lost; under 10 ms is noise between two laps of the same driver, so dim and not explained
+      const shown = segs.slice().sort((x, y) => y.d - x.d);
+      setHtml(inst.body.querySelector('.sg-none'), '');
+      setHtml(inst.body.querySelector('tbody'), shown.map((x, i) => { const q = Math.abs(x.d) < 10;
+        return `<tr data-f="${((x.a + x.b) / 2 / (NB - 1)).toFixed(4)}" class="${[cur != null && cur * (NB - 1) >= x.a && cur * (NB - 1) <= x.b && 'sg-on', q && 's-dim'].filter(Boolean).join(' ')}" title="Show this part on the traces and the map"><td class="n">${i + 1}</td><td class="n">${where(x)}</td><td class="n">${q ? fmtDelta(x.d) : deltaHtml(x.d)}</td><td class="sg-why">${q ? '' : esc(x.why)}</td></tr>`; }).join(''));
+      // net = the sum of every part = the lap delta of the traces; it differs from the lap times only by the traces' offset
+      const gain = segs.filter(x => x.d < 0).reduce((a, x) => a + x.d, 0), loss = segs.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0), net = gain + loss;
+      const lapD = s.cmp.ms - s.ref.ms, off = Math.abs(net - lapD) > 5 ? ` <span class="note">(trace offset ${nf(Math.abs(net - lapD) / 1000, 3)} s)</span>` : '';
+      setHtml(inst.body.querySelector('tfoot'), `<tr><td colspan="4">Gains <span class="s-ok">▼ ${fmtDelta(gain)}</span> · losses <span class="s-bad">▲ ${fmtDelta(loss)}</span> · net ${deltaHtml(net)} = CMP ${MINUS} REF lap${off}</td></tr>`);
       inst.setInfo(`CMP ${lapName(s.cmp)} vs REF ${lapName(s.ref)}`);
     }});
 })();

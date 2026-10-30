@@ -86,7 +86,7 @@ def set_job(**job):
 def close_page():
     try:
         PIT["mfd"].press("close")
-        sev, text = 0, "Pit page closed on the driver's screen"
+        sev, text = 0, "Cycle MFD sent to close the pit page"   # what was pressed: ACC does not say which MFD page is showing
     except Exception as e:   # not focused, vJoy gone: said in the log rather than lost
         sev, text = 2, f"Could not close the pit page: {e}"
     finally:
@@ -278,6 +278,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path == "/mfd/close":   # take the pit page off the driver's screen (ACC's Cycle MFD)
             if not PIT["mfd"]:
                 return self.reply(503, "pit control is not available on this PC")
+            snap = pit_snapshot()   # outside a live session Cycle MFD would only move the driver's MFD to another page
+            if not snap or snap.get("status") != "live":
+                return self.reply(409, "ACC is not live on the driver's PC")
             if not PIT["busy"].acquire(blocking=False):
                 return self.reply(409, "a plan is still being applied")
             threading.Thread(target=close_page, daemon=True).start()

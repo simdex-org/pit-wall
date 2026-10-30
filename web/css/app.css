@@ -199,19 +199,22 @@ label.btn{cursor:pointer}
 /* ================================================================ workspace: 12-column module grid */
 .ws{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:var(--row);gap:8px;padding:8px;
   overflow:auto;min-height:0;align-content:start;position:relative;overscroll-behavior:contain}
-/* view mode: the rows the layout uses (--rows, set by WS.place) share the window's height, never below --row; edit mode keeps
-   fixed rows so the cell outlines and the drag maths stay on a 28 px pitch */
+/* view mode: the rows the layout uses (--rows, set by WS.place) share the window's height, never below --row. Edit mode uses
+   the same pitch as fixed rows (--rh, worked out by WS.place), so nothing jumps when you press E and the empty rows below
+   the layout keep that pitch too */
 .ws:not(.editing):not(.narrow){grid-template-rows:repeat(var(--rows,1),minmax(var(--row),1fr))}
+.ws.editing:not(.narrow){grid-auto-rows:var(--rh,var(--row))}
 .ws.narrow{display:flex;flex-direction:column}
 .ws.narrow>.mod{flex:none}
 .ws.narrow .mod.auto-h{height:auto}
 .ws.narrow .mod.auto-h>.mb{overflow:visible}
-.ws.narrow .mod.auto-h>.mb>table.tt{display:block;overflow-x:auto;max-width:100%}   /* wider than a phone: the table scrolls sideways, not the page */
+.ws.narrow .mod.auto-h>.mb>table.tt{display:block;overflow-x:auto;max-width:100%}
+.ws.narrow table.tt{width:100%}   /* wider than a phone: the table scrolls sideways, not the page */
 /* edit mode: dashed cell outlines on every column and row. A grid item that spans the 12 columns and 60 rows (which also leaves
    empty rows to drag into), painted under the modules. The lines are a mask over a --line2 fill, so they follow the theme without
    a gradient: two SVG tiles one column wide (left and right cell edges), two one row high (top and bottom edges). */
 .ws.editing::before{content:"";grid-column:1 / -1;grid-row:1 / span 60;pointer-events:none;background:var(--line);
-  --cw:calc((100% + 8px) / 12);--rp:calc(var(--row) + 8px);
+  --cw:calc((100% + 8px) / 12);--rp:calc(var(--rh,var(--row)) + 8px);
   -webkit-mask-image:var(--gv),var(--gv),var(--gh),var(--gh);mask-image:var(--gv),var(--gv),var(--gh),var(--gh);
   -webkit-mask-size:var(--cw) 8px,var(--cw) 8px,8px var(--rp),8px var(--rp);mask-size:var(--cw) 8px,var(--cw) 8px,8px var(--rp),8px var(--rp);
   -webkit-mask-position:0 0,-9px 0,0 0,0 -9px;mask-position:0 0,-9px 0,0 0,0 -9px;
@@ -236,7 +239,14 @@ label.btn{cursor:pointer}
 .malert.s-warn{color:var(--warn)}.malert.s-bad{color:var(--bad)}
 .mod[data-alert]{box-shadow:inset 2px 0 0 var(--warn)}
 .mod[data-alert=bad]{box-shadow:inset 2px 0 0 var(--bad)}
-:root[data-panel=ruled] .mod[data-alert]>:is(.mh,.mb){padding-left:8px}   /* ruled panels have no side padding: keep text off the bar */
+/* ruled panels have no side padding: the bar goes in the grid gutter (an outer shadow is painted only outside the box), so
+   nothing inside moves when the alert comes and goes */
+:root[data-panel=ruled] .mod[data-alert]{box-shadow:-6px 0 0 -4px var(--warn)}
+:root[data-panel=ruled] .mod[data-alert=bad]{box-shadow:-6px 0 0 -4px var(--bad)}
+/* a body with more below the fold says so (headless and overlay scrollbars hide it) */
+.mod.more>.mb{border-bottom:1px solid var(--line2)}
+.mod.more::after{content:"more ▾";position:absolute;right:0;bottom:0;padding:0 4px;font-size:var(--t-xs);color:var(--dim);background:var(--mbg);pointer-events:none}
+.ws.editing .mod.more::after{display:none}
 .mhid{color:var(--dim);border-style:dashed}
 .mtools,.medit{display:flex;align-items:center;gap:0;flex:none}
 .mh .btn.icon{width:24px;height:24px}

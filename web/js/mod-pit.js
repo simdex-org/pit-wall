@@ -49,16 +49,23 @@
     if (/^p\d$/.test(k)) return pit.pressures ? pit.pressures[+k[1]] : null;
     return null;
   };
+  // a field ACC does not publish: the value the last finished send typed into it (undefined when no send touched it), so a
+  // switch that was sent and not changed since is no change
+  const sentVal = (job, k) => {
+    if (!job || job.state !== 'done' || !isObj(job.plan) || !job.res) return undefined;
+    const r = job.res[RES[k]]; if (r == null || r === 'skipped' || !OK_RES.includes(r)) return undefined;
+    return pv(Object.assign({pressures:[]}, job.plan), k);
+  };
   const show = (k, v) => v == null ? '—' : typeof v === 'boolean' ? (v ? 'yes' : 'no') : /^p\d$/.test(k) ? fv('press', v) : k === 'fuel' ? Math.round(v) : String(v);
   const same = (k, a, b) => /^p\d$/.test(k) ? Math.abs(a - b) < 0.05 : k === 'fuel' ? Math.round(a) === Math.round(b) : a === b;
-  function changes(p, pit, only){   // what this send would change, as text: "Fuel 42 → 58 L · FL 26.4 → 26.0 psi"
+  function changes(p, pit, only, job){   // what this send would change, as text: "Fuel 42 → 58 L · FL 26.4 → 26.0 psi"
     const out = [];
     for (const [, g, rows] of GROUPS) {
       if (only && only !== g) continue;
       for (const [k] of rows) {
         const v = pv(p, k), n = nowOf(pit, k), u = /^p\d$/.test(k) ? ' ' + un('press').u : k === 'fuel' ? ' L' : '';
         if (n != null) { if (!same(k, n, v)) out.push(`${LABEL[k]} ${show(k, n)} → ${show(k, v)}${u}`); }
-        else if (v === true || ['compound', 'front_pad', 'rear_pad'].includes(k) && (only || p[k === 'compound' ? 'tyres' : 'brakes'])) out.push(`${LABEL[k]} → ${show(k, v)}`);
+        else if ((v === true || ['compound', 'front_pad', 'rear_pad'].includes(k) && (only || p[k === 'compound' ? 'tyres' : 'brakes'])) && !(sentVal(job, k) !== undefined && same(k, sentVal(job, k), v))) out.push(`${LABEL[k]} → ${show(k, v)}`);
       }
     }
     return out;
@@ -89,7 +96,7 @@
     const el = inst.body, p = readPlan(el), st = inst.state, c = Pit.ctx;
     lsSet('pitwall.plan', p);
     if (st.confirm && !confirmed) {
-      const ch = changes(p, c && c.pit, only), box = el.querySelector('.pp-confirm');
+      const ch = changes(p, c && c.pit, only, c && c.pitJob), box = el.querySelector('.pp-confirm');
       box.querySelector('p').textContent = (only ? `Send ${only}: ` : 'Send the whole plan: ') + (ch.length ? ch.join(' · ') : 'nothing differs from the MFD');
       box.hidden = false; st.pending = only || ''; box.querySelector('[data-go]').focus(); return;
     }
@@ -117,13 +124,14 @@
     options:[{key:'confirm', label:'Confirm before sending', type:'toggle', def:true}],
     build(el, inst){
       INSTS.add(inst); inst.state.confirm = inst.opts.confirm; inst.state.flash = new Set();
-      el.innerHTML = `<div class="split pp"><table class="tt pp-t"><thead><tr><th>Item</th><th class="n">MFD now</th><th>Plan</th><th class="n">Change</th><th>Result</th></tr></thead><tbody>${GROUPS.map(([g, only, rows]) =>
-        `<tr class="tt-group"><td colspan="5">${g}<button type="button" class="btn send" data-only="${only}">Send ${g.toLowerCase()}</button></td></tr>${rows.map(rowHtml).join('')}`).join('')}</tbody></table>
+      el.innerHTML = `<div class="split pp"><table class="tt pp-t"><thead><tr><th class="pp-ci">Item</th><th class="n pp-cn">MFD now</th><th class="pp-cp">Plan</th><th class="n pp-cc">Change</th><th class="pp-cr">Result</th></tr></thead><tbody>${GROUPS.map(([g, only, rows]) =>
+        `<tr class="tt-group"><td colspan="5">${g}<button type="button" class="btn send" data-only="${only}">Send ${g.toLowerCase()}</button></td></tr>${rows.map(rowHtml).join('')}`).join('')}</tbody>
+        <caption class="note pp-np">— in MFD now: ACC does not publish that field. It is typed in when sent, but cannot be read back.</caption></table>
         <div class="split-v pp-side"><p class="pp-state" data-state role="status">Draft</p><dl class="kv pp-sets"></dl>
           <div class="pp-confirm" hidden><p></p><div class="pp-acts"><button type="button" class="btn primary" data-go>Send</button><button type="button" class="btn" data-cancel>Cancel</button></div></div>
           <button type="button" class="btn primary" data-whole>Send whole plan</button><button type="button" class="btn" data-copy>Copy MFD into plan</button><button type="button" class="btn" data-close title="Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)">Close pit page</button>
           <label class="check"><input type="checkbox" data-confirm${inst.state.confirm ? ' checked' : ''}> Confirm before sending</label>
-          <p class="note">Send one block, or the whole plan. Only what is sent is touched on the driver's pit page, typed in with ACC's own MFD controls. Fuel, tyre set and pressures are read back from the game; the rest ACC does not publish.</p></div></div>`;
+          <p class="note">Send one block, or the whole plan. Only what is sent is touched on the driver's pit page, typed in with ACC's own MFD controls. Fuel, tyre set and pressures are read back from the game.</p></div></div>`;
       fill(el, plan());
       el.addEventListener('change', e => {
         const t = e.target;
@@ -159,20 +167,21 @@
       const p = c.pit, job = c.pitJob, live = p && p.status === 'live', busy = job && job.state === 'running', el = inst.body, st = inst.state, P = readPlan(el);
       el.firstChild.classList.toggle('pp-narrow', el.clientWidth > 0 && el.clientWidth < 600);
       if (st.unit !== Pit.prefs.units.press) { st.unit = Pit.prefs.units.press; for (const i of el.querySelectorAll('[data-f^="p"]')) i.step = pstep(); for (const u of el.querySelectorAll('.pp-in .u')) if (u.previousSibling.dataset.f[0] === 'p') u.textContent = ' ' + un('press').u; fill(el, plan()); }
-      el.querySelectorAll('[data-only],[data-whole],[data-go]').forEach(b => { b.disabled = !live || busy || !Pit.key; b.title = !Pit.key ? 'Needs the access key: Settings › Connection' : !live ? 'ACC is not live on the driver\'s PC' : busy ? 'A plan is still being typed' : ''; });
+      el.querySelectorAll('[data-only],[data-whole],[data-go],[data-close]').forEach(b => { b.disabled = !live || busy || !Pit.key; b.title = !Pit.key ? 'Needs the access key: Settings › Connection' : !live ? 'ACC is not live on the driver\'s PC' : busy ? 'A plan is still being typed' : ''; });
       el.querySelector('[data-copy]').disabled = !live;
       let n = 0;
       for (const td of el.querySelectorAll('[data-now]')) {
         const k = td.dataset.now, v = nowOf(p, k), chg = el.querySelector(`[data-chg="${k}"]`), pl = pv(P, k), u = k === 'fuel' ? ' L' : '';
-        td.textContent = v === undefined ? '—' : v === null ? 'not published' : show(k, v) + u; td.classList.toggle('s-dim', v == null);
+        td.textContent = v == null ? '—' : show(k, v) + u; td.classList.toggle('s-dim', v == null); td.title = v === null ? 'ACC does not publish this field' : '';
         const diff = v != null && pl != null && !same(k, v, pl);
         const matters = typeof pl === 'boolean' ? pl : GROUP_OF[k] === 'tyres' ? P.tyres : GROUP_OF[k] === 'brakes' ? P.brakes : true;   // pads only matter with a brake change
-        setHtml(chg, diff ? `<span class="diff"><s>${esc(show(k, v))}</s>→<b>${esc(show(k, pl))}</b>${u}</span>` : v === null && matters ? `<span class="s-dim">→ ${esc(show(k, pl))}</span>` : '');
-        const r = resOf(job, k, P);   // a switch ACC does not publish counts as a change until a send typed this value
-        if (diff || (v === null && pl === true && !(r && OK_RES.includes(r.r) && r.cls !== 's-dim'))) n++;
+        const sv = v === null ? sentVal(job, k) : undefined, sent = sv !== undefined && pl != null && same(k, sv, pl);   // unpublished: as the last send typed it
+        setHtml(chg, diff ? `<span class="diff"><s>${esc(show(k, v))}</s>→<b>${esc(show(k, pl))}</b>${u}</span>` : v === null && matters && !sent ? `<span class="s-dim">→ ${esc(show(k, pl))}</span>` : '');
+        if (diff || (v === null && pl === true && !sent)) n++;   // a switch ACC does not publish counts as a change until a send typed it
         el.querySelector(`[data-row="${k}"]`).classList.toggle('pp-new', st.flash.has(k));
       }
       const res = job && job.state === 'done' ? job.res || {} : {};
+      el.firstChild.classList.toggle('pp-quiet', !n && !Object.keys(res).length);   // narrow: Change and Result only once there is something in them
       for (const td of el.querySelectorAll('[data-r]')) { const r = resOf(job, td.parentNode.dataset.row, P); td.textContent = r ? r.txt : ''; td.className = r ? r.cls : ''; td.title = r ? r.title : ''; }
       const vals = Object.values(res), verified = vals.length && vals.every(v => OK_RES.includes(v)), when = job && job.t ? hms(new Date(job.t * 1000)) : '';
       el.querySelector('[data-state]').textContent = !p ? 'No pit control' : busy ? (p.waiting_lift ? 'Applying: waiting for the driver to lift' : 'Applying…')

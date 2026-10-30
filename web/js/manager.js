@@ -33,8 +33,8 @@ const Manager = {
   async act(a, id){
     const t = Tpl.get(id);
     if (a === 'blank') {
+      if (!(await Editor.leave())) return;   // first: cancelling "Discard changes?" must not leave a 'New template' behind
       const n = Tpl.save({format:'pitwall-template', schemaVersion:1, id:Tpl.newId('t-'), name:Tpl.uniqueName('New template'), created:new Date().toISOString(), updated:'', workspaces:[{id:'w-workspace', name:'Workspace', modules:[]}]});
-      if (!(await Editor.leave())) return;
       Tpl.use(n.id); this.renaming = n.id; this.say(`Made '${n.name}'. Press E to add modules.`); return this.draw();
     }
     if (!t) return;
