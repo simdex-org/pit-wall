@@ -162,16 +162,26 @@ function atFrac(pts, f){            // the point a fraction f of the way along t
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 const PIT_LOCS =['pit', 'entry', 'exit'];
-// a car in the pit lane sits where its track position is, so draw it at the nearest point of the drawn pit lane instead
-// (within 150 m; no pit lane drawn for the track, or none that near: it stays where it is)
-function onPitLane(pit, q){
-  let best = null, bd = 150 * 150;
-  for (let i = 0; i < pit.length - 1; i++) {
-    const [ax, az] = pit[i], dx = pit[i + 1][0] - ax, dz = pit[i + 1][1] - az, l2 = dx * dx + dz * dz;
-    const t = l2 ? clamp(((q[0] - ax) * dx + (q[1] - az) * dz) / l2, 0, 1) : 0, x = ax + t * dx, z = az + t * dz, d = (x - q[0]) ** 2 + (z - q[1]) ** 2;
-    if (d < bd) { bd = d; best = [x, z]; }
+// The pit lane is drawn for every track from its loop (the tracks.js pit ways are fragments, and some tracks have none): PIT_M metres
+// before the line to PIT_M after it, PIT_OFF metres to the side the drawn pit ways lie on (right of the direction if none), tapering
+// into the track at both ends. Cars with a pit location sit on it by track position, in the garage row (PIT_BOX m further out) when
+// stopped. Returns {pts:[[x, z, nx, nz]], a, b} (a, b: the lane's reach in laps before and after the line).
+const PIT_M = 250, PIT_OFF = 24, PIT_BOX = 9;
+function pitLaneOf(loop, pit){
+  const len = cumOf(loop)[loop.length - 1], a = PIT_M / len, e = 3 / len, tn = f => { const p = atFrac(loop, f - e), q = atFrac(loop, f + e), l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; return [-(q[1] - p[1]) / l, (q[0] - p[0]) / l]; };
+  let side = 0; for (const q of pit) { const f = nearFrac(loop, q), p = atFrac(loop, f), n = tn(f), d = (q[0] - p[0]) * n[0] + (q[1] - p[1]) * n[1]; if (Math.abs(d) > 4 && Math.abs(d) < 60 && (f < a * 1.5 || f > 1 - a * 1.5)) side += Math.sign(d); }
+  side = side < 0 ? -1 : 1;
+  const pts = []; for (let k = 0; k <= 24; k++) {
+    const u = k / 24, f = -a + 2 * a * u, p = atFrac(loop, f), n = tn(f), o = side * PIT_OFF * Math.min(1, 5 * Math.min(u, 1 - u));
+    pts.push([p[0] + n[0] * o, p[1] + n[1] * o, n[0] * side, n[1] * side]);
   }
-  return best || q;
+  return {pts, a};
+}
+function nearFrac(loop, q){ let b = 0, bd = Infinity; for (let i = 0; i < loop.length; i += 2) { const d = (loop[i][0] - q[0]) ** 2 + (loop[i][1] - q[1]) ** 2; if (d < bd) { bd = d; b = i; } } return b / (loop.length - 1); }
+function onPitLane(lane, spl, still){   // the point of the lane at track position spl (clamped to its ends), in the garage row if still
+  const f = spl > 0.5 ? spl - 1 : spl, x = clamp((f + lane.a) / (2 * lane.a), 0, 1) * (lane.pts.length - 1), i = Math.min(lane.pts.length - 2, Math.floor(x)), t = x - i, A = lane.pts[i], B = lane.pts[i + 1];
+  const o = still ? PIT_BOX * Math.min(1, 5 * Math.min(x / 24, 1 - x / 24)) : 0;
+  return [A[0] + (B[0] - A[0]) * t + A[2] * o, A[1] + (B[1] - A[1]) * t + A[3] * o];
 }
 // The field comes every 250 ms or so: each dot travels in a straight line from where it is drawn to its newest position, taking as
 // long as the last update took to arrive, so it moves steadily and is one update behind (a jump of 100 m or more, a reset or a pit
@@ -227,21 +237,23 @@ function drawMap(cv, view, c, o){
   if (!D) { out.empty = true; return out; }
   const now = performance.now(), cars = [], xz = new Map();
   for (let k = 0; k + 2 < (r.xz || []).length; k += 3) xz.set(r.xz[k], [r.xz[k + 1], r.xz[k + 2]]);   // 30 Hz positions beat the field's 4 Hz ones
-  const me = world ? glide('me', [p[0], p[2]], now) : atFrac(t.loop, r.session.track_position);
+  const lane = pitLaneOf(D.loop, D.pit), sp = r.session, mePit = sp.in_pit_lane && sp.track_position != null;
+  const me = mePit ? glide('me', onPitLane(lane, sp.track_position, r.car.speed_kmh < 5), now) : world ? glide('me', [p[0], p[2]], now) : atFrac(t.loop, r.session.track_position);
   if (F) for (const car of c.cars.values()) {
     if (car.i === c.me) continue;
+    if (PIT_LOCS.includes(car.loc) && car.spl != null) { cars.push([car, glide(car.i, onPitLane(lane, car.spl, car.loc === 'pit' && car.kmh < 5), now)]); continue; }
     const q = world ? xz.get(car.i) || (Array.isArray(car.xz) ? car.xz : null) : car.spl != null ? atFrac(t.loop, car.spl) : null;
-    if (q) cars.push([car, glide(car.i, !world && PIT_LOCS.includes(car.loc) ? onPitLane(D.pit, q) : q, now)]);
+    if (q) cars.push([car, glide(car.i, q, now)]);
   }
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-  for (const pts of [D.loop, D.pit]) for (const [x, z] of pts) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
+  for (const pts of [D.loop, lane.pts]) for (const [x, z] of pts) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
   const foc = c.focus !== 'self' ? cars.find(([car]) => car.i === c.focus) : null;
   const pad = 20, base = Math.min((w - 2 * pad) / Math.max(400, x1 - x0), (h - 2 * pad) / Math.max(400, z1 - z0)), sc = base * view.zoom;
   const tgt = foc ? foc[1] : me, cx = view.follow ? tgt[0] : (x0 + x1) / 2 + view.dx, cz = view.follow ? tgt[1] : (z0 + z1) / 2 + view.dy;
   const X = x => w / 2 + (x - cx) * sc, Y = z => h / 2 + (z - cz) * sc;
   view.sc = sc; view.mid = [(x0 + x1) / 2, (z0 + z1) / 2]; view.c = [cx, cz];   // for panning out of follow
   const path = (pts, width, color) => { if (pts.length < 2) return; g.strokeStyle = color; g.lineWidth = width; g.beginPath(); pts.forEach(([x, z], i) => i && Math.hypot(x - pts[i - 1][0], z - pts[i - 1][1]) < 60 ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z))); g.stroke(); };
-  g.lineJoin = g.lineCap = 'round'; g.setLineDash([4, 3]); path(D.pit, 2, tk.line); g.setLineDash([]); path(D.loop, 16, tk.line); path(D.loop, 2, tk.muted);   // the road and its centre line
+  g.lineJoin = g.lineCap = 'round'; path(lane.pts, 9, tk.line); path(D.loop, 16, tk.line); path(D.loop, 2, tk.muted); g.setLineDash([4, 3]); path(lane.pts, 1, tk.muted); g.setLineDash([]);   // the road and its centre line; the pit lane beside it
   const avoid = [];
   if (o.corners !== false) {   // corner names; car labels keep clear of them
     const fz = Math.round(10 * mapScale(o)); g.font = `500 ${fz}px ${tk.font}`; g.fillStyle = tk.dim; g.textBaseline = 'middle'; g.textAlign = 'left';
