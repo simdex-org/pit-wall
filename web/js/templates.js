@@ -6,9 +6,9 @@
 // ---------- built-ins (§3.3): x, y, w, h on 12 columns; every layout fits 22 rows ----------
 const BUILTIN_WS = {   // workspaces shared by several built-ins
   live: ['w-live', 'Live', [['track-map', 0, 0, 5, 11], ['standings', 5, 0, 4, 22, {around:5, cols:['gap', 'int', 'last', 'pits']}], ['relative', 9, 0, 3, 8], ['race-plan', 9, 8, 3, 14], ['tyres', 0, 11, 5, 11]]],
-  timing: ['w-timing', 'Timing', [['standings', 0, 0, 7, 22, {cols:['car', 'gap', 'int', 'last', 'best', 'sectors', 'pits', 'stint', 'deltaMe']}], ['battle', 7, 0, 5, 6], ['pit-activity', 7, 6, 5, 8], ['sector-compare', 7, 14, 5, 8]]],
+  timing: ['w-timing', 'Timing', [['standings', 0, 0, 8, 22, {cols:['gap', 'int', 'last', 'best', 'sectors', 'pits', 'stint', 'deltaMe']}], ['battle', 8, 0, 4, 6], ['pit-activity', 8, 6, 4, 8], ['sector-compare', 8, 14, 4, 8]]],
   strategy: ['w-strategy', 'Strategy', [['stint-timeline', 0, 0, 12, 4], ['pit-plan', 0, 4, 6, 18], ['stop-options', 6, 4, 6, 7], ['race-plan', 6, 11, 3, 11], ['rejoin', 9, 11, 3, 7], ['rules', 9, 18, 3, 4]]],
-  car: ['w-car', 'Car', [['tyres', 0, 0, 4, 11, {corrections:false}], ['brakes', 4, 0, 4, 6], ['press-fix', 4, 6, 4, 5], ['electronics', 8, 0, 4, 5], ['damage', 8, 5, 4, 6], ['tyre-history', 0, 11, 8, 11], ['weather', 8, 11, 4, 6], ['flags', 8, 17, 4, 5]]],
+  car: ['w-car', 'Car', [['tyres', 0, 0, 4, 11, {corrections:false}], ['brakes', 4, 0, 4, 6], ['press-fix', 4, 6, 4, 5], ['electronics', 8, 0, 4, 5], ['damage', 8, 5, 4, 6], ['tyre-history', 0, 11, 8, 11], ['weather', 8, 11, 4, 7], ['flags', 8, 18, 4, 4]]],
   laps: ['w-laps', 'Laps', [['laps', 0, 0, 8, 15], ['degradation', 0, 15, 8, 7], ['stops', 8, 0, 4, 7], ['debrief', 8, 7, 4, 15]]],
   analysis: ['w-analysis', 'Analysis', [['lap-picker', 0, 0, 3, 22], ['traces', 3, 0, 6, 22], ['track-map', 9, 0, 3, 12, {colourBy:'delta', field:false, follow:false}], ['segments', 9, 12, 3, 10]]],
   log: ['w-log', 'Log', [['event-log', 0, 0, 8, 22], ['notes', 8, 0, 4, 14], ['pit-log', 8, 14, 4, 8]]],

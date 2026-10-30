@@ -83,8 +83,12 @@ const sevIcon = s => SEV[clamp(s | 0, 0, 2)][0];
 
 // ---------- advice and debrief markup (engineer drawer, debrief and advice modules); every string escaped ----------
 const sevLine = (sev, text) => { const [ic, w] = SEV[clamp(sev | 0, 0, 2)]; return `<div class="sev sev${clamp(sev | 0, 0, 2)}"><i data-lucide="${ic}"></i><b>${w}</b> ${esc(text)}</div>`; };
+// most severe first; a tie goes to the topic that matters first (running dry before a pressure note), so bar and drawer agree
+const ADV_PRIO = ['fuel_box', 'fuel_low', 'fuel_flag', 'penalty', 'damage', 'window_closing', 'stint_limit', 'rain_coming', 'brakes_hot', 'pads_low', 'press_front', 'press_rear', 'tyres_cold'];
+const advPrio = a => { const i = ADV_PRIO.indexOf(a.id); return i < 0 ? 99 : i; };
+const sortAdvice = items => (items || []).slice().sort((a, b) => b.severity - a.severity || advPrio(a) - advPrio(b));
 function adviceHtml(items){
-  const a = (items || []).slice().sort((x, y) => y.severity - x.severity);
+  const a = sortAdvice(items);
   return a.length ? a.map(x => sevLine(x.severity, x.text)).join('') : '<div class="empty">Nothing to report.</div>';
 }
 function debriefHtml(debrief){
@@ -126,7 +130,7 @@ const deltaHtml = ms => ms == null || !isFinite(ms) ? '—' : Math.abs(ms) < 0.5
 const fieldOn = c => !!(c && c.field && c.bc && c.bc.state === 'live');
 const IN_LANE = ['pit', 'entry', 'exit'];
 const carLoc = car => !car ? 'none' : IN_LANE.includes(car.loc) ? car.loc : car.loc === 'track' ? (car.out ? 'out' : 'track') : 'none';
-const carTags = car => [IN_LANE.includes(car.loc) && '<b class="tag pit">PIT</b>', car.out && '<b class="tag out">OUT</b>', car.in && '<b class="tag in">IN</b>'].filter(Boolean).join(' ');
+const carTags = car => IN_LANE.includes(car.loc) ? '<b class="tag pit">PIT</b>' : car.out ? '<b class="tag out">OUT</b>' : car.in ? '<b class="tag in">IN</b>' : '';   // one state: in the lane > out-lap > in-lap
 const carTitle = car => esc([Pit.carName(car, 'full'), car.team, car.model_name].filter(Boolean).join(' · '));
 const carRow = (car, c, inst, extra) => {   // the <tr> attributes every car table shares: status bar, own car, focus car, keyboard cursor
   const me = car.i === c.me, foc = c.focus !== 'self' && car.i === c.focus;

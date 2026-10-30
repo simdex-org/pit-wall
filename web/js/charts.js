@@ -136,9 +136,9 @@ function drawTraces(cv, lanes, ref, cmp, cursor, o){
 // ---------- G-G (friction circle) from the live ring ----------
 function drawGG(cv, o){
   const T = o.T, [g, w, h] = fitCanvas(cv), tk = Pit.tokens(), n = T.n, at = (a, k) => a[(T.i - n + k + TRACE_N) % TRACE_N];
-  const R = Math.min(w, h) / 2 - 14, cx = w / 2, cy = h / 2, m = 2.5, px = v => cx + v / m * R, py = v => cy - v / m * R;
+  const R = Math.min(w, h) / 2 - 16, cx = w / 2, cy = h / 2, m = clamp(Math.max(REC.gHist.maxLat, REC.gHist.maxLon) * 1.15, 1.5, 3), px = v => cx + v / m * R, py = v => cy - v / m * R;
   g.strokeStyle = tk.line; g.lineWidth = 1; g.font = `500 10px ${tk.num}`; g.fillStyle = tk.dim; g.textAlign = 'left'; g.textBaseline = 'bottom';
-  for (const r of [1, 2]) { g.beginPath(); g.arc(cx, cy, r / m * R, 0, 7); g.stroke(); g.fillText(r + ' g', cx + 4, cy - r / m * R - 2); }
+  for (const r of [1, 2, 3].filter(r => r < m)) { const rr = r / m * R; g.beginPath(); g.arc(cx, cy, rr, 0, 7); g.stroke(); g.fillText(r + ' g', cx + rr * .707 + 3, cy - rr * .707 - 3); }
   g.beginPath(); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy); g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.stroke();
   if (!n) return;
   const from = Math.max(0, n - (o.trail || 150));   // the last ~5 s as a trail
@@ -205,7 +205,7 @@ function drawMap(cv, view, c, o){
     out.noField = !geo && !F.xz_ok;
   }
   const foc = c.focus !== 'self' ? cars.find(([car]) => car.i === c.focus) : null;
-  const pad = 20, base = Math.min((w - 2 * pad) / Math.max(1, x1 - x0), (h - 2 * pad) / Math.max(1, z1 - z0)), sc = base * view.zoom;
+  const pad = 20, base = Math.min((w - 2 * pad) / Math.max(400, x1 - x0), (h - 2 * pad) / Math.max(400, z1 - z0)), sc = base * view.zoom;
   const tgt = foc ? foc[1] : [p[0], p[2]];
   const cx = view.follow ? tgt[0] : (x0 + x1) / 2 + view.dx, cz = view.follow ? tgt[1] : (z0 + z1) / 2 + view.dy;
   const X = x => w / 2 + (x - cx) * sc, Y = z => h / 2 + (z - cz) * sc;
@@ -217,7 +217,7 @@ function drawMap(cv, view, c, o){
   if (best) path(best.pts, o.colourBy === 'delta' ? tk.muted : tk.pb, 2.5, 1);   // your best: ● --pb (◆ --best is the field's session best)
   path(curLine, tk.chLap, 2.5, 1);
   g.globalAlpha = 1;
-  // Analysis: the comparison lap coloured by where it gains (--ok) and loses (--bad); every 4th segment says by how much
+  // Analysis: the comparison lap coloured by where it gains (--ok) and loses (--bad); the labels are the 20 parts of Where the time goes
   const ref = lapById(c.sel.ref), cmp = lapById(c.sel.cmp), dGeo = cmp && lines.find(l => l.n === cmp.n && cmp.src !== 'import') || geo;
   if (o.colourBy === 'delta' && ref && cmp && ref.data && cmp.data && dGeo) {
     const S = 40;
@@ -226,7 +226,11 @@ function drawMap(cv, view, c, o){
       const seg = []; for (let j = 0; j <= 6; j++) seg.push(atFrac(dGeo.pts, (k + j / 6) / S));
       const col = Math.abs(d) < 10 ? tk.muted : d < 0 ? tk.ok : tk.bad;   // under 10 ms: neither gain nor loss
       path(seg, col, 4, 1);
-      if (k % 4 === 0 && Math.abs(d) >= 10) { const [mx, mz] = atFrac(dGeo.pts, (k + .5) / S); g.globalAlpha = 1; chTag(g, X(mx), Y(mz), `${d > 0 ? '+' : MINUS}${Math.round(Math.abs(d))} ms`, col, tk, w); }
+    }
+    for (let k = 0; k < 20; k++) {
+      const a = Math.round(k / 20 * (NB - 1)), b = Math.round((k + 1) / 20 * (NB - 1)), d = (cmp.data.t[b] - cmp.data.t[a]) - (ref.data.t[b] - ref.data.t[a]);
+      if (Math.abs(d) < 10) continue;
+      const [mx, mz] = atFrac(dGeo.pts, (k + .5) / 20); g.globalAlpha = 1; chTag(g, X(mx), Y(mz), fmtDelta(d), d < 0 ? tk.ok : tk.bad, tk, w);
     }
     g.globalAlpha = 1;
     if (c.sel.cursor != null) { const [qx, qz] = atFrac(dGeo.pts, c.sel.cursor); g.strokeStyle = tk.text; g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(qx) - 6, Y(qz)); g.lineTo(X(qx) + 6, Y(qz)); g.moveTo(X(qx), Y(qz) - 6); g.lineTo(X(qx), Y(qz) + 6); g.stroke(); }
@@ -246,20 +250,21 @@ function drawMap(cv, view, c, o){
   if (o.labels !== 'none' && dots.length) {
     // labels in priority order (focus car, then the nearest on track, then by position), each at the first of four spots
     // whose box overlaps nothing placed yet (your disc counts); a label with no free spot is skipped, the dot stays
-    g.font = `600 10px ${tk.num}`; g.textBaseline = 'middle'; g.textAlign = 'left';
-    const taken = [[mx - 9, my - 9, 18, 18]], hit = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+    const fs = Math.round(clamp(Math.min(w, h) / 60, 10, 14));
+    g.font = `600 ${fs}px ${tk.num}`; g.textBaseline = 'middle'; g.textAlign = 'left';
+    const taken = [[mx - 9, my - 9, 18, 18], ...dots.map(d => [d.sx - 6, d.sy - 6, 12, 12])], hit = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
     const pri = d => d.car === (foc && foc[0]) ? -1e9 : d.car.rel != null && isFinite(d.car.rel) ? Math.abs(d.car.rel) : 1e6 + (d.car.pos || 99);
     for (const d of dots.slice().sort((a, b) => pri(a) - pri(b))) {
       const lb = o.labels === 'short' ? Pit.carName(d.car, 'code') : d.car.num != null ? String(d.car.num) : ''; if (!lb) continue;
-      const tw = g.measureText(lb).width, th = 11;
+      const tw = g.measureText(lb).width, th = fs + 1;
       const spot = [[d.sx + 8, d.sy - th / 2], [d.sx - 8 - tw, d.sy - th / 2], [d.sx - tw / 2, d.sy - 8 - th], [d.sx - tw / 2, d.sy + 8]].map(([x, y]) => [x, y, tw, th])
         .find(b => b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= w && b[1] + b[3] <= h && !taken.some(t => hit(b, t)));
       if (!spot) continue;
-      taken.push(spot); g.fillStyle = d.car === (foc && foc[0]) ? tk.accent : tk.dim; g.fillText(lb, spot[0], spot[1] + th / 2);
+      taken.push(spot); g.fillStyle = d.car === (foc && foc[0]) ? tk.accent : tk.muted; g.fillText(lb, spot[0], spot[1] + th / 2);
     }
   }
   if (c.me != null) out.hits.push({i:c.me, x:X(p[0]), y:Y(p[2])});
-  out.info = [lines.length ? `${lines.length} lap${lines.length > 1 ? 's' : ''}` : 'first lap', best ? `● best L${best.n}` : '',
+  out.info = [lines.length ? `${lines.length} lap${lines.length > 1 ? 's' : ''}` : 'first lap', best ? `● fastest traced L${best.n}` : '',
     REC.spread ? `line spread ${REC.spread.m.toFixed(1)} m` : '', cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · ');
   return out;
 }

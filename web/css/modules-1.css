@@ -4,8 +4,8 @@
 .tt tr.kcur>td{box-shadow:inset 0 1px 0 var(--acc),inset 0 -1px 0 var(--acc)}
 .tt tr.gaprow>td{height:16px;text-align:center;border-bottom-style:dashed}
 .tt td.drv{max-width:16ch}
-.tt td.car{max-width:18ch;color:var(--mut)}
-.tt td.tags{width:1%}
+.tt td.car{max-width:24ch;color:var(--mut)}
+.tt td.tags{width:1%;white-space:nowrap}
 .spk{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
 svg.spark{flex:none;overflow:visible}
 svg.spark polyline{fill:none;stroke:var(--mut);stroke-width:1.5;stroke-linejoin:round}

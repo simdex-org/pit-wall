@@ -146,7 +146,7 @@ $('tplPop').addEventListener('click', async e => {
 function renderLink(){
   const l = $('link');
   const [s, t] = !D.up ? ['off', '○ OFFLINE'] : ctx.live ? ['live', '■ LIVE'] : ctx.ages.r != null && ctx.ages.r < 600000 ? ['stale', `◐ STALE ${Math.round(ctx.ages.r / 1000)} s`] : ['off', '○ OFFLINE'];
-  if (l.textContent !== t) { l.textContent = t; l.dataset.state = s; l.className = 'chip ' + (s === 'live' ? 's-ok' : s === 'stale' ? 's-warn' : 's-dim'); }
+  if (l.textContent !== t) { l.textContent = t; l.title = t; l.dataset.state = s; l.className = 'chip ' + (s === 'live' ? 's-ok' : s === 'stale' ? 's-warn' : 's-dim'); }
   const clock = ctx.r ? fmtClock(ctx.r.session.session_time_left_ms) : '—';
   if ($('clock').textContent !== clock) $('clock').textContent = clock;
   document.body.classList.toggle('offline', !ctx.live);
@@ -226,9 +226,10 @@ let kpiShape = '', kpiFit = 0, KPI_OFF = new Set();
 const KPI_PHONE = ['pos', 'fuel', 'boxIn', 'left'];   // what the driver checks on a phone, first
 function renderKpi(){
   const k = $('kpi'); k.hidden = !Pit.prefs.kpiOn || Editor.active;
+  $('btnEdit').hidden = (Pit.prefs.kpiOn && !Editor.active) || WS.narrow;   // the strip's Edit button is gone: the topbar has one
   if (k.hidden) return;
   const phone = k.clientWidth > 0 && k.clientWidth < 600;
-  const ids = phone ? [...new Set(KPI_PHONE.concat(Pit.prefs.kpi))] : Pit.prefs.kpi, shape = ids.join() + '|' + k.clientWidth + '|' + WS.narrow;
+  const ids = phone ? KPI_PHONE : Pit.prefs.kpi, shape = ids.join() + '|' + k.clientWidth + '|' + WS.narrow;
   if (shape !== kpiShape) {
     kpiShape = shape;
     k.innerHTML = ids.map(id => `<div class="kc" data-k="${id}"><span class="kl">${KPI_LABEL[id]}</span><span class="kn n">—</span></div>`).join('')
@@ -244,10 +245,12 @@ function renderKpi(){
     if (L.textContent !== l) L.textContent = l;
     if (V.innerHTML !== v) V.innerHTML = v;
   }
-  if (performance.now() - kpiFit > 2000) {   // drop cells from the end when the strip is too narrow
+  if (performance.now() - kpiFit > 2000) {   // drop cells when the strip is too narrow: from the end, the phone set last
     kpiFit = performance.now();
     const cells = [...k.querySelectorAll('.kc')], more = k.querySelector('.kc-more'); cells.forEach(c => { c.hidden = false; }); more.hidden = true;
-    for (let i = cells.length - 1; i > 0 && k.scrollWidth > k.clientWidth + 1; i--) { cells[i].hidden = true; more.hidden = false; }
+    // phones: only the four phone cells, 2×2 (app.css), never dropped
+    const order = phone ? [] : cells.slice(1).reverse().sort((a, b) => KPI_PHONE.includes(a.dataset.k) - KPI_PHONE.includes(b.dataset.k));
+    for (const c of order) { if (k.scrollWidth <= k.clientWidth + 1) break; c.hidden = true; more.hidden = false; }
     const off = cells.filter(c => c.hidden);   // what did not fit is said, not silently dropped (Settings › Layout marks it too)
     more.textContent = off.length ? `+${off.length} more` : ''; more.title = off.length ? `Not shown, the window is too narrow: ${off.map(c => KPI_LABEL[c.dataset.k]).join(', ')}` : '';
     KPI_OFF = new Set(off.map(c => c.dataset.k));
@@ -258,7 +261,7 @@ $('kpi').addEventListener('click', e => { if (e.target.closest('#kpiEdit')) Edit
 // ---------- engineer bar and drawer ----------
 let drawerKey = '';
 function renderEngBar(){
-  const s = ctx.s, adv = (s && s.advice || []).slice().sort((a, b) => b.severity - a.severity), w = adv[0];
+  const s = ctx.s, adv = sortAdvice(s && s.advice), w = adv[0];
   const main = $('engMain');
   const key = w ? `${w.severity}|${w.text}|${adv.length}` : s ? 'none' : 'wait';
   if (main.dataset.k !== key) {
@@ -374,6 +377,7 @@ document.addEventListener('keydown', e => {
   e.preventDefault();
 });
 $('btnSettings').addEventListener('click', () => Settings.open());
+$('btnEdit').addEventListener('click', () => Editor.toggle());
 $('btnKeys').addEventListener('click', openKeys);
 
 // ---------- welcome ----------
