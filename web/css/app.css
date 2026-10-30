@@ -698,12 +698,12 @@ table.tt{width:100%;border-collapse:collapse}
 .stp input[type=number]{border:0;background:none;box-shadow:none;border-radius:0;text-align:center;height:32px;flex:1 1 auto}
 
 /* the Flag KPI cell fills with the flag's colour and blinks (chequered: steady) */
-#kpi .kc[data-k=flag][data-flag]:not([data-flag=""]){animation:flagBlink 1s steps(1) infinite;color:#fff;background:#888}
-#kpi .kc[data-k=flag] .kl{color:inherit}
+#kpi .kc:where([data-flag]:not([data-flag=""])){animation:flagBlink 1s steps(1) infinite;color:#fff}
+#kpi .kc:where([data-flag]:not([data-flag=""])) .kl{color:inherit}
 #kpi .kc[data-flag=green]{background:#1f9d55}#kpi .kc[data-flag=yellow]{background:#f5c518;color:#111}#kpi .kc[data-flag=blue]{background:#2f6fde}
 #kpi .kc[data-flag=white]{background:#f2f2f2;color:#111}#kpi .kc[data-flag=orange]{background:#ff7a1a;color:#111}#kpi .kc[data-flag=red]{background:#d61f2c}
 #kpi .kc[data-flag=black]{background:#000;box-shadow:inset 0 0 0 2px #f2f2f2}
 #kpi .kc[data-flag=penalty]{background:repeating-linear-gradient(45deg,#000 0 10px,#ff7a1a 0 20px)}
-#kpi .kc[data-flag=chequered]{background:repeating-conic-gradient(#f2f2f2 0 25%,#111 0 50%) 0 0/20px 20px;animation:none;text-shadow:0 0 3px #000,0 0 3px #000}
+#kpi .kc[data-flag=chequered]{color:#fff;background:repeating-conic-gradient(#f2f2f2 0 25%,#111 0 50%) 0 0/20px 20px;animation:none;text-shadow:0 0 3px #000,0 0 3px #000}
 @keyframes flagBlink{50%{opacity:.3}}
 @media (prefers-reduced-motion:reduce){#kpi .kc[data-k=flag]{animation:none!important}}
