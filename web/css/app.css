@@ -236,8 +236,7 @@ label.btn{cursor:pointer}
 .ws.narrow{display:flex;flex-direction:column}
 .ws.narrow>.mod{flex:none}
 .ws.narrow .mod.auto-h{height:auto}
-.ws.narrow .mod.auto-h>.mb{overflow:visible}
-.ws.narrow .mod.auto-h>.mb{overflow-x:auto}   /* wider than a phone: the table scrolls sideways, not the page */
+.ws.narrow .mod.auto-h>.mb{overflow-x:auto;overflow-y:hidden}   /* wider than a phone: the table scrolls sideways, not the page */
 .ws.narrow table.tt{min-width:100%}
 /* edit mode: dashed cell outlines on every column and row. A grid item that spans the 12 columns and 60 rows (which also leaves
    empty rows to drag into), painted under the modules. The lines are a mask over a --line2 fill, so they follow the theme without
@@ -275,7 +274,8 @@ label.btn{cursor:pointer}
 /* a body with more below the fold says so (headless and overlay scrollbars hide it) */
 .mod.more>.mb{border-bottom:1px solid var(--line2);margin-bottom:14px}   /* the marker has its own strip, never over the last row */
 .mod.more::after{content:"more ▾";position:absolute;right:0;bottom:0;height:14px;line-height:14px;padding:0 4px;font-size:var(--t-xs);color:var(--dim);background:var(--mbg);pointer-events:none}
-.ws.editing .mod.more::after{display:none}
+.mod.more-x::before{content:"more ▸";position:absolute;right:0;top:calc(var(--hh) + 2px);height:14px;line-height:14px;padding:0 4px;font-size:var(--t-xs);color:var(--dim);background:var(--mbg);pointer-events:none;z-index:2}   /* the table continues to the right; above the sticky th (z 1) */
+.ws.editing .mod.more::after,.ws.editing .mod.more-x::before{display:none}
 .mhid{color:var(--dim);border-style:dashed}
 .mtools,.medit{display:flex;align-items:center;gap:0;flex:none}
 .mh .btn.icon{width:24px;height:24px}
@@ -629,7 +629,7 @@ table.tt{width:100%;border-collapse:collapse}
 .s-dim{color:var(--dim)}
 
 /* labels in sentence case (appearance "labels: sentence"): module titles, table headers, KPI and field labels */
-:root[data-labels=sentence] :is(.mt,.tt th,.kl,.lbl,.pop-h){text-transform:none;letter-spacing:0}
+:root[data-labels=sentence] :is(.mt,.tt th,.kl,.lbl,.pop-h,.pc h3>span){text-transform:none;letter-spacing:0}
 :root[data-labels=sentence] :is(.mt,.tt th){font-weight:500}
 :root[data-labels=sentence] .tt th{font-size:var(--t-sm)}
 :root[data-labels=sentence] .mt{font-size:var(--t-md)}

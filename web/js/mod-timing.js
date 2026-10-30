@@ -75,7 +75,7 @@
         return cols;
       };
       let cols = draw();
-      for (const k of ['car', 'sectors', 'deltaMe', 'best', 'stint', 'pits', 'net']) {
+      for (const k of ['car', 'sectors', 'deltaMe', 'best', 'stint', 'pits', 'net', 'last', 'int']) {   // a cut lap time reads as a wrong one: last and int go too, gap stays
         if (inst.body.clientWidth <= 0 || inst.body.scrollWidth <= inst.body.clientWidth + 1) break;
         if (cols.includes(k)) { st.drop.add(k); cols = draw(); }
       }

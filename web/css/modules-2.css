@@ -21,14 +21,16 @@
 .mod[data-type=lap-timer] .mb[data-loc=invalid]{box-shadow:inset 3px 0 0 var(--inv)}
 
 /* ---------- tyres: four corner tiles, each number beside its position in the window ---------- */
-.mod[data-type=tyres] .mb{overflow:hidden}
+.mod[data-type=tyres] .mb{overflow:hidden;container-type:size}   /* short: the note, then the table, give their height to the tiles */
+@container (max-height:340px){.mod[data-type=tyres] .mb>.note{display:none}}
+@container (max-height:260px){.mod[data-type=tyres] .ty-t{display:none}}
 .tz{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:8px;container-type:size}   /* fills the module; the tiles share its height, nothing scrolls */
 .tz-bar{flex:none}
 .tz-bar{display:flex;align-items:center;justify-content:center;gap:12px;font:600 var(--t-sm) var(--num);color:var(--mut);letter-spacing:.06em;text-transform:uppercase}
 .tz-comp{padding:2px 8px;border:1px solid var(--txt);color:var(--txt)}
 .tz-comp.wet{border-color:var(--cold);color:var(--cold)}
 .tz-grid{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:8px}
-.tz-c{--c:var(--line);min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:6px 10px 10px;background:var(--bg);border:1px solid var(--line);box-shadow:inset 3px 0 0 var(--c)}
+.tz-c{--c:var(--line);min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:safe center;gap:4px;padding:6px 10px 10px;background:var(--bg);border:1px solid var(--line);box-shadow:inset 3px 0 0 var(--c)}
 .tz-c.s-cold{--c:var(--cold)}.tz-c.s-warn{--c:var(--warn)}.tz-c.s-bad{--c:var(--bad)}.tz-c:not([class*=s-]){--c:var(--ok)}
 .tz-h{display:flex;justify-content:space-between;align-items:center;font-size:var(--t-sm);color:var(--mut)}
 .tz-h b{font-weight:600;color:var(--txt);letter-spacing:.08em}
@@ -37,18 +39,19 @@
 .tz-v .u{font-size:var(--t-md);color:var(--mut);margin-left:2px}
 .tz-v i{font-style:normal;font-size:var(--t-lg)}
 .tz-r{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--t-sm);color:var(--mut);margin-top:2px}
-.tz-r b{font:600 var(--t-md) var(--num);color:var(--txt)}
-.tz-r b[class*=s-]{color:inherit}
+.tz-r b{font:600 var(--t-md) var(--num)}
+.tz-r b:not([class*=s-]){color:var(--txt)}   /* a value out of its window takes its state colour, as the temperature does */
 .tz-r .u{font-size:var(--t-sm);color:var(--mut)}
-.tg{position:relative;height:6px;background:var(--line2)}
+.tg{position:relative;height:6px;flex:none;background:var(--line2)}   /* never squeezed to a bare marker */
 .tg>i{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--ok) 35%,transparent)}
 .tg>b{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1.5px;background:var(--txt)}
 .tg>b[class*=s-]{background:currentColor}
 .tz-br{display:flex;flex-direction:column;gap:4px}
 @container (max-width:260px){.tz-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:none}}
-@container (max-height:330px){.tz-r+.tg{display:none}}   /* short: the bars of pressure and brake go, the numbers stay */
-@container (max-height:250px){.tz-br{display:none}.tz-bar{display:none}}
+@container (max-height:330px){.tz-r+.tg{display:none}.tz-br{display:none}}   /* short: the pressure bar and the brakes go (the Brakes module has them) */
+@container (max-height:250px){.tz-bar{display:none}}
 @container (max-height:190px){.tz-c .tg{display:none}.tz-v{font-size:var(--t-lg)}}
+@container (max-height:150px){.tz-grid{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:minmax(0,1fr)}.tz-w{display:none}}   /* very short: one row of four */
 .tt.ty-t{margin-top:8px}
 .tt.ty-t td:first-child,.tt.br td:first-child,.tt.pf td:first-child{color:var(--mut)}
 
