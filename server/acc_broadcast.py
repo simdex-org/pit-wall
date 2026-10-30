@@ -665,7 +665,7 @@ class FakeField(Field):
         dt = 0 if self.t_sim is None else t - self.t_sim
         self.t_sim, out = t, []
         raw = self.pages.read()
-        me = {"laps": raw["laps"], "spl": raw["track_pos"], "loc": 1, "kmh": int(raw["speed"]), "gear": raw["gear"] - 1,
+        me = {"laps": raw["laps"], "spl": raw["track_pos"], "loc": 2 if raw["pit_lane"] else 1, "kmh": int(raw["speed"]), "gear": raw["gear"] - 1,
               "cur": raw["cur_ms"], "valid": bool(raw["valid"]), "out": False}
         third = self.pages.lap // 3   # FakePages' sectors start at a third and two thirds of its lap, as the telemetry records them
         split = lambda ms: (third, third, ms - 2 * third)

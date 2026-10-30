@@ -106,8 +106,10 @@ function onReading(r){
   pushTrace(c, cap); recSample(s, c);
   const p = s.car_position_m;
   if (p && (p[0] || p[2])) {
-    const l = REC.curLine[REC.curLine.length - 1], d = l ? Math.hypot(l[0] - p[0], l[1] - p[2]) : 0;
-    if (d > 60) { REC.curLine = [[p[0], p[2], s.track_position]]; REC.cur = []; }   // a jump (out of the garage, a reset): start the line again rather than draw a straight across; the lap is no longer whole
+    const l = REC.curLine[REC.curLine.length - 1], d = l ? Math.hypot(l[0] - p[0], l[1] - p[2]) : 0, now = performance.now();
+    const dt = REC.posT ? Math.max(1 / 30, (now - REC.posT) / 1000) : 1 / 30;   // a stalled feed lets the car go further between readings
+    REC.posT = now;
+    if (d > 60 && d > (c.speed_kmh / 3.6) * dt * 1.5 + 20) { REC.curLine = [[p[0], p[2], s.track_position]]; REC.cur = []; }   // a jump (out of the garage, a reset): start the line again rather than draw a straight across; the lap is no longer whole
     else if (!l || d > 1.5) REC.curLine.push([p[0], p[2], s.track_position]);
   }
 }

@@ -170,8 +170,8 @@
       setHtml(inst.body.querySelector('tbody'), shown.map((x, i) => `<tr data-f="${((x.a + x.b) / 2 / (NB - 1)).toFixed(4)}" class="${cur != null && cur * (NB - 1) >= x.a && cur * (NB - 1) <= x.b ? 'sg-on' : ''}" title="Show this part on the traces and the map"><td class="n">${i + 1}</td><td class="n">${where(x)}</td><td class="n">${deltaHtml(x.d)}</td>${why ? `<td class="sg-why">${esc(x.why)}</td>` : ''}</tr>`).join(''));
       // net = the sum of every part = the lap delta of the traces; it differs from the lap times only by the traces' offset
       const gain = segs.filter(x => x.d < 0).reduce((a, x) => a + x.d, 0), loss = segs.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0), net = gain + loss;
-      const lapD = s.cmp.ms - s.ref.ms, off = Math.abs(net - lapD) > 5 ? ` <span class="note">(trace offset ${nf(Math.abs(net - lapD) / 1000, 3)} s)</span>` : '';
-      setHtml(inst.body.querySelector('tfoot'), `<tr><td colspan="${why ? 4 : 3}">Gains <span class="s-ok">▼ ${fmtDelta(gain)}</span> · losses <span class="s-bad">▲ ${fmtDelta(loss)}</span> · net ${deltaHtml(net)} = CMP ${MINUS} REF lap${off}</td></tr>`);
+      const lapD = s.cmp.ms - s.ref.ms, off = Math.abs(net - lapD) > 5 ? `<span class="note">, trace offset ${nf(Math.abs(net - lapD) / 1000, 3)} s</span>` : '';
+      setHtml(inst.body.querySelector('tfoot'), `<tr><td colspan="${why ? 4 : 3}">Gains ${deltaHtml(gain)} · losses ${deltaHtml(loss)} · net ${deltaHtml(net)} (CMP ${MINUS} REF lap ${deltaHtml(lapD)}${off})</td></tr>`);
       inst.setInfo(`CMP ${lapName(s.cmp)} vs REF ${lapName(s.ref)}`);
     }});
 })();
