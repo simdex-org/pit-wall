@@ -52,10 +52,10 @@ function fuelPlan(i){
   const sgn = (v, d) => (v < 0 ? MINUS : '+') + nf(Math.abs(v), d);
   // [key, label, unit, step]: what each field means is in its title; an empty field uses the live figure shown as its placeholder
   const F = {
-    race:['Race length', '', 1], extra:['Extra laps after the timer', 'laps', 1], fpl:['Fuel per lap', 'L', .01], cap:['Tank', 'L', 1], reserve:['Reserve at the flag and each stop', 'laps', .1],
-    formL:['Formation and start', 'L', .5], mand:['Mandatory stops', '', 1], maxStint:['Max driver stint', 'min', 1], loss:['Pit lane loss', 's', .5],
-    refuel:['Refuelling', 's/L', .01], tyreS:['Tyre change', 's', 1], minStat:['Minimum stationary', 's', 1], wt:['Weight effect per 10 L', 's/lap', .01]};
-  const TIPS = {extra:'Laps driven after the timer reaches zero, on top of finishing the lap in progress (which is counted already).',
+    race:['Race length', '', 1], extra:['Extra laps', 'laps', 1], fpl:['Fuel per lap', 'L', .01], cap:['Tank', 'L', 1], reserve:['Reserve', 'laps', .1],
+    formL:['Formation', 'L', .5], mand:['Mandatory stops', '', 1], maxStint:['Max driver stint', 'min', 1], loss:['Pit loss', 's', .5],
+    refuel:['Refuelling', 's/L', .01], tyreS:['Tyres', 's', 1], minStat:['Min. stationary', 's', 1], wt:['Weight / 10 L', 's/lap', .01]};
+  const TIPS = {extra:'Laps driven after the timer reaches zero, on top of finishing the lap in progress (already counted).',
     reserve:'Laps of fuel left in the tank at the flag, and when you arrive at each stop.', formL:'Fuel burnt before lap 1 (formation lap, grid).',
     maxStint:'Longest time one driver may drive in a row: forces stops. Empty = no limit.', wt:'How much slower a lap is per 10 L of fuel carried (average over the lap). 0 = ignore; a stop then costs only its time.',
     race:'Empty fields use the live value shown in grey.'};
@@ -63,17 +63,16 @@ function fuelPlan(i){
   Pit.module({type:'fuel-calc', title:'Fuel & stints', group:'Strategy', blurb:'Plan the race: fuel to start with, stops, stint lengths and the fuel at each stop, from race length, lap time and consumption.',
     size:{w:6, h:20, minW:4, minH:10}, needs:['summary', 'reading', 'config'], rate:2,
     build(el, inst){
-      const f = k => `<label class="rp-f" title="${esc(TIPS[k] || '')}"><span>${F[k][0]}</span><span class="fc-in"><input type="text" inputmode="decimal" data-k="${k}" autocomplete="off">${F[k][1] ? `<i class="u">${F[k][1]}</i>` : ''}</span></label>`;
-      el.innerHTML = `<div class="fc-res"></div>
-        <details class="rp-in" open><summary class="lbl">Race</summary><div class="fc-g">
-          <label class="rp-f"><span>Race length</span><span class="fc-in"><input type="text" inputmode="decimal" data-k="race"><select data-k="unit"><option value="min">min</option><option value="laps">laps</option></select></span></label>
-          <label class="rp-f"><span>Lap time</span><span class="fc-in"><input type="text" data-k="lap" placeholder="1:48.500"></span></label>
-          ${f('fpl')}${f('cap')}${f('extra')}${f('reserve')}${f('formL')}</div></details>
-        <details class="rp-in"><summary class="lbl">Rules and pit stop</summary><div class="fc-g">
+      const f = k => `<label class="fc-f" title="${esc(TIPS[k] || '')}"><span>${F[k][0]}</span><span class="fc-in"><input type="text" inputmode="decimal" data-k="${k}" autocomplete="off">${F[k][1] ? `<i>${F[k][1]}</i>` : ''}</span></label>`;
+      el.innerHTML = `<div class="fc-form">
+          <label class="fc-f"><span>Race length</span><span class="fc-in"><input type="text" inputmode="decimal" data-k="race"><select data-k="unit"><option value="min">min</option><option value="laps">laps</option></select></span></label>
+          <label class="fc-f"><span>Lap time</span><span class="fc-in"><input type="text" data-k="lap"></span></label>
+          ${f('fpl')}${f('cap')}${f('reserve')}${f('extra')}${f('formL')}
           ${f('mand')}${f('maxStint')}${f('loss')}${f('refuel')}${f('tyreS')}${f('minStat')}${f('wt')}
-          <label class="rp-f"><span>Change tyres at every stop</span><input type="checkbox" data-k="tyres"></label>
-          <label class="rp-f"><span>Fuel, then tyres (not together)</span><input type="checkbox" data-k="seq"></label></div></details>
-        <div class="rp-acts"><button type="button" class="btn" data-plan>Put start fuel in pit plan</button><button type="button" class="btn" data-clear>Clear inputs</button></div>`;
+          <label class="fc-c"><input type="checkbox" data-k="tyres"> Tyres at every stop</label>
+          <label class="fc-c"><input type="checkbox" data-k="seq"> Fuel, then tyres</label></div>
+        <div class="rp-acts"><button type="button" class="btn" data-plan>Put start fuel in pit plan</button><button type="button" class="btn" data-clear>Clear inputs</button></div>
+        <div class="fc-res"></div>`;
       const s = inst.state; s.v = load(); s.sel = null;
       for (const i of el.querySelectorAll('[data-k]')) { const k = i.dataset.k; if (i.type === 'checkbox') i.checked = !!s.v[k]; else if (s.v[k] != null) i.value = s.v[k]; }
       const save = () => { lsSet('pitwall.calc', s.v); s.upd(); };
@@ -91,7 +90,7 @@ function fuelPlan(i){
       const live = {fpl:st && st.fuel_per_lap > 0 ? st.fuel_per_lap : c.r && c.r.session.fuel_per_lap > 0 ? c.r.session.fuel_per_lap : null,
         lap:st && (st.my_pace_ms || st.lap_ref_ms) ? (st.my_pace_ms || st.lap_ref_ms) / 1000 : null, cap:fx && fx.max_fuel > 0 ? fx.max_fuel : null,
         reserve:cfg.reserve_laps, mand:cfg.mandatory_stops, loss:st ? st.drive_loss_s : cfg.pit_loss_s, refuel:st ? st.refuel_s_per_l : cfg.refuel_s_per_l, tyreS:st ? st.tyre_s : cfg.tyre_s, minStat:cfg.min_stationary_s};
-      const ph = {race:'', extra:'0', formL:'0', maxStint:'none', wt:'0', lap:live.lap != null ? fmtLap(live.lap * 1000) : '1:48.500'};
+      const ph = {race:'', extra:'0', formL:'0', maxStint:'none', wt:'0', lap:live.lap != null ? fmtLap(live.lap * 1000) : 'm:ss.xxx'};
       for (const k of ['fpl', 'cap', 'reserve', 'mand', 'loss', 'refuel', 'tyreS', 'minStat']) ph[k] = live[k] == null ? '' : String(+(+live[k]).toFixed(2));
       for (const i of b.querySelectorAll('[data-k]')) if (i.type === 'text') i.placeholder = ph[i.dataset.k] || '';
       const sq = b.querySelector('[data-k="seq"]'); if (s.v.seq == null) sq.checked = cfg.fuel_and_tyres === 'sequential';   // until chosen by hand, the shared setting
@@ -102,7 +101,9 @@ function fuelPlan(i){
           tyres:v.tyres !== false, seq:v.seq != null ? v.seq : cfg.fuel_and_tyres === 'sequential', minStat:or('minStat', 0), wt:n('wt') || 0};
         const res = b.querySelector('.fc-res'), p = fuelPlan(inp);
         s.start = null;
-        if (!p.total) { setHtml(res, '<p class="note">Enter the race length, a lap time and the fuel per lap (empty fields use the live figures) and the plan appears here.</p>'); inst.setInfo(''); return; }
+        if (!p.total) {
+          const miss = [!((laps ? inp.raceLaps : inp.raceMin) > 0) && 'the race length', !(inp.lapS > 0) && 'a lap time', !(inp.fpl > 0) && 'the fuel per lap'].filter(Boolean);
+          setHtml(res, `<p class="note fc-miss">Still needed: ${miss.join(', ')}. Grey figures are live values; an empty field uses them.</p>`); inst.setInfo(''); return; }
         const pick = p.options.find(o => o.n === s.sel) || p.best || p.options[0], sel = pick;
         s.start = sel.ok ? sel.start : null;
         let h = '';
