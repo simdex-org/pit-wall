@@ -15,11 +15,11 @@ python server/bridge.py --simulate-acc --sim-session quali --key demo   # the sa
 python server/bridge.py --simulate-acc --sim-track nordschleife --sim-speed 8 --key demo   # the demo on the Nordschleife 24h layout, 8x faster
 python server/acc_broadcast.py --enable               # once, ACC closed: switch on ACC's broadcasting port (field timing)
 python server/acc_telemetry.py; python server/acc_broadcast.py; python server/acc_pit.py; python server/launcher.py --selftest   # self-tests, all must pass
-python server/launcher.py                             # the start window (PitWall.exe: python -m PyInstaller --onefile --windowed --name PitWall --icon server/pitwall.ico --add-data "server/pitwall.ico;." server/launcher.py)
+python server/launcher.py                             # the start window (needs pip install customtkinter pillow; PitWall.exe: python -m PyInstaller --onefile --windowed --name PitWall --icon server/pitwall.ico --add-data "server/pitwall.ico;." --add-data "server/pitwall-logo.png;." --collect-data customtkinter server/launcher.py)
 python server/acc_telemetry.py --probe                # live session: print the not-yet-verified shared-memory fields
 ```
 
-Python 3.8+, stdlib only, Windows for the game side. Edit anything under `web/` and reload the page; only `server/` changes need a restart. Bridge flags: `--key`, `--pit-key`, `--key-ms`, `--vjoy [N]`, `--broadcast-port` (0 = field timing off), `--broadcast-password`, `--sim-session race|quali`, `--sim-track demo|nordschleife`, `--sim-speed N`, `--no-browser`.
+Python 3.8+, stdlib only (except the launcher window: customtkinter, pillow), Windows for the game side. Edit anything under `web/` and reload the page; only `server/` changes need a restart. Bridge flags: `--key`, `--pit-key`, `--key-ms`, `--vjoy [N]`, `--broadcast-port` (0 = field timing off), `--broadcast-password`, `--sim-session race|quali`, `--sim-track demo|nordschleife`, `--sim-speed N`, `--no-browser`.
 
 ## Architecture
 
