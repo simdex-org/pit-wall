@@ -517,13 +517,6 @@ class Telemetry:
             st["mandatory_left"] = mp
         elif cfg["mandatory_stops"] is not None:
             st["mandatory_left"] = max(0, cfg["mandatory_stops"] - len(self.stops))
-        stint_stops = 1 if 0 <= r["stint_left"] < r["time_left"] else 0
-        terms = [("fuel", fuel_stops), ("mandatory", st["mandatory_left"] or 0), ("stint", stint_stops)]
-        st["stops_needed"] = max(v for _, v in terms)
-        st["stops_why"] = next((k for k, v in terms if v == st["stops_needed"]), None) if st["stops_needed"] else None
-        if st["fuel_needed_l"] is not None and not st["stops_needed"]:
-            st["spare_l"] = fuel - st["fuel_needed_l"]
-
         el = self._elapsed(r)
         o = c = None
         if cfg["pit_window_open_min"] is not None:
@@ -533,6 +526,16 @@ class Telemetry:
         if o is not None and ref:
             at = lambda ms: max(lap_no, lap_no + math.ceil((ms - el) / ref))
             st["pit_window"] = {"open_lap": at(o), "close_lap": at(c), "src": wsrc}
+        pw, ml = st["pit_window"], st["mandatory_left"] or 0
+        # a stop outside the pit window does not count as the mandatory one: a fuel stop forced before the window opens
+        # leaves every mandatory stop still to make inside it
+        early = bool(ml and pw and fuel_stops and st["box_by_lap"] is not None and st["box_by_lap"] < pw["open_lap"])
+        stint_stops = 1 if 0 <= r["stint_left"] < r["time_left"] else 0
+        terms = [("fuel", fuel_stops), ("fuel + mandatory", ml + 1 if early else 0), ("mandatory", ml), ("stint", stint_stops)]
+        st["stops_needed"] = max(v for _, v in terms)
+        st["stops_why"] = next((k for k, v in terms if v == st["stops_needed"]), None) if st["stops_needed"] else None
+        if st["fuel_needed_l"] is not None and not st["stops_needed"]:
+            st["spare_l"] = fuel - st["fuel_needed_l"]
 
         loss = [(s["loss_ms"] - s["box_ms"]) / 1000 for s in self.stops if s["loss_ms"] is not None]
         refuel = [s["box_ms"] / 1000 / s["fuel_added_l"] for s in self.stops if not s["tyres"] and s["fuel_added_l"] >= 5]
@@ -561,11 +564,13 @@ class Telemetry:
                 left = max(0.0, fuel - (lap - dme) * fpl)
                 short = (finish - lap + reserve) * fpl - (left + add)   # fuel still missing to the flag after this stop
                 more = 0 if short <= 1e-6 else math.ceil(short / per_stop) if per_stop > 0 else 1
+                outside = bool(ml and pw and not pw["open_lap"] <= lap <= pw["close_lap"])
+                more = max(more, ml - (0 if outside else 1))   # the mandatory stops still owed after this one; a later fuel stop can be one
                 for ty in (False, True):
                     s = stationary(add, ty)
                     st["options"].append({"id": f"{key}_{'ft' if ty else 'f'}", "label": f"{label}, fuel{' + tyres' if ty else ''}", "lap": lap,
                                           "add_l": add, "stationary_s": s, "loss_s": st["drive_loss_s"] + s, "rejoin_pos": None,
-                                          "reach": lap <= st["box_by_lap"], "more_stops": more})
+                                          "reach": lap <= st["box_by_lap"], "more_stops": more, "outside_window": outside})
         return st
 
     def summary(self, r, race=None):
@@ -697,11 +702,16 @@ def selftest():
     assert s["stint"][-1]["pads"][0] < s["stint"][0]["pads"][0] and ses["gap_ahead_ms"] > 0 and reading["reading"]["fixed"]["max_fuel"] == 120
     st = s["strategy"]
     assert abs(st["laps_of_fuel"] - car["fuel_litres"] / s["fuel_per_lap"]) < 1e-9 and "fuel_laps_remaining" not in s
-    assert st["laps_src"] == "timed" and st["stops_needed"] == 1 and st["stops_why"] == "fuel" and st["pit_window"]["src"] == "acc"
+    # the fuel runs out (L18) before the window opens (L21): a splash first, then the mandatory stop inside the window
+    assert st["pit_window"]["open_lap"] > st["box_by_lap"] and st["mandatory_left"] == 1, (st["pit_window"], st["box_by_lap"])
+    assert st["laps_src"] == "timed" and st["stops_needed"] == 2 and st["stops_why"] == "fuel + mandatory" and st["pit_window"]["src"] == "acc"
     assert [o["id"] for o in st["options"]] == ["now_f", "now_ft", "late_f", "late_ft", "win_f", "win_ft"], st["options"]
     assert st["options"][1]["stationary_s"] == 30.0 and st["drive_loss_src"] == "config" and s["best_src"] == "bridge"
-    o = {x["id"]: x for x in st["options"]}   # boxing now leaves a second stop; the window opens after the fuel runs out
-    assert o["now_f"]["more_stops"] == 1 and o["late_f"]["more_stops"] == 0 and o["late_f"]["reach"] and not o["win_f"]["reach"], st["options"]
+    o = {x["id"]: x for x in st["options"]}   # either early stop leaves the mandatory one; the window opens after the fuel runs out
+    assert o["now_f"]["more_stops"] == 1 and o["late_f"]["more_stops"] == 1 and o["late_f"]["outside_window"] and o["late_f"]["reach"] and not o["win_f"]["reach"], st["options"]
+    d = tel.strategy(dict(raw, missing_pits=0))   # the mandatory stop made: boxing now leaves a second fuel stop, boxing late does not
+    o = {x["id"]: x for x in d["options"]}
+    assert d["stops_needed"] == 1 and d["stops_why"] == "fuel" and o["now_f"]["more_stops"] == 1 and o["late_f"]["more_stops"] == 0, d["options"]
     q = Telemetry(clock=lambda: now[0]).strategy(dict(raw, session=1))
     assert q["laps_to_go"] is None and q["options"] == [] and q["box_by_lap"] is not None, q
     traced = [l for l in tel.laps if l["trace"]]

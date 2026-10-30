@@ -152,7 +152,7 @@ class AccMfd:
             with open(os.path.join(acc_config_dir(), "controls.json"), encoding="utf-8-sig") as f:
                 names |= {b["key"]["key"] for b in json.load(f)["keyboardSettings"]["raceCommandButtonList"]
                           if b.get("actionType") in ("KeyboardGas", "KeyboardBrake", "KeyboardSteerLeft", "KeyboardSteerRight")}
-        except (OSError, ValueError, KeyError, TypeError):
+        except (ImportError, OSError, ValueError, KeyError, TypeError):   # ImportError: acc_pit.py copied and run on its own
             pass
         return {ord(n.upper()): self.u.MapVirtualKeyW(ord(n.upper()), 0) for n in names if len(n) == 1 and n.isalnum()}
 

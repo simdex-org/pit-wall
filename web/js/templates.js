@@ -6,7 +6,7 @@
 // ---------- built-ins (§3.3): x, y, w, h on 12 columns; every layout fits 22 rows ----------
 const BUILTIN_WS = {   // workspaces shared by several built-ins
   live: ['w-live', 'Live', [['track-map', 0, 0, 5, 14], ['standings', 5, 0, 4, 22, {around:5, cols:['gap', 'int', 'last', 'pits']}], ['relative', 9, 0, 3, 8], ['race-plan', 9, 8, 3, 14], ['tyres', 0, 14, 5, 8]]],
-  timing: ['w-timing', 'Timing', [['standings', 0, 0, 7, 22], ['battle', 7, 0, 5, 6], ['laps', 7, 6, 5, 8, {who:'focus'}], ['sector-compare', 7, 14, 5, 8]]],   // click a car: its laps
+  timing: ['w-timing', 'Timing', [['standings', 0, 0, 7, 22, {cols:['car', 'gap', 'int', 'last', 'best', 'sectors', 'pits', 'stint', 'deltaMe']}], ['battle', 7, 0, 5, 6], ['pit-activity', 7, 6, 5, 8], ['sector-compare', 7, 14, 5, 8]]],
   strategy: ['w-strategy', 'Strategy', [['stint-timeline', 0, 0, 12, 4], ['pit-plan', 0, 4, 6, 18], ['stop-options', 6, 4, 6, 7], ['race-plan', 6, 11, 3, 11], ['rejoin', 9, 11, 3, 7], ['rules', 9, 18, 3, 4]]],
   car: ['w-car', 'Car', [['tyres', 0, 0, 4, 11, {corrections:false}], ['brakes', 4, 0, 4, 6], ['press-fix', 4, 6, 4, 5], ['electronics', 8, 0, 4, 5], ['damage', 8, 5, 4, 6], ['tyre-history', 0, 11, 8, 11], ['weather', 8, 11, 4, 6], ['flags', 8, 17, 4, 5]]],
   laps: ['w-laps', 'Laps', [['laps', 0, 0, 8, 15], ['degradation', 0, 15, 8, 7], ['stops', 8, 0, 4, 7], ['debrief', 8, 7, 4, 15]]],
@@ -60,11 +60,12 @@ const Tpl = {
     let n = name.slice(0, 40), k = 2; while (taken.has(n)) n = `${name.slice(0, 34)} (${k++})`;
     return n;
   },
-  fork(t, name){   // a user-owned deep copy; built-ins are never edited in place
+  fork(t, name, mem){   // a user-owned deep copy; built-ins are never edited in place. mem: listed but not stored until saved
     const c = deep(t), now = new Date().toISOString();
     c.id = this.newId('t-'); c.name = this.uniqueName(name || `${t.name} (custom)`);
     c.basedOn = this.isBuiltin(t.id) ? t.id : t.basedOn; if (!c.basedOn) delete c.basedOn;
     c.created = c.updated = now; delete c.appearance;
+    if (mem) { this.items.push(c); return c; }
     return this.save(c);
   },
   use(id, wsId){   // the tab's template: kept in the address bar so each tab keeps its own, and the default for new tabs
@@ -97,6 +98,7 @@ const Tpl = {
       for (const m of mods) {
         const def = Pit.registry.get(m.type);
         if (!def && !(o.keepUnknown && typeof m.type === 'string' && /^[a-z][a-z0-9-]{1,23}$/.test(m.type))) { dropped.push(String(m.type).slice(0, 24)); continue; }
+        if (def && def.multi === false && out.some(x => x.type === m.type)) { fix(); continue; }   // once per workspace (notes, pit plan share state)
         const r = this.sanitizeModule(m, def, mids, fix); mids.add(r.id); out.push(r);
       }
       resolveOverlaps(out, fix);
@@ -113,7 +115,8 @@ const Tpl = {
     while (mids.has(id)) { id = this.newId('m-'); fix(); }
     const r = {id, type:m.type};
     r.x = int(m.x, 0, 11, 0); r.y = int(m.y, 0, 199, 0);
-    r.w = int(m.w, Math.min(size.minW, 12 - r.x), 12 - r.x, def ? def.size.w : 4); r.h = int(m.h, size.minH, 60, def ? def.size.h : 6);
+    const minW = Math.min(size.minW, 12); if (r.x + minW > 12) { r.x = 12 - minW; fix(); }   // too far right for its minimum width: moved left, not squeezed
+    r.w = Math.min(int(m.w, minW, 12 - r.x, def ? def.size.w : 4), 12 - r.x); r.h = int(m.h, size.minH, 60, def ? def.size.h : 6);
     r.hidden = m.hidden === undefined ? false : m.hidden === true; if (m.hidden !== undefined && typeof m.hidden !== 'boolean') fix();
     r.header = m.header === undefined ? true : m.header !== false; if (m.header !== undefined && typeof m.header !== 'boolean') fix();
     r.title = cleanText(m.title, 40); if (m.title !== undefined && r.title !== m.title) fix();

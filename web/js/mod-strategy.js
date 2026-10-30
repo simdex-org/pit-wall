@@ -35,13 +35,14 @@
   Pit.module({type:'race-plan', title:'Fuel to the flag', group:'Strategy', blurb:'When to box and how much fuel to put in, from the bridge strategy.',
     size:{w:4, h:11, minW:3, minH:8}, needs:['summary', 'reading', 'config'], requires:['summary'],
     build(el, inst){
-      el.innerHTML = `<div class="rp-head"></div><dl class="kv"></dl>
-        <div class="rp-in"><div class="lbl">Shared inputs</div>
+      // the shared inputs (set once per race, shared by every screen) fold away, closed by default: the plan needs the room
+      el.innerHTML = `<div class="rp-head"></div><dl class="kv"></dl><div class="rp-acts"><button type="button" class="btn" data-plan>Put in pit plan</button></div>
+        <details class="rp-in"><summary class="lbl">Shared inputs</summary>
           <div class="rp-g"><label class="rp-f"><span>Reserve laps</span><input type="number" data-k="reserve_laps" min="0" max="10" step="0.1"></label>
           <label class="rp-f"><span>Laps override</span><input type="number" data-k="laps_override" min="1" max="999" step="1" placeholder="auto"></label>
           <label class="rp-f"><span>Mandatory stops</span><input type="number" data-k="mandatory_stops" min="0" max="9" step="1" placeholder="ACC"></label></div>
-          <div class="rp-acts"><button type="button" class="btn" data-save>Save</button><button type="button" class="btn" data-plan>Put in pit plan</button></div>
-          <p class="note" data-msg role="status"></p></div>`;
+          <div class="rp-acts"><button type="button" class="btn" data-save>Save</button></div>
+          <p class="note" data-msg role="status"></p></details>`;
       el.addEventListener('input', e => { if (e.target.dataset.k) inst.state.edited = true; });
       el.addEventListener('click', async e => {
         const msg = el.querySelector('[data-msg]');
@@ -77,12 +78,11 @@
       const room = cap != null && car ? Math.max(0, cap - car.fuel_litres) : null, addNow = st.fuel_to_add_l != null && room != null ? Math.min(st.fuel_to_add_l, room) : st.fuel_to_add_l;
       const over = st.fuel_to_add_l != null && addNow != null ? st.fuel_to_add_l - addNow : 0;
       const showNow = box && st.box_in_laps > 0 && addNow != null && (st.add_at_box_l == null || Math.abs(addNow - st.add_at_box_l) >= 1);   // boxing this lap: the box figure is the one
-      const ml = st.mandatory_left || 0, one = st.fits_tank ? 'yes' : st.fits_tank == null ? '—' : `<span class="${st.stops_needed > ml + 1 ? 's-bad' : 's-dim'}">no · ${plural(st.stops_needed, 'stop')}</span>`;
       setHtml(b.querySelector('.kv'), race ? kvHtml([['Laps to go', `${nf(st.laps_to_go, 0)}${src ? ` <span class="note">${esc(src)}</span>` : ''}`],
         ['Fuel needed', L_(st.fuel_needed_l)], ['In tank', car ? L_(car.fuel_litres) : '—'],
-        showNow && ['To add now', `${L_(addNow)}${over >= 0.5 ? ` <span class="note">+${nf(over, 0)} L does not fit</span>` : ''}`],
+        showNow && (over >= 0.5 ? ['Room in tank now', `${L_(addNow)} <span class="note">${nf(over, 0)} L short of the flag</span>`] : ['To add now', L_(addNow)]),
         ['Add at the box', box ? `${L_(st.add_at_box_l)}${late && late.more_stops > 0 ? ` <span class="note">then ${plural(late.more_stops, 'more stop')}</span>` : ''}` : '—'],
-        ['One tank to the flag', one], ['Stops needed', `${nf(st.stops_needed, 0)}${st.stops_why ? ` <span class="note">${esc(st.stops_why)}</span>` : ''}`],
+        ['Stops needed', `${nf(st.stops_needed, 0)}${st.stops_why ? ` <span class="note">${esc(st.stops_why)}</span>` : ''}`],
         save && ['Save to make it', save]])
         : kvHtml([['In tank', car ? L_(car.fuel_litres) : '—'], ['Per lap', `${nf(st.fuel_per_lap, 2)}<span class="u"> L</span>`], ['Laps of fuel', nf(st.laps_of_fuel)]]));
       const S = c.cfg && c.cfg.strategy, km = keyMsg(), msg = b.querySelector('[data-msg]');
@@ -126,7 +126,7 @@
       const cs = cur && cur.from != null ? cur.from - 1 : (stints.filter(t => !t.current && t.to != null).map(t => t.to).pop() || 0);
       if (cur) g += `<rect class="stl-cur${cur.wet ? ' wet' : ''}" x="${x(cs)}" y="${by}" width="${bw(cs, now)}" height="${bh}"/>` + lab(x(cs), bw(cs, now), mid, `S${cur.n} · ${cur.wet ? 'W' : 'D'}${cur.tyre_set || ''} · ${cur.laps} L`);
       const fe = now + lf, short = race && fe < total;   // no flag outside races: nothing to be short of
-      if (lf > 0) g += `<rect class="stl-fuel${short ? ' short' : ''}" x="${x(now)}" y="${by}" width="${bw(now, fe)}" height="${bh}"${short ? ` fill="url(#${pid})"` : ''}/>` + lab(x(now), bw(now, fe), mid, short ? `fuel to L${Math.floor(fe)}${race ? ' · short of flag' : ''}` : 'fuel to the flag');
+      if (lf > 0) g += `<rect class="stl-fuel${short ? ' short' : ''}" x="${x(now)}" y="${by}" width="${bw(now, fe)}" height="${bh}"${short ? ` fill="url(#${pid})"` : ''}/>` + lab(x(now), bw(now, fe), mid, short ? `fuel to L${st.box_by_lap != null ? st.box_by_lap : Math.floor(fe)} · short of flag` : 'fuel to the flag');
       if (boxOn) g += `<line class="stl-box" x1="${x(st.box_by_lap)}" y1="${top}" x2="${x(st.box_by_lap)}" y2="${bot}"/><text class="stl-top" x="${x(st.box_by_lap)}" y="${top - 3}" text-anchor="middle">BOX L${st.box_by_lap}</text>`;
       if (race && st.laps_to_go != null) g += `<line class="stl-flag" x1="${x(total)}" y1="${top}" x2="${x(total)}" y2="${bot}"/><text class="stl-top" x="${x(total)}" y="${top - 3}" text-anchor="end">FLAG ${st.laps_src === 'timed' ? '≈' : ''}L${total}</text>`;
       g += `<line class="stl-now" x1="${x(now)}" y1="${top - 2}" x2="${x(now)}" y2="${bot}"/><path class="stl-nowm" d="M${x(now)} ${bot} l-4 6 h8 z"/>`;
@@ -144,7 +144,7 @@
       if (!opts.length) return inst.setState('empty', 'Stop options appear once a lap time and the fuel use are known.');
       const est = (st.refuel_src === 'est' || st.tyre_src === 'est') ? ' <b class="tag est">est.</b>' : '';
       const top = opts[0].reach !== false ? opts[0] : null;   // ranked: reachable, fewest stops, rejoin, loss
-      const flag = o => o.reach === false ? `<span class="s-bad">■ fuel lasts to L${nf(st.box_by_lap, 0)}</span>` : o.more_stops > 0 ? `<span class="s-warn">+${plural(o.more_stops, 'stop')}</span>` : 'yes';
+      const flag = o => o.reach === false ? `<span class="s-bad">■ fuel lasts to L${nf(st.box_by_lap, 0)}</span>` : o.more_stops > 0 ? `<span class="s-warn">+${plural(o.more_stops, 'stop')}${o.outside_window ? ': mandatory in window' : ''}</span>` : 'yes';
       setHtml(inst.body.querySelector('tbody'), opts.map(o => `<tr class="${[o === top && 'so-best', o.reach === false && 'so-off'].filter(Boolean).join(' ')}"><td>${o === top ? '▶ ' : ''}${esc(o.label)}</td><td class="n">L${nf(o.lap, 0)}</td><td class="n">${nf(o.add_l, 1)}</td><td class="n">${nf(o.stationary_s, 1)}${est}</td><td class="n">${nf(o.loss_s, 1)}</td><td class="n">${o.rejoin_pos != null ? 'P' + o.rejoin_pos : '—'}</td><td>${flag(o)}</td></tr>`).join(''));
       inst.body.querySelector('.note').textContent = `Loss = drive-through ${nf(st.drive_loss_s, 1)} s (${st.drive_loss_src === 'measured' ? 'measured' : 'from Settings until a stop is measured'}) + stationary. Rejoin assumes the others keep their pace.`;
       inst.setInfo(`refuel ${nf(st.refuel_s_per_l, 2)} s/L (${st.refuel_src}) · tyres ${nf(st.tyre_s, 0)} s (${st.tyre_src})`);
@@ -162,7 +162,7 @@
       setHtml(b.querySelector('.sub'), `<span>Ahead ${rj.ahead ? `<b>${nm(rj.ahead.i)}</b> ${fmtRel(rj.ahead.gap_ms)}` : '<b>nobody</b>'}</span><span>Behind ${rj.behind ? `<b>${nm(rj.behind.i)}</b> ${fmtRel(rj.behind.gap_ms)}` : '<b>nobody</b>'}</span>`);
       const k = (rj.around || []).findIndex(a => a.i === c.me);
       setHtml(b.querySelector('tbody'), (rj.around || []).map((a, j) => { const car = c.cars.get(a.i) || {i:a.i, loc:'track'};
-        return `<tr data-loc="${carLoc(car)}" class="${a.i === c.me ? 'me' : ''}"><td class="sb"></td><td class="n">P${k >= 0 ? rj.pos + j - k : '?'}</td><td>${a.i === c.me ? 'You <b class="tag you">YOU</b>' : nm(a.i)}</td><td class="n">${a.i === c.me ? '' : fmtRel(a.gap_ms)}</td></tr>`; }).join(''));
+        return `<tr data-loc="${carLoc(car)}" class="${a.i === c.me ? 'me' : ''}"><td class="sb"></td><td class="n">P${k >= 0 ? rj.pos + j - k : '?'}</td><td>${a.i === c.me ? `${esc((n => /^\S\. *$/.test(n) ? Pit.carName(mine, 'full') : n)(Pit.carName(mine, 'short')) || 'You')} <b class="tag you">YOU</b>` : nm(a.i)}</td><td class="n">${a.i === c.me ? '' : fmtRel(a.gap_ms)}</td></tr>`; }).join(''));
       const now = (st.options || []).find(o => o.id === 'now_f');
       b.querySelector('.note').textContent = `Loss ${nf(st.drive_loss_s, 1)} s drive-through (${st.drive_loss_src === 'measured' ? 'measured last stop' : 'from Settings, not measured yet'}) + ${nf(now ? now.stationary_s : 0, 1)} s stationary.`;
     }});
@@ -222,10 +222,11 @@
       const pts = cur.filter(clean).map(l => [l.n, cc(l)]), f = fit(pts);
       const pf = fit(prev.filter(clean).map(l => [l.n - prev[0].n + cur[0].n, pc(l)]));   // the previous stint laid over this one, from the same start
       const wrap = inst.body.querySelector('.dg-wrap'), W = wrap.clientWidth, H = wrap.clientHeight;
-      const slope = f ? f[0] : null, cls = slope == null ? '' : slope > 150 ? 's-bad' : slope > 60 ? 's-warn' : 's-ok';
-      setHtml(inst.body.querySelector('.dg-sub'), `<span>Trend <b class="${cls}">${slope == null ? '—' : `${signed(slope / 1000, 3)} s/lap ${slope > 0 ? '▲' : '▼'}`}</b></span><span>${pts.length} clean lap${pts.length === 1 ? '' : 's'} · stint ${sn}${o.fuelCorr > 0 ? ' · fuel-corrected' : ''}</span>`
+      // fewer than 5 clean laps: the slope is shown, dim, but not judged (one out-lap or traffic lap moves it a lot)
+      const slope = f ? f[0] : null, few = pts.length < 5, cls = slope == null || few ? 's-dim' : slope > 150 ? 's-bad' : slope > 60 ? 's-warn' : 's-ok';
+      setHtml(inst.body.querySelector('.dg-sub'), `<span>${plural(pts.length, 'clean lap')} · stint ${sn}${o.fuelCorr > 0 ? ' · fuel-corrected' : ''}${slope != null ? ` · trend <b class="${cls}">${signed(slope / 1000, 3)} s/lap ${slope > 0 ? '▲' : '▼'}</b>${few ? ' <span class="note">(n=' + pts.length + ', judged from 5)</span>' : ''}` : ''}</span>`
         + (o.compare && prev.length ? `<span class="lg"><i class="sw dash" style="--c:var(--dim)"></i>stint ${sn - 1}</span>` : ''));
-      inst.setInfo(slope == null ? 'fit after 3 clean laps' : `${signed(slope / 1000, 3)} s/lap ${slope > 0 ? '▲' : '▼'}`);
+      inst.setInfo(slope == null ? 'fit after 3 clean laps' : `${signed(slope / 1000, 3)} s/lap ${slope > 0 ? '▲' : '▼'}${few ? ` · n=${pts.length}` : ''}`);
       const key = JSON.stringify([W, H, cur.map(l => [l.n, l.ms, l.valid, l.out, l.in, l.fuel_end]), prev.length, o]);
       if (W < 60 || H < 40 || inst.state.k === key) return; inst.state.k = key;
       const vals = pts.length ? pts.map(p => p[1]) : cur.map(cc);
@@ -235,9 +236,11 @@
       const n0 = cur[0].n, n1 = Math.max(cur[cur.length - 1].n + 2, n0 + 4), gl = 62, top = 6, bot = H - 14, step0 = (W - gl - 6) / (n1 - n0 + 1);
       const X = n => gl + (n - n0 + .5) * step0, Y = v => bot - (bot - top) * clamp((v - lo) / (hi - lo), 0, 1);
       let g = '';
-      for (const k of [0, 1, 2, 3, 4]) { const y = (top + (bot - top) * k / 4).toFixed(1); g += `<line class="dg-grid" x1="${gl}" y1="${y}" x2="${W}" y2="${y}"/>`; }
-      const line = (F, cls) => F ? `<line class="${cls}" x1="${X(n0).toFixed(1)}" y1="${Y(F[0] * n0 + F[1]).toFixed(1)}" x2="${X(n1).toFixed(1)}" y2="${Y(F[0] * n1 + F[1]).toFixed(1)}"/>` : '';
-      g += line(pf, 'dg-prev') + line(f, 'dg-fit');
+      const gs = [100, 200, 500, 1000, 2000, 5000].find(k => (hi - lo) / k <= 5) || 10000, ys = [];   // gridlines on round tenths of a second
+      for (let v = Math.ceil(lo / gs) * gs; v <= hi; v += gs) { ys.push(v); const y = Y(v).toFixed(1); g += `<line class="dg-grid" x1="${gl}" y1="${y}" x2="${W}" y2="${y}"/>`; }
+      const line = (F, cls, a, b, dash) => F ? `<line class="${cls}" x1="${X(a).toFixed(1)}" y1="${Y(F[0] * a + F[1]).toFixed(1)}" x2="${X(b).toFixed(1)}" y2="${Y(F[0] * b + F[1]).toFixed(1)}"${dash ? ' stroke-dasharray="4 3"' : ''}/>` : '';
+      const p0 = pts.length ? pts[0][0] : n0, p1 = pts.length ? pts[pts.length - 1][0] : n0;   // the fit is solid over its laps, dashed where it is extrapolated
+      g += line(pf, 'dg-prev', n0, n1) + line(f, 'dg-fit', p0, p1) + (p1 < n1 ? line(f, 'dg-fit', p1, n1, true) : '');
       for (const l of cur) {
         const v = cc(l), ok = clean(l), over = v > hi, cx = X(l.n).toFixed(1), cy = (over ? top + 3 : Y(v)).toFixed(1);
         g += `<circle class="dg-dot${ok ? '' : ' inv'}" cx="${cx}" cy="${cy}" r="3.5"><title>L${l.n} ${fmtLap(l.ms)}${l.valid ? '' : ' INV'}${l.out ? ' OUT' : ''}${l.in ? ' IN' : ''}</title></circle>`;
@@ -246,7 +249,7 @@
       }
       const xs = Math.max(1, Math.ceil(28 / step0));
       for (let n = n0; n <= n1; n += xs) g += `<text class="dg-ax" x="${X(n).toFixed(1)}" y="${H - 2}" text-anchor="middle">${n}</text>`;
-      for (const [v, y] of [[hi, top + 8], [(hi + lo) / 2, (top + bot) / 2 + 3], [lo, bot]]) g += `<text class="dg-ax" x="${gl - 6}" y="${y.toFixed(1)}" text-anchor="end">${fmtLap(v)}</text>`;
+      for (const v of ys) g += `<text class="dg-ax" x="${gl - 6}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${fmtLap(v)}</text>`;
       wrap.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times of stint ${sn} with a fitted line">${g}</svg>`;
     }});
 })();

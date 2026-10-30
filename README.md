@@ -5,9 +5,9 @@ One person drives; the engineer, on another PC anywhere over Hamachi (or ZeroTie
 watches the car in a browser and sets the next pit stop (fuel, tyres, compound, pressures, brake pads and repairs)
 straight into the driver's game.
 
-![Next pit stop: the driver's MFD as read from the game, the engineer's plan, and what was confirmed](docs/pit-stop.png)
+![Strategy workspace: stint timeline, the pit plan against the driver's MFD with what was verified, stop options, fuel to the flag, rejoin and stint rules](docs/pit-stop.png)
 
-![Live view: gear, speed, pedals, lap timing, fuel, channel traces, track map and the engineer's advice](docs/live.png)
+![Live workspace: track map with the field, standings, relative, fuel to the flag, tyres and the engineer's advice](docs/live.png)
 
 Everything it needs is in this repository: it reads ACC's telemetry itself. No framework, no build,
 nothing to install but Python.
@@ -143,7 +143,7 @@ Keys the program types into the MFD reach ACC as another keyboard, and ACC then 
 holding. A virtual controller avoids that: the MFD buttons are pressed on it, and the driver's keyboard is never touched.
 
 1. Install [vJoy](https://github.com/BrunnerInnovation/vJoy/releases) (free, open source). In *Configure vJoy*, device 1 needs at least
-   5 buttons (the default 8 is fine).
+   6 buttons (the default 8 is fine).
 2. Bind ACC's MFD to it, once. In a terminal in this folder:
 
    ```bash
@@ -153,7 +153,8 @@ holding. A virtual controller avoids that: the MFD buttons are pressed on it, an
    Switch to ACC, *Options → Controls*, and find the MFD actions. After 10 seconds the program presses each vJoy button for 10 seconds,
    announced by beeps: 1 beep **MFD pitstop page** (button 1), 2 beeps **MFD up** (2), 3 **MFD down** (3), 4 **MFD left** (4),
    5 **MFD right** (5), 6 **Cycle MFD** (6, used by *Close pit page*). When you hear the beeps, click that action's binding in
-   ACC; the button binds itself. Save the controls.
+   ACC; the button binds itself. Save the controls. Bound before *Close pit page* existed? Run `--bind-vjoy` again so
+   button 6 (Cycle MFD) is bound too; until then that button does nothing.
 3. Start the bridge with `--vjoy`:
 
    ```bash
@@ -220,7 +221,7 @@ net position after the stops everyone still owes), **Relative** (the cars neares
 the interval trend), **Pit lane** (who is in the lane now, and every stop made), and the cars on the **track map**.
 
 Click a car (or ↑ ↓ then Enter in a table) to make it the **focus car**: the KPI strip shows *▶ FOCUS #14 A. Mori ✕*, and battle,
-*You vs focus car*, the Timing workspace's lap list and the map follow it. ✕, G or Esc goes back to your own car.
+*You vs focus car* and the map follow it (and any Laps module set to *Whose laps: the focus car*, which then lists that car's laps). ✕, G or Esc goes back to your own car.
 ACC shares no rival inputs, fuel or tyres; the page never pretends it does.
 
 ### The modules

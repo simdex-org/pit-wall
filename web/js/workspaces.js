@@ -6,7 +6,7 @@
 // ---------- preferences (this browser) ----------
 const KPI_IDS = ['session', 'left', 'lap', 'pos', 'ahead', 'behind', 'last', 'best', 'delta', 'fuel', 'stint', 'flag', 'temps', 'grip', 'rain', 'penalty', 'stintTime', 'boxIn'];
 const DEF_PREFS = {units:{speed:'kmh', temp:'c', press:'psi'}, sound:false, hz:30,
-  kpi:['session', 'left', 'lap', 'pos', 'ahead', 'behind', 'last', 'best', 'delta', 'fuel', 'stint', 'flag', 'temps'], kpiOn:true, lastWs:{}};
+  kpi:['session', 'lap', 'pos', 'ahead', 'behind', 'last', 'best', 'delta', 'fuel', 'boxIn', 'stint', 'flag', 'rain', 'temps'], kpiOn:true, lastWs:{}};   // time left: the topbar clock
 function loadPrefs(){
   const o = lsGet('pitwall.prefs', {}) || {}, p = deep(DEF_PREFS);
   if (isObj(o.units)) for (const k of ['speed', 'temp', 'press']) if (UNITS[k][o.units[k]]) p.units[k] = o.units[k];
@@ -117,6 +117,7 @@ function makeInst(m, def, editing){
   const el = document.createElement('section');
   el.className = 'mod'; el.dataset.state = 'ok'; el.id = m.id; el.dataset.type = m.type; el.tabIndex = -1; el.setAttribute('aria-labelledby', m.id + '-t');
   el.innerHTML = frameHtml(m, def, editing);
+  el.querySelector('.mb').addEventListener('scroll', () => moreMark(inst), {passive:true});
   const inst = {
     id:m.id, type:m.type, def, el, body:el.querySelector('.mb'), opts:optsFor(def, m.options), linked:!!m.linked, state:{}, visible:true, m,
     _key:JSON.stringify(m.options || {}), _last:0, _pending:true, _st:null, _stSet:false, _gated:false,
@@ -191,7 +192,11 @@ const WS = {
       inst.el.classList.toggle('no-header', m.header === false);
       inst.el.hidden = !!m.hidden && !this.editing;
       inst.el.querySelector('.mhid').hidden = !m.hidden;
-      if (!inst.def) applyState(inst, 'na', `Module '${m.type}' is not available in this version.`);
+      if (!inst.def) {   // a built-in type that did not register means its script failed to load, not an old version
+        const builtin = BUILTIN_TEMPLATES.some(t => t.workspaces.some(w => w.modules.some(x => x.type === m.type)));
+        if (builtin) applyState(inst, 'na', 'Module code did not load. Reload the page (Ctrl+R).', {label:'Reload', fn:() => location.reload()});
+        else applyState(inst, 'na', `Module '${m.type}' is not available in this version.`);
+      }
       else if (!inst._built) build(inst);
       inst._pending = true;
     }
@@ -203,7 +208,12 @@ const WS = {
     const host = $('ws'); this.narrow = host.clientWidth > 0 && host.clientWidth < 1100;
     host.classList.toggle('narrow', this.narrow);
     // the rows the layout uses stretch to fill the window's height (CSS: repeat(var(--rows), minmax(var(--row), 1fr)))
-    host.style.setProperty('--rows', Math.max(1, ...this.insts.filter(i => !i.el.hidden).map(i => i.m.y + i.m.h)));
+    const rows = Math.max(1, ...this.insts.filter(i => !i.m.hidden).map(i => i.m.y + i.m.h)), cs = getComputedStyle(host);
+    host.style.setProperty('--rows', rows);
+    // the stretched row height, for edit mode (fixed rows there, so the empty rows below keep the pitch): the same share of
+    // the height the view-mode grid gives each row
+    const H = host.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0), base = parseFloat(css('--row')) || 28;
+    host.style.setProperty('--rh', Math.max(base, (H - 8 * (rows - 1)) / rows).toFixed(2) + 'px');
     // narrow: one column of stacked modules (CSS makes it a flex column); tables take their own height, the others their
     // rows' height (at most 16), and the page scrolls once
     const rp = parseFloat(css('--row')) || 28;
@@ -252,8 +262,9 @@ function renderInst(inst, c, now){
   try { inst.def.render(c, inst); }
   catch (e) { console.error(`module ${inst.type}: render`, e); applyState(inst, 'na', 'This module failed: ' + e.message); return; }
   if (!inst._stSet) applyState(inst, 'ok');
-  setStale(inst, staleness(inst, c));
+  setStale(inst, staleness(inst, c)); moreMark(inst);
 }
+function moreMark(inst){ const b = inst.body; inst.el.classList.toggle('more', !b.hidden && b.scrollTop + b.clientHeight < b.scrollHeight - 1); }
 function setStale(inst, ms){
   const tag = inst.el.querySelector('.mtag'), on = ms > 0, t = on ? `◐ STALE ${Math.round(ms / 1000)} s` : '';
   inst.el.classList.toggle('stale', on);

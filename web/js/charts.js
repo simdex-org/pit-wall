@@ -19,7 +19,7 @@ function chTag(g, x, y, text, color, tk, w){
 function chLabel(g, x, y, parts, tk){   // lane title and readouts, left to right: [[text, colour], …] on a --bg strip
   g.font = `600 10px ${tk.font}`; g.textBaseline = 'top'; g.textAlign = 'left';
   let cx = x; const ws = parts.map(([t]) => g.measureText(t).width + 8), tot = ws.reduce((a, b) => a + b, 0);
-  g.fillStyle = tk.bg; g.globalAlpha = .85; g.fillRect(x - 2, y - 1, tot + 2, 13); g.globalAlpha = 1;
+  g.fillStyle = tk.bg; g.fillRect(x - 2, y - 1, tot + 2, 13);   // opaque: a title over a trace must stay readable
   parts.forEach(([t, col], i) => { g.fillStyle = col; g.fillText(t, cx, y); cx += ws[i]; });
 }
 
@@ -204,7 +204,7 @@ function drawMap(cv, view, c, o){
   g.lineJoin = g.lineCap = 'round';
   lines.forEach(l => path(l.pts, tk.line, 14, 1));                       // the width of road this driver uses
   shown.slice().reverse().forEach((l, i, arr) => path(l.pts, tk.muted, 1.5, 0.15 + 0.5 * (i + 1) / arr.length));   // older laps fainter
-  if (best) path(best.pts, tk.best, 2.5, 1);
+  if (best) path(best.pts, o.colourBy === 'delta' ? tk.muted : tk.pb, 2.5, 1);   // your best: ● --pb (◆ --best is the field's session best)
   path(curLine, tk.chLap, 2.5, 1);
   g.globalAlpha = 1;
   // Analysis: the comparison lap coloured by where it gains (--ok) and loses (--bad); every 4th segment says by how much
@@ -249,8 +249,8 @@ function drawMap(cv, view, c, o){
     }
   }
   if (c.me != null) out.hits.push({i:c.me, x:X(p[0]), y:Y(p[2])});
-  out.info = [lines.length ? `${lines.length} lap${lines.length > 1 ? 's' : ''}` : 'first lap', best ? `◆ L${best.n}` : '',
-    REC.spread ? `spread ${REC.spread.m.toFixed(1)} m` : '', cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · ');
+  out.info = [lines.length ? `${lines.length} lap${lines.length > 1 ? 's' : ''}` : 'first lap', best ? `● best L${best.n}` : '',
+    REC.spread ? `line spread ${REC.spread.m.toFixed(1)} m` : '', cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · ');
   return out;
 }
 function meDisc(g, x, y, tk, pit){   // own car: a --me disc, --bg outline and a --bg centre dot; hollow in the pit lane

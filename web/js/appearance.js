@@ -74,6 +74,9 @@ const Appearance = {
     s.setProperty('--fs', t.fontScale); s.setProperty('--r', t.radius + 'px');
     s.setProperty('--num', t.numFont === 'sans' ? '"Barlow Semi Condensed", system-ui, sans-serif' : '"JetBrains Mono", ui-monospace, Consolas, monospace');
     root.dataset.panel = t.panel; root.dataset.labels = t.labels; root.dataset.num = t.numFont;
+    // an imported theme the editor would refuse: Settings keeps the default colours, so it can always be undone from there
+    const set = $('settings'), safe = this.unreadable(t);
+    if (set) for (const [k, v] of AP_TOKENS) safe ? set.style.setProperty(v, AP_BASE_TOKENS[k]) : set.style.removeProperty(v);
     s.colorScheme = lum(tok.bg) > 0.4 ? 'light' : 'dark';
     const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = tok.bg;
     Pit.emit('theme', t.id); Pit.dirty('theme');
@@ -82,7 +85,19 @@ const Appearance = {
     const t = this.get(id); if (!t) return;
     this.cur = t; lsSet('pitwall.appearance', t); this.apply(t);
   },
-  adopt(raw){ const t = this.sanitize(raw); if (!t) return null; t.name = this.uniqueName(t.name); this.users.push(t); this.saveUsers(); this.use(t.id); return t; },   // an imported theme, made this browser's
+  adopt(raw){   // an imported theme, made this browser's; one that looks exactly like a theme already here is that theme
+    const t = this.sanitize(raw); if (!t) return null;
+    const look = x => JSON.stringify([this.resolved(x), Object.keys(AP_LAYOUT).map(k => x[k])]), same = this.all().find(x => look(x) === look(t));
+    if (same) { this.use(same.id); return same; }
+    t.name = this.uniqueName(t.name); this.users.push(t); this.saveUsers(); this.use(t.id); return t;
+  },
+  // Text, muted and dim must stay readable on the background and the panels, or the editor (drawn with these same tokens)
+  // could be made unreadable and the user locked out of undoing it. Returns why not, or ''.
+  unreadable(t){
+    const k = this.resolved(t);
+    for (const x of ['text', 'muted', 'dim']) for (const s of ['bg', 'panel']) { const r = contrast(k[x], k[s]); if (r < 3) return `${AP_LABEL(x)} on ${AP_LABEL(s).toLowerCase()} would be ${r.toFixed(1)}:1. Below 3:1 this screen becomes unreadable, so it was not applied.`; }
+    return '';
+  },
   saveUsers(){ lsSet('pitwall.themes', {items:this.users}); },
   uniqueName(name){ const taken = new Set(this.all().map(t => t.name)); let n = name.slice(0, 40), k = 2; while (taken.has(n)) n = `${name.slice(0, 34)} (${k++})`; return n; },
   copy(t, name){
@@ -100,6 +115,9 @@ const Appearance = {
     return c;
   },
   change(fn){
+    const probe = deep(this.cur); fn(probe);
+    const why = this.unreadable(probe);
+    if (why) { this.status = why; const s = this.host && this.host.querySelector('.ap-status'); if (s) s.textContent = why; this.refreshReadouts(); return; }
     const t = this.editable(); fn(t);
     lsSet('pitwall.appearance', t); this.saveUsers();
     cancelAnimationFrame(this._raf); this._raf = requestAnimationFrame(() => this.apply(t));

@@ -46,6 +46,8 @@ svg.spark circle{fill:var(--txt)}
 /* ---------- fuel to the flag ---------- */
 .rp-head{margin-bottom:8px}
 .rp-in{margin-top:12px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.rp-in>summary{cursor:pointer;list-style:none}.rp-in>summary::before{content:"▸ "}.rp-in[open]>summary::before{content:"▾ "}
+.rp-in>summary::-webkit-details-marker{display:none}
 .rp-f{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--mut);font-size:var(--t-sm)}
 .rp-f input{width:9ch;text-align:right}
 .rp-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
@@ -106,7 +108,10 @@ svg.spark circle{fill:var(--txt)}
 .pp-side{flex:0 0 220px;position:sticky;top:0}
 .pp-t td.pp-in{white-space:nowrap}
 .pp-t tr.tt-group .send{margin-left:12px}   /* beside the block's name, so it stays in view when the table scrolls on a phone */
-.pp-t td.pp-in input[type=number]{width:8ch;text-align:right}
+.pp-t td.pp-in input[type=number]{width:9ch;text-align:right;appearance:textfield;-moz-appearance:textfield}   /* no spinner: 4-5 mono digits fit */
+.pp-t input[type=number]::-webkit-inner-spin-button,.pp-t input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.pp-t .pp-ci{width:30%}.pp-t .pp-cn{width:14%}.pp-t .pp-cp{width:20%}.pp-t .pp-cc{width:20%}.pp-t .pp-cr{width:16%}
+.pp-t caption.pp-np{caption-side:bottom;text-align:left;padding-top:6px}
 .pp-t tr.pp-new>td{background:var(--warn-soft)}
 .pp-t tr.pp-new>td:first-child{box-shadow:inset 2px 0 0 var(--warn)}
 .pp-state{font-weight:600;color:var(--txt)}
@@ -132,6 +137,7 @@ svg.spark circle{fill:var(--txt)}
 /* pit plan under 600 px of module width (a phone): no MFD-now column, the side panel below, the table scrolls sideways */
 .pp.pp-narrow{flex-wrap:wrap}
 .pp.pp-narrow>.pp-t{display:block;overflow-x:auto;max-width:100%;flex:1 1 100%}
-.pp.pp-narrow .pp-t :is(th:nth-child(2),td[data-now]){display:none}
-.pp.pp-narrow>.pp-side{position:static;flex:1 1 100%}
+.pp.pp-narrow.pp-quiet .pp-t :is(th:nth-child(4),th:nth-child(5),td[data-chg],td[data-r]){display:none}   /* narrow: MFD now stays; Change and Result while empty go */
+.pp.pp-narrow:not(.pp-quiet) .pp-t :is(th:nth-child(2),td[data-now]){display:none}
+.pp.pp-narrow>.pp-side{position:static;flex:1 1 100%;order:-1}   /* the state line and Send before a 15-row table */
 .pp-sets{font-size:var(--t-sm)}
