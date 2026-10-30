@@ -166,7 +166,7 @@
         + `<tr><td class="note">Δ you</td>${[0, 1, 2, 3].map(i => `<td class="n">${okMs(mineSet[k][i]) && okMs(theirs[k][i]) ? deltaHtml(mineSet[k][i] - theirs[k][i]) : '—'}</td>`).join('')}</tr>`;
       setHtml(inst.body.querySelector('tbody'), block('last', 'Last lap') + block('best', 'Best lap'));
       const ahead = other.pos === mine.pos - 1, hist = c.mode === 'best' ? [] : ahead ? mine.int_hist : other.int_hist;   // intervals mean nothing in best-lap sessions
-      setHtml(inst.body.querySelector('.sc-int'), (hist || []).length ? `<div class="lbl">${ahead ? 'Your interval to it, last 5 laps' : `${num(other)}'s interval to the car ahead, last 5 laps`}</div><div class="sub">${hist.slice(-5).map(v => `<b class="n">${fmtGap(v)}</b>`).join('')}</div>` : '');
+      setHtml(inst.body.querySelector('.sc-int'), (hist || []).length ? `<div class="lbl">${ahead ? 'Your interval to it, last 5 laps' : `${num(other)}'s interval to the car ahead, last 5 laps`}</div><div class="sub">${hist.slice(-5).map(v => `<b class="n">${fmtRel(v)}</b>`).join('')}</div>` : '');
       inst.setInfo(`vs ${num(other)} ${Pit.carName(other, 'short')}`);
     }});
 
@@ -193,8 +193,10 @@
     build(el){ el.innerHTML = '<div class="fl-main"></div><div class="fl-glob"></div><div class="fl-pen"></div>'; },
     render(c, inst){
       const s = c.r.session, f = FLAGS[s.flag] || 'none', gf = s.global_flags || {}, pen = s.penalty | 0, sp = c.s && c.s.penalty;
-      setHtml(inst.body.querySelector('.fl-main'), f === 'none' ? '<span class="flag big-flag"></span><b class="s-dim">No flag</b>' : `<span class="flag big-flag" data-flag="${f}"></span><b>${esc(f.toUpperCase())}</b>`);
-      setHtml(inst.body.querySelector('.fl-glob'), GF.map(([k, l, fl]) => `<span class="${gf[k] ? 'on' : 's-dim'}"><span class="flag" data-flag="${gf[k] ? fl : ''}"></span>${l}${gf[k] ? ' <b>on</b>' : ''}</span>`).join(''));
+      setHtml(inst.body.querySelector('.fl-main'), f === 'none' ? '<b class="s-dim">No flag for the driver</b>' : `<span class="flag big-flag" data-flag="${f}"></span><b>${esc(f.toUpperCase())}</b>`);
+      // the track's flags: only the ones out, as a swatch and a word; none out reads as one line, not eight empty boxes
+      const on = GF.filter(([k]) => gf[k]);
+      setHtml(inst.body.querySelector('.fl-glob'), on.length ? on.map(([, l, fl]) => `<span class="chip on"><span class="flag" data-flag="${fl}"></span>${l}</span>`).join('') : '<span class="chip"><span class="flag" data-flag="green"></span>Track clear</span>');
       const P = PENALTIES[pen] || ['?', 'unknown penalty'];
       setHtml(inst.body.querySelector('.fl-pen'), pen ? `<b class="tag pen">${esc(P[0])}</b> ${esc(P[1])}${s.penalty_time_s > 0 ? ` · ${nf(s.penalty_time_s, 0)} s` : ''}${sp && sp.laps_left != null ? ` · <b class="s-bad">serve within ${sp.laps_left} lap${sp.laps_left === 1 ? '' : 's'}</b>` : ''}` : '<span class="note">No penalty.</span>');
       inst.setAlert(pen ? 2 : (gf.y1 || gf.y2 || gf.y3 || gf.yellow || f === 'yellow') ? 1 : 0);
@@ -207,7 +209,7 @@
     build(el){ el.innerHTML = '<dl class="kv"></dl>'; },
     render(c, inst){
       const s = c.r.session, st = c.st, ml = st ? st.mandatory_left : null, w = st && st.pit_window, lap = s.lap_number || s.completed_laps + 1;
-      const mand = ml === 0 ? '<span class="s-ok">done ●</span>' : ml > 0 ? `<span class="s-warn">${ml} left</span>` : '<span class="note">unknown: set in Settings</span>';
+      const mand = ml === 0 ? '<span class="s-ok">done ●</span>' : ml > 0 ? `<span class="s-warn">${ml} left</span>` : s.kind !== 'Race' ? '<span class="note">none outside races</span>' : '<span class="note">unknown: set in Settings</span>';
       const win = !w ? '—' : `L${w.open_lap}–L${w.close_lap} <span class="note">${lap < w.open_lap ? `opens in ${w.open_lap - lap} lap${w.open_lap - lap > 1 ? 's' : ''}` : lap <= w.close_lap ? 'open' : 'closed'} · ${w.src === 'config' ? 'set' : 'ACC'}</span>`;
       const lim = ms => ms == null || !isFinite(ms) ? '—' : ms < 0 ? 'no limit' : fmtClock(ms);
       setHtml(inst.body.firstChild, kvHtml([['Mandatory stops', mand], ['Pit window', win], ['Driver stint left', lim(s.stint_time_left_ms)], ['Driver total left', lim(s.stint_total_time_left_ms)]]));

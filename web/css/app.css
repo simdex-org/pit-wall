@@ -202,9 +202,11 @@ label.btn{cursor:pointer}
 /* view mode: the rows the layout uses (--rows, set by WS.place) share the window's height, never below --row; edit mode keeps
    fixed rows so the cell outlines and the drag maths stay on a 28 px pitch */
 .ws:not(.editing):not(.narrow){grid-template-rows:repeat(var(--rows,1),minmax(var(--row),1fr))}
-.ws.narrow{grid-template-columns:minmax(0,1fr)}
+.ws.narrow{display:flex;flex-direction:column}
+.ws.narrow>.mod{flex:none}
 .ws.narrow .mod.auto-h{height:auto}
 .ws.narrow .mod.auto-h>.mb{overflow:visible}
+.ws.narrow .mod.auto-h>.mb>table.tt{display:block;overflow-x:auto;max-width:100%}   /* wider than a phone: the table scrolls sideways, not the page */
 /* edit mode: dashed cell outlines on every column and row. A grid item that spans the 12 columns and 60 rows (which also leaves
    empty rows to drag into), painted under the modules. The lines are a mask over a --line2 fill, so they follow the theme without
    a gradient: two SVG tiles one column wide (left and right cell edges), two one row high (top and bottom edges). */
@@ -234,6 +236,7 @@ label.btn{cursor:pointer}
 .malert.s-warn{color:var(--warn)}.malert.s-bad{color:var(--bad)}
 .mod[data-alert]{box-shadow:inset 2px 0 0 var(--warn)}
 .mod[data-alert=bad]{box-shadow:inset 2px 0 0 var(--bad)}
+:root[data-panel=ruled] .mod[data-alert]>:is(.mh,.mb){padding-left:8px}   /* ruled panels have no side padding: keep text off the bar */
 .mhid{color:var(--dim);border-style:dashed}
 .mtools,.medit{display:flex;align-items:center;gap:0;flex:none}
 .mh .btn.icon{width:24px;height:24px}

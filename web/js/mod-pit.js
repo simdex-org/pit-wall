@@ -118,7 +118,7 @@
     build(el, inst){
       INSTS.add(inst); inst.state.confirm = inst.opts.confirm; inst.state.flash = new Set();
       el.innerHTML = `<div class="split pp"><table class="tt pp-t"><thead><tr><th>Item</th><th class="n">MFD now</th><th>Plan</th><th class="n">Change</th><th>Result</th></tr></thead><tbody>${GROUPS.map(([g, only, rows]) =>
-        `<tr class="tt-group"><td colspan="4">${g}</td><td><button type="button" class="btn send" data-only="${only}">Send ${g.toLowerCase()}</button></td></tr>${rows.map(rowHtml).join('')}`).join('')}</tbody></table>
+        `<tr class="tt-group"><td colspan="5">${g}<button type="button" class="btn send" data-only="${only}">Send ${g.toLowerCase()}</button></td></tr>${rows.map(rowHtml).join('')}`).join('')}</tbody></table>
         <div class="split-v pp-side"><p class="pp-state" data-state role="status">Draft</p><dl class="kv pp-sets"></dl>
           <div class="pp-confirm" hidden><p></p><div class="pp-acts"><button type="button" class="btn primary" data-go>Send</button><button type="button" class="btn" data-cancel>Cancel</button></div></div>
           <button type="button" class="btn primary" data-whole>Send whole plan</button><button type="button" class="btn" data-copy>Copy MFD into plan</button><button type="button" class="btn" data-close title="Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)">Close pit page</button>

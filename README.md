@@ -43,7 +43,7 @@ What can be checked in the game afterwards is limited by what ACC publishes in i
 | Front / rear pad compound | ✅ | ❌ sent, not published by ACC |
 | Repair suspension / bodywork | ✅ as a **switch** (yes ↔ no) | ❌ not published, so the dashboard cannot know the current state |
 | Driver swap, pit strategy preset | ❌ | Not done: driver swap only exists in multi-driver events, and a strategy preset overwrites the values set here. |
-| In-car electronics (TC, ABS, map, bias) | ❌ | Shown read-only on the Strategy tab. ACC only changes them from the car's own controls. |
+| In-car electronics (TC, ABS, map, bias) | ❌ | Shown read-only in the Electronics module. ACC only changes them from the car's own controls. |
 
 Limits, plainly:
 
@@ -124,6 +124,19 @@ and use the driver's `100.x.x.x` address. Everything else is the same.
 2. Start ACC and drive. The terminal says when it sees the session (`ACC: ferrari_296_gt3 at nurburgring_24h, … driving`).
    Keep ACC as the focused window.
 
+### Field timing: the other cars
+
+Standings, relative, battle, pit lane, rejoin and the cars on the map come from ACC's **broadcasting API**, which ACC only opens
+when its `broadcasting.json` says so. Once, with ACC closed:
+
+```bash
+python server/acc_broadcast.py --enable
+```
+
+It sets `updListenerPort` in `Documents\Assetto Corsa Competizione\Config\broadcasting.json` (keeping a backup), and the bridge reads
+the port and password from there. The bridge talks to that port on 127.0.0.1 only and only listens: it never moves the driver's
+camera or HUD. `--broadcast-port 0` turns field timing off; the page then says so instead of showing the other cars.
+
 ### Driving on keyboard and mouse: vJoy
 
 Keys the program types into the MFD reach ACC as another keyboard, and ACC then forgets the gas and brake keys the driver is
@@ -151,77 +164,118 @@ holding. A virtual controller avoids that: the MFD buttons are pressed on it, an
 
 ## Engineer: using it
 
-1. Open the link the driver sent (`http://25.x.x.x:8765/?key=…`). The key is remembered by the browser, so later the plain address works.
-2. The dashboard opens as soon as the driver is in a session: **Live**, **Tyres & brakes**, **Strategy**, **Laps**, **Compare**, **Log & notes**.
-   It follows the conventions of real timing screens: purple and a ◆ for the session's best lap and sectors, struck-through grey for
-   invalid laps, OUT/IN for pit laps, a coloured edge on the Live strip for on track (green), in the pit lane (blue) or an invalid lap (grey).
-   - **Live**: gear, speed, pedals, lap time with the delta (▼ gaining, ▲ losing), position and gaps, fuel; channel traces, G-force, and the
-     **track map drawn from the car's own coordinates**: the racing line of the last 12 laps over each other (older ones fainter, the best
-     lap in purple, the lap in progress in the accent colour), so you can see where the driver repeats the line and where it varies; the
-     header says how far the last lap was from the best lap's line, in metres. Scroll to zoom where the pointer is, drag to move,
-     **Follow** (or double-click, or F) keeps the car in the middle while zoomed, **Fit** shows the whole track again. Lines are recorded
-     while the page is open.
-   - **Tyres & brakes**: the car from above, each tyre coloured by its temperature (cold, in the window, hot, too hot), the brake beside
-     each tyre coloured the same way, pressures at the corners, compound and tyre set in the middle (also in the Strategy board's Tyres
-     module). Below it, each corner's pressure against the target window, with the correction for the next stop; *Put the corrections
-     in the pit plan* adds them to the plan's pressures (from what the MFD holds now). Core temperature, brake temperature, pads and discs.
-   - **Laps**: every lap of the session from the bridge, so it is complete even when the page was opened late: time, gap to best,
-     sectors, fuel used, tags; the ideal lap from the best sectors.
-   - **Log & notes**: events tagged PLAN, LAP, PIT, ENG or CAR.
-   Number keys 1–7 switch tabs. The **Engineer** panel at the bottom has the advice (pressures, cold tyres, brake heat, pads, fuel,
-   fuel to the flag in a race, damage), and **Laps** has a debrief of the last three laps.
-3. **Strategy** is a board of modules, each one answering a question the engineer asks during a stint:
+1. Open the link the driver sent (`http://25.x.x.x:8765/?key=…`). The key is remembered by the browser (Settings › Connection
+   shows it, *Forget* removes it), so later the plain address works.
+2. The page opens as soon as the driver is in a session. At the top: the **template** (a named set of workspaces) and its
+   **workspace tabs**; under them the **KPI strip** (session, time left, lap, position, gaps, last and best lap, live delta, fuel,
+   stint, flag, temperatures: Settings › Layout picks the cells and their order); at the bottom the **engineer bar** with the most
+   important advice (click it, or press A, for all advice and the debrief of the last laps).
 
-   | Module | What it shows |
-   |---|---|
-   | **Race timeline** | One lap scale for the whole race: laps run this stint, how far the fuel goes (amber when it does not reach the flag), the latest lap to box (`BOX L19`) and the flag. |
-   | **Fuel** | Litres in the tank against its capacity, with the low-fuel line; per lap, last lap, laps left, and the litres per lap that would reach the flag without stopping (amber when that means saving). |
-   | **Pit window** | *Box by lap N, in X laps*, or *Fuel to the flag* with the spare litres; the fuel-to-finish calculator with laps to go and a reserve. |
-   | **Gaps** | Position, gap to the car ahead and behind, last and best lap. |
-   | **Track & weather** | Rain now, in 10 and in 30 minutes, track grip, air and track temperature. |
-   | **Tyres** | Pressure and core temperature on each corner of the car, coloured against the target window, laps this stint and the tyre set. |
-   | **Degradation** | The stint's lap times with a fitted trend: the slope, in seconds per lap, is what the tyres are costing. **ACC does not publish tyre wear** (its wear field is always empty), so lap-time loss is the measure real engineers use in its place. |
-   | **Brake pads** | Millimetres left on each pad, the wear per lap measured this stint, and the laps before the low-pad line. |
-   | **Next pit stop** | Sets the stop in the driver's game, below. |
-   | **Setup & electronics**, **Forces & damage** | Bias, TC, ABS, engine map; G-forces and damage. |
+   It follows the conventions of real timing screens: purple and a ◆ for the session's best lap and sectors, ● for a personal best,
+   struck-through grey and INV for invalid laps, OUT/IN/PIT tags, and a coloured bar at the left of a car's row for where it is
+   (on track, pit lane, out-lap). Colour is never the only cue: every state also has a glyph or a word. Gaps between cars are shown
+   without a sign: the row (above or below you) and the label (Ahead, Behind) say which way.
 
-   **Make it yours:** press **Customize**. Drag a module by its title bar to move it and by its bottom-right corner to resize it
-   (or use the arrows and size buttons on its title bar), remove modules with ×, bring them back from *Add module*, pick a
-   **theme** (Timing sheet, Broadcast, Endurance) and an **accent colour**. The layout and colours are kept in that browser, so each
-   engineer (and each screen) can have their own. *Reset layout* goes back to the default.
+### Templates and workspaces
 
-4. **Strategy → Next pit stop:**
-   - **MFD now** is what the driver's pit page holds right now, read from the game.
-   - **Plan** is the next stop. *Copy MFD into plan* starts from the current values; *use fuel to finish* takes the
-     figure from the *Fuel to finish* calculator above it.
-   - Each block (**Fuel**, **Tyres**, **Pressures**, **Brakes**, **Repairs**) has its own *Send* button, and only that block is touched
-     on the driver's pit page: sending fuel alone leaves tyres, pressures and brakes as they are. *Send whole plan* sends everything.
-     A dot marks the plan values that differ from what the MFD holds now.
-   - The program moves through the pit page row by row from wherever the cursor is, going back to the top only when rows appear or
-     disappear (tyre change, compound, brake change) or for the repairs at the bottom.
-   - Sending sets it in the driver's game. **Last sent** then says, row by row: `ok` (read back from the game),
-     `sent` (pressed, but ACC does not publish it), or the problem (`stopped at 120` when a value hit the game's limit).
-   - *Repair suspension / bodywork* are switches: ticking one flips that row once (yes ↔ no), since ACC does not say which it currently is.
-     The driver sees the result on their MFD.
-5. Every applied or failed plan is also written to **Log & notes**.
+Four built-in templates, read-only:
 
-The dashboard also works on a phone or tablet.
+| Template | Workspaces |
+|---|---|
+| **Race engineer** | Live, Timing, Strategy, Car, Laps, Analysis, Log |
+| **Strategist** | Overview (standings, pit lane, map, stop options, battle, rejoin), Timing, Strategy, Laps, Log |
+| **Driver coach** | Live (map, live channels, lap timer, inputs, tyres, G-G), Laps, Analysis, Car, Log |
+| **Minimal** | Pit wall (map, relative, fuel to the flag, tyres), Pit (pit plan, fuel to the flag, pressure correction) |
+
+Number keys 1–9 switch workspace, `[` and `]` step through them. Each browser tab keeps its own template and workspace in the
+address bar (`#t=…&w=…`), so two tabs or two screens can show different things.
+
+**Make your own:** press **E** (or *Edit* at the right of the KPI strip). The first change to a built-in makes your own copy of it,
+*"Race engineer (custom)"*; only looking at edit mode changes nothing. In edit mode:
+
+- drag a module by its header to move it, by its bottom-right corner to resize it (on a 12-column grid); or Tab to select a module,
+  arrows to move it, Shift+arrows to resize, Delete to remove, D to duplicate, H to hide, O for its options;
+- *+ Module* opens the catalogue of every module (search by name); a workspace tab's ⋯ menu renames, duplicates, moves or deletes it,
+  and + adds a workspace;
+- Ctrl+Z / Ctrl+Y undo and redo; *Save* (Ctrl+S, or E again) keeps it, *Discard* (Esc) drops everything since you entered.
+
+Every module has **options** (the sliders button in its header, also outside edit mode): its title, whether it shows a header,
+whether it follows the focus car, and its own settings (the standings' columns and their order, the map's labels, the traces' lanes…).
+
+**Manage templates** (T, or the template menu): duplicate, rename, delete, **export** a template to a `.pitwall.json` file (optionally with the appearance in use) and **import** one. An imported file is
+rebuilt field by field, keeping only what this version knows, and the page says what it left out; the access key is never written
+into an export.
+
+### Appearance
+
+Settings › Appearance: four built-in looks (Pit Wall, Broadcast, Night stint for a dark room, Daylight for a bright one) and your own.
+Every colour token can be changed (surfaces, accent, your car, timing colours, states, trace colours), each with its role and its
+contrast against the background; density, font scale, corner radius, panel style (ruled, boxed, flat), number font and label case
+too. As with templates, changing a built-in makes your own copy; appearances export and import as `.pitwall-theme.json`.
+
+### The other drivers
+
+With field timing on (below, *Field timing*), the page knows every car: **Standings** (gap, interval, last, best, sectors, pits, stint,
+net position after the stops everyone still owes), **Relative** (the cars nearest on track), **Battle** (the cars ahead and behind with
+the interval trend), **Pit lane** (who is in the lane now, and every stop made), and the cars on the **track map**.
+
+Click a car (or ↑ ↓ then Enter in a table) to make it the **focus car**: the KPI strip shows *▶ FOCUS #14 A. Mori ✕*, and battle,
+*You vs focus car*, the Timing workspace's lap list and the map follow it. ✕, G or Esc goes back to your own car.
+ACC shares no rival inputs, fuel or tyres; the page never pretends it does.
+
+### The modules
+
+| Group | Modules |
+|---|---|
+| Timing | Standings, Relative, Battle, Pit lane, You vs focus car, Session, Flags & penalties, Stint rules, Big number |
+| Strategy | Fuel, Fuel to the flag, Stint timeline, Stop options, Rejoin, Pit stops, Track & weather, Pace |
+| Pit | Pit stop (the plan), Pit sends (every send and its result), Pressure correction |
+| Car | Track map, Driver inputs, Lap, Tyres, Tyre history, Brakes, Electronics, Damage & engine, G-G, Live channels |
+| Laps / Analysis | Laps, Debrief, Lap picker, Traces, Where the time goes |
+| Log | Event log, Notes |
+
+Every strategy figure (box lap, fuel to add, stops, the stop options and where you rejoin) is worked out once on the bridge, so every
+screen shows the same numbers. *Fuel to the flag* and *Stop options* agree on the best stop: options the fuel cannot reach are marked,
+and the ranking puts the fewest stops to the flag first, then the rejoin position, then the time lost. In practice and qualifying the
+page plans no fuel to a flag; it says how far the fuel goes. **ACC does not publish tyre wear**, so *Pace* shows what the tyres cost
+in lap time instead.
+
+### Pit stop
+
+- **MFD now** is what the driver's pit page holds right now, read from the game. A new browser starts its plan from the last plan
+  sent, or from the MFD, so it opens with nothing to change.
+- **Plan** is the next stop. *Copy MFD into plan* starts from the current values; *Put in pit plan* (Fuel to the flag) and *Use in pit
+  plan* (Pressure correction) fill it from those modules. **Change** shows what a send would change.
+- Each block (**Fuel**, **Tyres**, **Pressures**, **Brakes**, **Repairs**) has its own *Send* button, and only that block is touched
+  on the driver's pit page. *Send whole plan* sends everything. With *Confirm before sending* (on by default) the page first lists
+  the changes.
+- **Result** then says, row by row: `✓ verified` (read back from the game), `sent` (pressed, but ACC does not publish it), or the
+  problem. *Pit sends* keeps every send, by whom and what came back.
+- *Repair suspension / bodywork* are switches: ticking one flips that row once (yes ↔ no), since ACC does not say which it currently is.
+
+The page also works on a phone (the driver checking the plan): the workspace stacks into one column and tables scroll sideways.
+Edit mode needs a window at least 1100 px wide.
 
 ## Trying it without the game
 
 ```bash
 python server/bridge.py --simulate-acc --key demo
+python server/bridge.py --simulate-acc --sim-session quali --key demo   # qualifying: the field ordered by best lap
 ```
 
-runs a pretend session (a Ferrari 296 GT3 lapping the Nürburgring 24h) and a pretend pit page, so the whole dashboard,
-pit stop panel included, can be used without ACC.
+runs a pretend session (a Ferrari 296 GT3 on a made-up circuit), a pretend 20-car field and a pretend pit page, so the whole
+page, pit stop included, can be used without ACC.
 
 Self-tests:
 
 - `python server/acc_telemetry.py` drives simulated laps through the telemetry: laps, sectors that add up to the lap time,
   fuel per lap, the debrief and the advice.
+- `python server/acc_broadcast.py` decodes every broadcasting message kind, builds standings, gaps, intervals and pit stops from a
+  pretend race and a pretend qualifying, and checks them.
 - `python server/acc_pit.py` applies several plans to a simulated pit page in every layout ACC can show (with and without a
   Strategy row, tyres changing or not, dry or wet, brakes changing or not, with and without a Driver row) and checks the result.
+- `python server/acc_telemetry.py --probe` prints, once a second from a live session, the shared-memory fields not yet checked
+  against the game (pit window, mandatory stops, track length), to compare with what ACC shows.
 
 ## Command line
 
@@ -230,11 +284,14 @@ Self-tests:
 | Option | Default | What it is |
 |---|---|---|
 | `--http HOST:PORT` | `127.0.0.1:8765` | Where the dashboard is served. Give your VPN address (`25.x.x.x:8765`) so the engineer can connect; the default is this PC only. |
-| `--key KEY` | new random key each start | Access key needed to send pit plans. |
+| `--key KEY` | new random key each start | Access key needed to send pit plans and to change the shared strategy inputs and thresholds. |
 | `--pit-key KEY` | `p` | ACC's key for the pitstop MFD page: one character or `F1`–`F24`. |
 | `--key-ms MS` | `40` | How long each key is held, and the pause after it. Raise it (60–80) if ACC misses presses at a low frame rate. |
 | `--vjoy [N]` | off | Press the MFD through vJoy device N (1 if not given) instead of the keyboard. For keyboard-and-mouse drivers. |
-| `--simulate-acc` | off | A pretend session and pit page instead of the game. |
+| `--simulate-acc` | off | A pretend session, 20-car field and pit page instead of the game. |
+| `--sim-session race\|quali` | `race` | With `--simulate-acc`: a race, or qualifying (ordered by best lap). |
+| `--broadcast-port PORT` | from `broadcasting.json` | ACC's broadcasting port for field timing, on 127.0.0.1. `0` turns field timing off. |
+| `--broadcast-password PW` | from `broadcasting.json` | ACC's broadcasting connection password. |
 | `--no-browser` | off | Do not open the dashboard on this PC. |
 
 ## Troubleshooting
@@ -254,12 +311,23 @@ Self-tests:
 ## Project layout
 
 ```
-server/bridge.py         dashboard + Server-Sent Events out, POST /pit in
-server/acc_telemetry.py  ACC shared memory reader, laps/sectors/stint/fuel, the engineer's advice and debrief, self-test
-server/acc_pit.py        ACC pit page: MFD key presses, reading it back, the plan logic, self-test
-web/                     index.html, css/app.css, js/*.js (board.js: the customisable Strategy board), data/tracks.js
+server/bridge.py         the page, Server-Sent Events out (GET /events?hz=), GET /lap?n= (a lap's trace), GET /field/laps?car=
+                         (another car's laps); POST /pit and POST /config in (both need the X-Pit-Key header)
+server/acc_telemetry.py  ACC shared memory: laps, sectors, stints, fuel, the strategy figures, advice and debrief; self-test, --probe
+server/acc_broadcast.py  ACC broadcasting API: the field's standings, gaps, pits and lap history; --enable; self-test
+server/acc_pit.py        ACC pit page: MFD key presses (or vJoy), reading it back, the plan logic; self-test
+web/                     index.html, css/ (app.css, modules-1.css, modules-2.css), js/ (one file per concern, below), data/tracks.js
 docs/                    screenshots
 ```
+
+`web/js`, loaded in this order: `util.js` (helpers, units, formatters), `workspaces.js` (the `Pit` API, the module registry, the
+workspace grid and render scheduler), `templates.js` (built-in templates, `Tpl`), `appearance.js`, `editor.js` (edit mode, module
+options), `manager.js` (template manager, import and export, migration), `settings.js`, `recorder.js`, `charts.js`, the modules
+(`mod-timing.js`, `mod-strategy.js`, `mod-pit.js`, `mod-car.js`, `mod-laps.js`, `mod-log.js`), and `main.js` (the feed, the chrome, keys, boot).
+
+The browser keeps its own things in `localStorage` under `pitwall.*`: templates, appearances, the active template, preferences,
+the pit plan draft, notes and the access key. Settings › Data › Reset removes them all. Pages from before the redesign used
+`engineer.*`; those are copied over once.
 
 Python standard library only. Windows, since that is where ACC runs.
 

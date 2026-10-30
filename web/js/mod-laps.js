@@ -61,10 +61,12 @@
         }
       } else html = L.slice().reverse().map(row).join('');
       setHtml(inst.body.querySelector('tbody'), html);
-      // ideal lap: best sectors over clean laps with all three sectors, against the best of those laps
+      // ideal lap: the best sectors of the clean laps that have all three, against the best lap; when the best lap has no
+      // sectors (joined mid-lap, or the game sent none) the ideal can be slower than it, and the footer says why
       const full = ok.filter(l => !l.out && !l.in && (l.s || []).length >= 3 && l.s.slice(0, 3).every(v => v > 0));
-      const ideal = full.length ? [0, 1, 2].reduce((a, k) => a + Math.min(...full.map(l => l.s[k])), 0) : null, fb = full.length ? Math.min(...full.map(l => l.ms)) : null;
-      setHtml(inst.body.querySelector('tfoot'), ideal ? `<tr><td colspan="${ncol}">Ideal ${fmtLap(ideal)} <span class="note">best sectors of ${full.length} clean lap${full.length > 1 ? 's' : ''}, ${fmtDelta(ideal - fb)} against the best of them</span></td></tr>` : '');
+      const ideal = full.length ? [0, 1, 2].reduce((a, k) => a + Math.min(...full.map(l => l.s[k])), 0) : null, bl = ok.find(l => l.ms === best);
+      const why = !ideal ? '' : bl && !full.includes(bl) ? ` · best lap L${bl.n} had no sectors` : best != null ? ` · ${fmtDelta(ideal - best)} vs best` : '';
+      setHtml(inst.body.querySelector('tfoot'), ideal ? `<tr><td colspan="${ncol}">Ideal ${fmtLap(ideal)} <span class="note">(Σ best sectors, ${plural(full.length, 'lap')})${why}</span></td></tr>` : '');
       inst.setInfo(other ? `#${other.num} ${Pit.carName(other, 'short')} · ${L.length} laps` : `${L.length} laps${best ? ' · ◆ ' + fmtLap(best) : ''}`);
     }});
 
@@ -87,10 +89,11 @@
       for (const l of c.laps) if (l.trace && !have.has('lap-' + l.n)) have.set('lap-' + l.n, {id:'lap-' + l.n, n:l.n, ms:l.ms, valid:l.valid, src:'bridge', label:'', data:null});
       const rows = [...have.values()].sort((a, b) => (a.src === 'import') - (b.src === 'import') || (a.src === 'import' ? b.id.localeCompare(a.id, undefined, {numeric:true}) : b.n - a.n));
       if (!rows.length) return inst.setState('empty', 'Laps with traces appear here after the first whole lap. You can also import a laps file.', {label:'Import laps…', fn:() => inst.body.querySelector('input[type=file]').click()});
-      if (!c.sel.ref && !c.sel.cmp) {   // nothing chosen: the best valid lap against the newest other lap
-        const ok = rows.filter(l => l.valid && l.src !== 'import'), b = ok.length ? ok.reduce((a, x) => x.ms < a.ms ? x : a) : rows[0], n = rows.find(l => l !== b && l.src !== 'import');
-        pick('ref', b.id); if (n) pick('cmp', n.id);
-      }
+      // each empty slot is filled once, when there is a lap for it: REF the best valid lap, CMP the newest other valid lap.
+      // Once filled (or cleared by hand) it is left alone.
+      const auto = inst.state.auto || (inst.state.auto = {}), own = rows.filter(l => l.src !== 'import'), set = (w, l) => { auto[w] = true; Pit.select(w, l.id); const n = lapNo(l.id); if (n) ensureLap(n); };
+      if (!c.sel.ref && !auto.ref && rows.length) { const ok = own.filter(l => l.valid); set('ref', ok.length ? ok.reduce((a, x) => x.ms < a.ms ? x : a) : rows[0]); }
+      if (!c.sel.cmp && !auto.cmp) { const n = own.find(l => l.id !== c.sel.ref && l.valid) || own.find(l => l.id !== c.sel.ref); if (n) set('cmp', n); }
       setHtml(inst.body.querySelector('tbody'), rows.map(l => { const r = c.sel.ref === l.id, m = c.sel.cmp === l.id;
         return `<tr class="${[r && 'ref', m && 'cmp'].filter(Boolean).join(' ')}"><td class="lp-sel">${selBtns(c, l.id)}</td><td class="lk-n" title="${esc(lapName(l))}">${esc(lapName(l))}</td><td class="n">${l.valid ? fmtLap(l.ms) : `<span class="t-inv">${fmtLap(l.ms)}</span>`}</td><td class="tags">${l.valid ? '' : '<b class="tag inv">INV</b>'}${!l.data ? (REC.pending.has(l.n) ? '<span class="note">loading</span>' : '') : ''}</td></tr>`; }).join(''));
       inst.setInfo(`${rows.length} laps`);
@@ -121,8 +124,9 @@
       const s = selState(c, inst); if (!s) return;
       const lanes = inst.opts.lanes.filter(k => LANES[k]); if (!lanes.length) return inst.setState('empty', 'No lanes chosen: pick some in the options.');
       const k = JSON.stringify([c.sel, REC.ver, lanes, inst.body.clientWidth, inst.body.clientHeight, Pit.prefs.units, themeVer]);
-      if (inst.state.k !== k) { inst.state.k = k; drawTraces(inst.body.querySelector('canvas'), lanes, s.ref, s.cmp && s.cmp.data ? s.cmp : null, c.sel.cursor, {len:c.r ? c.r.fixed.track_length_m : 0}); }
-      inst.setInfo(`REF ${lapName(s.ref)} ${fmtLap(s.ref.ms)}${s.cmp ? ` · CMP ${lapName(s.cmp)} ${fmtLap(s.cmp.ms)} · ${fmtDelta(s.cmp.ms - s.ref.ms)}` : ''}`);
+      if (inst.state.k !== k) { inst.state.k = k; inst.state.g = drawTraces(inst.body.querySelector('canvas'), lanes, s.ref, s.cmp && s.cmp.data ? s.cmp : null, c.sel.cursor, {len:c.r ? c.r.fixed.track_length_m : 0}); }
+      const rg = inst.state.g && inst.state.g.range;   // the first value lane's range over both laps, e.g. "speed 62–261 km/h"
+      inst.setInfo(`${rg ? `${rg.label.toLowerCase()} ${rg.lo}–${rg.hi}${rg.u ? ' ' + rg.u : ''} · ` : ''}REF ${lapName(s.ref)} ${fmtLap(s.ref.ms)}${s.cmp ? ` · CMP ${lapName(s.cmp)} ${fmtLap(s.cmp.ms)} · ${fmtDelta(s.cmp.ms - s.ref.ms)}` : ''}`);
     }});
 
   // ---------- where the time goes ----------
@@ -141,7 +145,7 @@
   }
   Pit.module({type:'segments', title:'Where the time goes', group:'Analysis', blurb:'The lap cut into 20 parts, ranked by time lost, with the likely cause.',
     size:{w:3, h:10, minW:3, minH:6}, needs:['rec', 'sel', 'reading'],
-    build(el){ el.innerHTML = '<table class="tt sg"><tbody></tbody><tfoot></tfoot></table>'; el.addEventListener('click', e => { const tr = e.target.closest('tr[data-f]'); if (tr) Pit.setCursor(+tr.dataset.f); }); },
+    build(el){ el.innerHTML = '<table class="tt sg"><thead><tr><th class="n">#</th><th class="n">Distance</th><th class="n">Δ</th><th>Cause</th></tr></thead><tbody></tbody><tfoot></tfoot></table><div class="sg-none"></div>'; el.addEventListener('click', e => { const tr = e.target.closest('tr[data-f]'); if (tr) Pit.setCursor(+tr.dataset.f); }); },
     render(c, inst){
       const s = selState(c, inst); if (!s) return;
       if (!s.cmp || !s.cmp.data) return inst.setState('empty', 'Pick a comparison lap (CMP) as well.');
@@ -153,7 +157,11 @@
       }
       const where = x => len > 0 ? `${Math.round(x.a * binM)}–${Math.round(x.b * binM)} m` : `${(x.a / (NB - 1) * 100).toFixed(0)}–${(x.b / (NB - 1) * 100).toFixed(0)} %`;
       const cur = c.sel.cursor;
-      setHtml(inst.body.querySelector('tbody'), segs.slice().sort((x, y) => y.d - x.d).map((x, i) => `<tr data-f="${((x.a + x.b) / 2 / (NB - 1)).toFixed(4)}" class="${cur != null && cur * (NB - 1) >= x.a && cur * (NB - 1) <= x.b ? 'sg-on' : ''}" title="Show this part on the traces and the map"><td class="n">${i + 1}</td><td class="n">${where(x)}</td><td class="n">${deltaHtml(x.d)}</td><td class="sg-why">${esc(x.why)}</td></tr>`).join(''));
+      // differences under 10 ms are noise between two laps of the same driver: not listed
+      const shown = segs.filter(x => Math.abs(x.d) >= 10).sort((x, y) => y.d - x.d);
+      inst.body.querySelector('thead').hidden = !shown.length;
+      setHtml(inst.body.querySelector('.sg-none'), shown.length ? '' : '<div class="empty">No part of the lap differs by 0.01 s or more.</div>');
+      setHtml(inst.body.querySelector('tbody'), shown.map((x, i) => `<tr data-f="${((x.a + x.b) / 2 / (NB - 1)).toFixed(4)}" class="${cur != null && cur * (NB - 1) >= x.a && cur * (NB - 1) <= x.b ? 'sg-on' : ''}" title="Show this part on the traces and the map"><td class="n">${i + 1}</td><td class="n">${where(x)}</td><td class="n">${deltaHtml(x.d)}</td><td class="sg-why">${esc(x.why)}</td></tr>`).join(''));
       const gain = segs.filter(x => x.d < 0).reduce((a, x) => a + x.d, 0), loss = segs.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0);
       setHtml(inst.body.querySelector('tfoot'), `<tr><td colspan="4">Gains <span class="s-ok">▼ ${fmtDelta(gain)}</span> · losses <span class="s-bad">▲ ${fmtDelta(loss)}</span></td></tr>`);
       inst.setInfo(`CMP ${lapName(s.cmp)} vs REF ${lapName(s.ref)}`);

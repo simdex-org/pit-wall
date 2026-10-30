@@ -8,7 +8,7 @@ const BUILTIN_WS = {   // workspaces shared by several built-ins
   live: ['w-live', 'Live', [['track-map', 0, 0, 5, 14], ['standings', 5, 0, 4, 22, {around:5, cols:['gap', 'int', 'last', 'pits']}], ['relative', 9, 0, 3, 8], ['race-plan', 9, 8, 3, 14], ['tyres', 0, 14, 5, 8]]],
   timing: ['w-timing', 'Timing', [['standings', 0, 0, 7, 22], ['battle', 7, 0, 5, 6], ['laps', 7, 6, 5, 8, {who:'focus'}], ['sector-compare', 7, 14, 5, 8]]],   // click a car: its laps
   strategy: ['w-strategy', 'Strategy', [['stint-timeline', 0, 0, 12, 4], ['pit-plan', 0, 4, 6, 18], ['stop-options', 6, 4, 6, 7], ['race-plan', 6, 11, 3, 11], ['rejoin', 9, 11, 3, 7], ['rules', 9, 18, 3, 4]]],
-  car: ['w-car', 'Car', [['tyres', 0, 0, 4, 11, {corrections:false}], ['brakes', 4, 0, 4, 6], ['press-fix', 4, 6, 4, 5], ['electronics', 8, 0, 4, 5], ['damage', 8, 5, 4, 6], ['tyre-history', 0, 11, 8, 11], ['weather', 8, 11, 4, 5], ['flags', 8, 16, 4, 6]]],
+  car: ['w-car', 'Car', [['tyres', 0, 0, 4, 11, {corrections:false}], ['brakes', 4, 0, 4, 6], ['press-fix', 4, 6, 4, 5], ['electronics', 8, 0, 4, 5], ['damage', 8, 5, 4, 6], ['tyre-history', 0, 11, 8, 11], ['weather', 8, 11, 4, 6], ['flags', 8, 17, 4, 5]]],
   laps: ['w-laps', 'Laps', [['laps', 0, 0, 8, 15], ['degradation', 0, 15, 8, 7], ['stops', 8, 0, 4, 7], ['debrief', 8, 7, 4, 15]]],
   analysis: ['w-analysis', 'Analysis', [['lap-picker', 0, 0, 3, 22], ['traces', 3, 0, 6, 22], ['track-map', 9, 0, 3, 12, {colourBy:'delta', field:false, follow:false}], ['segments', 9, 12, 3, 10]]],
   log: ['w-log', 'Log', [['event-log', 0, 0, 8, 22], ['notes', 8, 0, 4, 14], ['pit-log', 8, 14, 4, 8]]],
@@ -16,10 +16,10 @@ const BUILTIN_WS = {   // workspaces shared by several built-ins
 const BUILTIN_SRC = [
   ['builtin-race', 'Race engineer', ['live', 'timing', 'strategy', 'car', 'laps', 'analysis', 'log']],
   ['builtin-strategist', 'Strategist', [['w-overview', 'Overview', [['standings', 0, 0, 6, 14, {cols:['gap', 'int', 'last', 'best', 'pits', 'stint', 'net']}], ['pit-activity', 0, 14, 6, 8], ['track-map', 6, 0, 6, 9, {labels:'number'}],
-    ['stop-options', 6, 9, 6, 7], ['battle', 6, 16, 3, 6], ['rejoin', 9, 16, 3, 6]]], 'timing', 'strategy', 'laps', 'log']],
+    ['stop-options', 6, 9, 6, 6], ['battle', 6, 15, 3, 7], ['rejoin', 9, 15, 3, 7]]], 'timing', 'strategy', 'laps', 'log']],
   ['builtin-coach', 'Driver coach', [['w-live', 'Live', [['track-map', 0, 0, 7, 14], ['channels', 0, 14, 7, 8], ['lap-timer', 7, 0, 5, 4], ['car-status', 7, 4, 5, 6], ['tyres', 7, 10, 5, 7], ['gg', 7, 17, 5, 5]]],
     'laps', 'analysis', 'car', 'log']],
-  ['builtin-minimal', 'Minimal', [['w-wall', 'Pit wall', [['track-map', 0, 0, 8, 22], ['relative', 8, 0, 4, 7], ['race-plan', 8, 7, 4, 8], ['tyres', 8, 15, 4, 7]]],
+  ['builtin-minimal', 'Minimal', [['w-wall', 'Pit wall', [['track-map', 0, 0, 8, 22], ['relative', 8, 0, 4, 6], ['race-plan', 8, 6, 4, 9], ['tyres', 8, 15, 4, 7]]],
     ['w-pit', 'Pit', [['pit-plan', 0, 0, 8, 22], ['race-plan', 8, 0, 4, 11], ['press-fix', 8, 11, 4, 6]]]]],
 ];
 const BUILTIN_TEMPLATES = BUILTIN_SRC.map(([id, name, wss]) => {

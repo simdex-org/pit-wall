@@ -75,6 +75,6 @@
 .lt-d{display:flex;flex-direction:column;align-items:flex-end;font-size:var(--t-lg)}
 /* tyres, wide and low: the car at the left (at most 45 %), the table beside it */
 .mod[data-type=tyres] .mb.ty-wide{flex-direction:row;flex-wrap:wrap;gap:12px;align-items:stretch;align-content:flex-start}
-.mod[data-type=tyres] .mb.ty-wide>.tyre-svg{flex:0 1 45%;min-height:120px}
+.mod[data-type=tyres] .mb.ty-wide>.tyre-svg{flex:0 1 36%;min-height:120px}
 .mod[data-type=tyres] .mb.ty-wide>.ty-t{flex:1 1 0;min-width:240px;align-self:flex-start}
 .mod[data-type=tyres] .mb.ty-wide>.note{flex:1 1 100%}
