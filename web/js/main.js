@@ -86,9 +86,8 @@ setInterval(() => Pit.dirty('tick'), 1000);
 // Page log lines (Pit.log) reach ctx.log on the next frame.
 WS.hooks.push(d => { if (d.has('log')) mergeLog(); ctx.now = performance.now(); });
 
-// ---------- flag ring: a big outline round the window while a flag is out ----------
+// ---------- the flag out, for the Flag KPI cell, which takes its colour ----------
 // The driver's flag first, then the track's. All blink; chequered is steady and stays latched until the session ends or the game drops.
-const flagRing = document.body.appendChild(Object.assign(document.createElement('div'), {id:'flagRing', hidden:true}));
 let chequeredKey = null, greenSince = 0;
 function flagNow(){
   const r = ctx.r;
@@ -110,11 +109,6 @@ function flagNow(){
   greenSince = 0;
   return null;
 }
-WS.hooks.push(d => {
-  if (!d.has('reading') && !d.has('tick')) return;
-  const f = flagNow();
-  if (flagRing.dataset.flag !== (f || '')) { flagRing.dataset.flag = f || ''; flagRing.hidden = !f; }
-});
 
 // ---------- topbar: template switcher, workspace tabs, clock, link ----------
 const ADVICE_MODS = {press_front:['tyres', 'press-fix'], press_rear:['tyres', 'press-fix'], tyres_cold:['tyres'], brakes_hot:['brakes', 'tyres'], pads_low:['brakes'],
@@ -240,8 +234,8 @@ function kpiCell(id){   // -> [label, html]; every string from the feed escaped
     }
     case 'stint': return ['Stint', s && ss ? `${s.stint_laps}<span class="u"> lap${s.stint_laps === 1 ? '' : 's'} · set </span>${ss.tyre_set || D_}` : D_];
     case 'flag': {
-      const f = ss ? FLAGS[ss.flag] : null;
-      return ['Flag', !f ? D_ : f === 'none' ? '<span class="s-dim">none</span>' : `<span class="flag" data-flag="${f}"></span> ${f}`];
+      const f = ss ? flagNow() : null;
+      return ['Flag', !ss ? D_ : f ? `<b>${f.toUpperCase()}</b>` : '<span class="s-dim">none</span>'];
     }
     case 'temps': return ['Track / air', c ? `${fv('temp', c.road_temp_c)}°<span class="u"> / </span>${fv('temp', c.air_temp_c)}°` : D_];
     case 'grip': return ['Grip', ss && GRIP[ss.track_grip] ? GRIP[ss.track_grip] : D_];
@@ -274,6 +268,7 @@ function renderKpi(){
     const [l, v] = kpiCell(cell.dataset.k), L = cell.firstChild, V = cell.lastChild;
     if (L.textContent !== l) L.textContent = l;
     if (V.innerHTML !== v) V.innerHTML = v;
+    if (cell.dataset.k === 'flag') { const f = ctx.r && flagNow() || ''; if (cell.dataset.flag !== f) cell.dataset.flag = f; }   // the whole cell takes the flag's colour
   }
   if (performance.now() - kpiFit > 2000) {   // drop cells when the strip is too narrow: from the end, the phone set last
     kpiFit = performance.now();
