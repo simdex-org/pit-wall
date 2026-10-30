@@ -11,7 +11,9 @@
     size:{w:6, h:14, minW:3, minH:6}, linkable:true, needs:['reading', 'rec', 'field', 'entries', 'focus', 'sel'], requires:['reading'], rate:30,
     options:[
       {key:'field', label:'Show the field', type:'toggle', def:true},
-      {key:'labels', label:'Car labels', type:'select', choices:[['none', 'None'], ['number', 'Race number'], ['short', 'Driver code']], def:'short'},
+      {key:'labels', label:'Car labels', type:'select', choices:[['gap', 'Gap to you'], ['none', 'None (dots only)'], ['number', 'Race number'], ['short', 'Driver code']], def:'gap'},
+      {key:'size', label:'Size of cars and labels', type:'select', choices:[['s', 'Small'], ['m', 'Medium'], ['l', 'Large']], def:'m'},
+      {key:'corners', label:'Corner names (on the drawn layout)', type:'toggle', def:true},
       {key:'sectors', label:'Colour the sectors', type:'toggle', def:true},
       {key:'lines', label:'Lap lines', type:'select', choices:[['all', 'Every recorded lap'], ['best', 'Best and current only']], def:'all'},
       {key:'colourBy', label:'Colour the line by', type:'select', choices:[['none', 'Nothing'], ['delta', 'Δ CMP vs REF (Analysis)']], def:'none'},
