@@ -6,7 +6,7 @@
 // ---------- preferences (this browser) ----------
 const KPI_IDS = ['session', 'left', 'lap', 'pos', 'ahead', 'behind', 'last', 'best', 'delta', 'fuel', 'stint', 'flag', 'temps', 'grip', 'rain', 'penalty', 'stintTime', 'boxIn'];
 const DEF_PREFS = {units:{speed:'kmh', temp:'c', press:'psi'}, sound:false, hz:30,
-  kpi:['session', 'lap', 'pos', 'ahead', 'behind', 'last', 'best', 'delta', 'fuel', 'boxIn', 'stint', 'flag', 'rain', 'temps'], kpiOn:true, lastWs:{}};   // time left: the topbar clock
+  kpi:['session', 'lap', 'pos', 'ahead', 'behind', 'last', 'best', 'delta', 'fuel', 'boxIn', 'stint', 'flag'], kpiOn:true, lastWs:{}};   // time left: the topbar clock; rain, temps: off so the default fits 1440 px
 function loadPrefs(){
   const o = lsGet('pitwall.prefs', {}) || {}, p = deep(DEF_PREFS);
   if (isObj(o.units)) for (const k of ['speed', 'temp', 'press']) if (UNITS[k][o.units[k]]) p.units[k] = o.units[k];
@@ -53,7 +53,7 @@ const Pit = {
     try { const r = await fetch(path); if (!r.ok) return null; return numbersOnly(await r.json()); } catch (e) { return null; }
   },
   log(sev, cat, text){
-    const c = this.ctx, lap = c && c.r ? c.r.session.completed_laps : 0;
+    const c = this.ctx, lap = c && c.r ? c.r.session.lap_number : 0;   // the lap in progress, as the bridge stamps its lines
     PAGE_LOG.unshift({seq:-PAGE_LOG.length - 1, t:Date.now() / 1000, lap, sev:clamp(sev | 0, 0, 2), cat:String(cat).slice(0, 8), text:String(text), src:'page'});
     if (PAGE_LOG.length > 200) PAGE_LOG.pop();
     this.dirty('log');
@@ -95,7 +95,10 @@ const NA_MSG = {
   field: "Field timing needs ACC's broadcasting port. On the driver's PC run  python server/acc_broadcast.py --enable  and restart ACC.",
   reading: 'Waiting for the driver.', summary: 'Waiting for the bridge summary.', pit: 'No pit control on this bridge.',
 };
-const NARROW_AUTO = new Set(['pit-plan', 'standings', 'stop-options', 'laps', 'stops', 'pit-log', 'pit-activity', 'tyre-history']);
+const NARROW_AUTO = new Set(['pit-plan', 'standings', 'stop-options', 'laps', 'stops', 'pit-log', 'pit-activity', 'tyre-history',
+  'race-plan', 'rejoin', 'rules', 'brakes', 'weather', 'damage', 'electronics', 'flags', 'press-fix', 'battle', 'relative']);   // not tyres: its drawing fills the module's height
+// narrow: the stacking order (flex order), what the engineer needs first on a phone; the rest 10, in reading order
+const NARROW_ORDER = {'race-plan':1, 'relative':2, 'lap-timer':2, 'tyres':3, 'press-fix':4, 'rejoin':5, 'stop-options':6, 'battle':7, 'standings':8, 'stint-timeline':9, 'pit-plan':20};
 const STALE_MS = {reading:['r', 1500], summary:['s', 3000], field:['field', 2000]};
 const ALERTS = new Map();          // instance id -> [level, count], for the workspace tab badges
 
@@ -166,6 +169,7 @@ const WS = {
     const host = $('ws');
     this.tpl = tpl; const ws = tpl.workspaces.find(w => w.id === wsId) || tpl.workspaces[0]; this.wsId = ws.id; this.editing = !!editing;
     host.dataset.ws = ws.id; host.classList.toggle('editing', this.editing);
+    const fa = document.activeElement;   // re-appending blurs it: given back below (keyboard move/resize keeps its place)
     const keep = new Map(this.insts.map(i => [i.id, i])), next = [];
     const mods = ws.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x);   // DOM order = reading order = stacking order when narrow
     for (const m of mods) {
@@ -184,6 +188,7 @@ const WS = {
     }
     for (const inst of keep.values()) { destroy(inst); inst.el.remove(); ALERTS.delete(inst.id); }
     next.forEach(inst => host.appendChild(inst.el));    // appendChild moves existing nodes into the new order
+    if (fa && fa !== document.activeElement && host.contains(fa)) fa.focus({preventScroll:true});
     this.insts = next;
     for (const inst of next) {
       const m = inst.m;
@@ -223,6 +228,7 @@ const WS = {
       i.el.style.gridRow = this.narrow ? '' : `${m.y + 1} / span ${m.h}`;
       i.el.style.height = this.narrow && !auto ? `${Math.min(m.h, 16) * (rp + 8) - 8}px` : '';
       i.el.classList.toggle('auto-h', auto);
+      i.el.style.order = this.narrow ? NARROW_ORDER[m.type] || 10 : '';
     }
   },
   schedule(){ if (!this.raf) this.raf = requestAnimationFrame(() => this.frame()); },

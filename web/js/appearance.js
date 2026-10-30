@@ -29,7 +29,7 @@ const AP_LAYOUT = {density:['compact', 'comfortable'], fontScale:[0.9, 1, 1.1, 1
 const AP_DEF_LAYOUT = {density:'compact', fontScale:1, radius:2, panel:'ruled', numFont:'mono', labels:'upper'};
 const AP_BUILTINS = [
   ['pitwall', 'Pit Wall', {}, {}],
-  ['broadcast', 'Broadcast', {bg:'#050608', panel:'#0e1014', line:'#23272e', accent:'#ffffff', me:'#ffd23f', chCmp:'#5aaeff', chLap:'#ff9f1a'}, {radius:4, panel:'boxed', labels:'sentence'}],
+  ['broadcast', 'Broadcast', {bg:'#050608', panel:'#0e1014', line:'#23272e', accent:'#ffffff', me:'#ff8ad8'}, {radius:4, panel:'boxed', labels:'sentence'}],
   ['night', 'Night stint', {bg:'#000000', panel:'#07080a', raise:'#101215', line:'#1a1d22', line2:'#121418', text:'#c9ccd1', muted:'#8a9099', dim:'#646a73', accent:'#5fb3a6',
     me:'#c9ccd1', ok:'#36b56e', warn:'#d9892a', bad:'#d9475a', best:'#a46ad8'}, {}],
   ['daylight', 'Daylight', {bg:'#f3f4f6', panel:'#ffffff', raise:'#e9ebee', line:'#d3d7dd', line2:'#e6e8ec', text:'#111418', muted:'#4a515b', dim:'#6b727c', accent:'#007b76',
@@ -37,6 +37,8 @@ const AP_BUILTINS = [
     chCmp:'#b55d00', chLap:'#1565c0', chThr:'#0f8a43', chBrk:'#c8102e', chSteer:'#9a7400', chRpm:'#6b727c'}, {}],
 ].map(([id, name, tokens, layout]) => Object.freeze(Object.assign({format:'pitwall-theme', schemaVersion:1, id, name, base:id, tokens:Object.assign({}, AP_BASE_TOKENS, tokens)}, AP_DEF_LAYOUT, layout)));
 const HEX = /^#[0-9a-f]{6}$/i;
+// state colours mean state: your car and the map line never wear one (dev check)
+for (const b of AP_BUILTINS) for (const k of ['me', 'chLap']) console.assert(!['ok', 'warn', 'bad', 'slow'].some(s => b.tokens[s] === b.tokens[k]), `Appearance '${b.id}': ${k} is a state colour`);
 
 // WCAG relative luminance and contrast ratio
 const lum = hex => { const v = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
@@ -88,11 +90,14 @@ const Appearance = {
   adopt(raw){   // an imported theme, made this browser's; one that looks exactly like a theme already here is that theme
     const t = this.sanitize(raw); if (!t) return null;
     const look = x => JSON.stringify([this.resolved(x), Object.keys(AP_LAYOUT).map(k => x[k])]), same = this.all().find(x => look(x) === look(t));
-    if (same) { this.use(same.id); return same; }
-    t.name = this.uniqueName(t.name); this.users.push(t); this.saveUsers(); this.use(t.id); return t;
+    if (same) { if (!this.unreadable(same)) this.use(same.id); return same; }
+    t.name = this.uniqueName(t.name); this.users.push(t); this.saveUsers();
+    if (!this.unreadable(t)) this.use(t.id);   // kept in the list, not applied: the dashboard would become unreadable
+    return t;
   },
   // Text, muted and dim must stay readable on the background and the panels, or the editor (drawn with these same tokens)
   // could be made unreadable and the user locked out of undoing it. Returns why not, or ''.
+  notApplied(t){ const why = this.unreadable(t); return why ? why.replace(/,? so it was not applied\.?/, '.') : ''; },   // adopt()'s refusal, for a status line
   unreadable(t){
     const k = this.resolved(t);
     for (const x of ['text', 'muted', 'dim']) for (const s of ['bg', 'panel']) { const r = contrast(k[x], k[s]); if (r < 3) return `${AP_LABEL(x)} on ${AP_LABEL(s).toLowerCase()} would be ${r.toFixed(1)}:1. Below 3:1 this screen becomes unreadable, so it was not applied.`; }
@@ -131,6 +136,7 @@ const Appearance = {
     const h = this.host; if (!h || !h.isConnected) return;
     this._repaint = false;
     const cur = this.cur, tok = this.resolved(cur), bi = this.isBuiltin(cur.id);
+    const fa = document.activeElement, was = h.contains(fa) && fa.dataset.ap ? [fa.dataset.ap, fa.dataset.id] : null;   // redrawn below: focus is given back
     const row = t => {
       const ren = this.renaming === t.id, lock = this.isBuiltin(t.id) ? '<i data-lucide="lock"></i>' : '<span class="ico-gap"></span>', inUse = t.id === cur.id ? '<b class="tag">IN USE</b>' : '';
       const head = ren ? `<span class="ap-use">${lock}<input type="text" class="ap-ren" maxlength="40" value="${esc(t.name)}" aria-label="New name" data-id="${esc(t.id)}">${inUse}</span>`
@@ -146,7 +152,7 @@ const Appearance = {
     h.innerHTML = `<div class="ap">
       <div class="ap-list"><div class="ap-h"><h3 class="mt">Appearances</h3><label class="btn">Import…<input type="file" accept=".json,application/json" hidden data-ap="imp"></label></div>
         <ul>${AP_BUILTINS.map(row).join('')}${this.users.map(row).join('')}</ul></div>
-      <div class="ap-edit"><div class="ap-h"><h3 class="mt">${esc(cur.name)}${bi ? ' <span class="note">built-in: changes make your own copy</span>' : ''}</h3><button type="button" class="btn" data-ap="reset">Reset to base</button></div>
+      <div class="ap-edit"><div class="ap-h"><h3 class="mt">${esc(cur.name)}${bi ? ' <span class="note">built-in: changes make your own copy</span>' : ''}</h3><button type="button" class="btn" data-ap="reset"${bi ? ' disabled title="Built-ins are already their base"' : ''}>Reset to base</button></div>
         <p class="note ap-status" role="status">${esc(this.status)}</p>
         <fieldset class="ap-grp"><legend>Layout</legend>
           ${seg('density', ['Density', ['Compact', 'Comfortable']])}${seg('radius', ['Corner radius', ['0', '2', '4', '8']])}${seg('panel', ['Panels', ['Ruled', 'Boxed', 'Flat']])}
@@ -155,6 +161,7 @@ const Appearance = {
         </fieldset>${groups}</div></div>`;
     this.refreshReadouts(); refreshIcons(h);
     const ren = h.querySelector('.ap-ren'); if (ren) { ren.focus(); ren.select(); }
+    else if (was) (was[1] && [...h.querySelectorAll(`[data-ap="${was[0]}"]`)].find(b => b.dataset.id === was[1] && !b.disabled) || h.querySelector('.ap-row.on .ap-use')).focus({preventScroll:true});
   },
   rename(id, name){   // inline, as in the template manager: Enter or leaving the field keeps it, Esc cancels
     const t = this.users.find(u => u.id === id); this.renaming = null;
@@ -231,5 +238,5 @@ async function apImport(file){
   let j; try { j = JSON.parse(await file.text()); } catch (e) { A.status = 'Not a valid JSON file.'; return A.paint(); }
   if (!isObj(j) || j.format !== 'pitwall-theme') { A.status = 'Not a Pit Wall theme file.'; return A.paint(); }
   if (!Number.isInteger(j.schemaVersion) || j.schemaVersion > 1) { A.status = 'This theme was made by a newer Pit Wall.'; return A.paint(); }
-  const t = A.adopt(j); A.status = `Imported '${t.name}'.`; A.paint();
+  const t = A.adopt(j), why = A.notApplied(t); A.status = why ? `Imported '${t.name}' but not applied: ${why}` : `Imported '${t.name}'.`; A.paint();
 }
