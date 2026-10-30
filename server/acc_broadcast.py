@@ -166,8 +166,24 @@ def pack_request(kind, conn_id):
 
 
 # ---------- broadcasting.json ----------
+def acc_config_dir():
+    """ACC's Config folder, under the user's real Documents folder: OneDrive and folder redirection move it away from ~/Documents."""
+    docs = os.path.join(os.path.expanduser("~"), "Documents")
+    try:
+        import ctypes
+        import uuid
+        buf = ctypes.c_wchar_p()
+        documents = uuid.UUID("FDD39AD0-238F-46AF-ADB4-6C85480369C7").bytes_le   # FOLDERID_Documents
+        if ctypes.windll.shell32.SHGetKnownFolderPath(ctypes.c_char_p(documents), 0, None, ctypes.byref(buf)) == 0 and buf.value:
+            docs = buf.value
+            ctypes.windll.ole32.CoTaskMemFree(buf)
+    except (AttributeError, OSError):   # not Windows
+        pass
+    return os.path.join(docs, "Assetto Corsa Competizione", "Config")
+
+
 def _cfg_path(path):
-    return path or os.path.join(os.path.expanduser("~"), "Documents", "Assetto Corsa Competizione", "Config", "broadcasting.json")
+    return path or os.path.join(acc_config_dir(), "broadcasting.json")
 
 
 def _decode(b):
@@ -190,6 +206,12 @@ def read_config(path=None):
 def enable(port=9000, path=None):
     """Switch ACC's broadcasting port on, keeping the file's encoding (ACC writes UTF-16LE without a BOM). Backs it up first."""
     path = _cfg_path(path)
+    if not os.path.isdir(os.path.dirname(path)):
+        return (f"ACC's settings folder is not at {os.path.dirname(path)}. Open ACC once, to the main menu, so it creates it; "
+                "then run this again.")
+    if not os.path.exists(path):   # ACC writes it on its first run; until then write the one ACC would, UTF-16LE
+        with open(path, "wb") as f:
+            f.write(json.dumps({"updListenerPort": 0, "connectionPassword": "", "commandPassword": ""}, indent=4).encode("utf-16-le"))
     with open(path, "rb") as f:
         raw = f.read()
     text, enc = _decode(raw)
