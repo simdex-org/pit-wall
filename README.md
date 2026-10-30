@@ -268,9 +268,12 @@ in lap time instead.
 
 ### Car damage in 3D
 
-The **Damage** workspace (Race engineer) shows a generic GT3 (splitter, canards, hood vents, mirrors, side skirts, swan-neck wing,
-diffuser, wheels with their brakes, and under the bodywork the wishbones, track rods, steering and seat) painted by what ACC reports,
-from green (none) through yellow to red. Drag it to turn it any way, or jump to **3D, Top, Front, Rear, Left, Right**;
+The **Damage** workspace (Race engineer) shows a generic GT3, after the lines of the McLaren 650S and 720S GT3 (a wedge nose over
+the splitter, canards, louvred hood and fenders, a teardrop canopy with framed glass, side intakes, mirrors, skirts, a swan-neck
+wing, the diffuser, wheels in their arches with ten-spoke rims, brake discs and calipers, and under the bodywork the wishbones,
+dampers, track rods, steering, seat and roll cage), painted by what ACC reports, from green (none) through yellow to red. It is
+drawn with [three.js](https://threejs.org) (WebGL, so parts meet without one showing through another), kept in `web/vendor` and
+loaded only when the view opens. Drag it to turn it any way, or jump to **3D, Top, Front, Rear, Left, Right**;
 **See-through** shows the suspension and steering through the bodywork. Each part's figure sits next to it.
 
 ![Car damage 3D: a GT3 painted green to red by zone, with each zone's figure and every corner's suspension and pads](docs/damage-3d.png)
@@ -286,7 +289,7 @@ What is painted, and from which of ACC's figures:
 | Left doors, sill, mirror, skirt / the same on the right | bodywork damage, left / right zone | the same |
 | Roof, pillars | bodywork damage, centre zone | the same |
 | Each wheel, its wishbones and (front) track rod | suspension damage of that corner | 0.30 (option: 0.10, 0.30, 1.00) |
-| Each brake (the ring inside the wheel) | pad thickness of that corner | the pads-low line (12 mm GT3); green 6 mm above it |
+| Each brake (the disc and caliper behind the spokes) | pad thickness of that corner | the pads-low line (12 mm GT3); green 6 mm above it |
 
 ACC publishes bodywork damage only as those five numbers, without a unit or a maximum, which is why *red at* is an option. It does not
 publish broken glass, steering damage, engine damage, the wing on its own or tyre wear, so the glass, steering wheel and seat stay
@@ -407,13 +410,14 @@ server/launcher.py       PitWall.exe: the start window and the update from GitHu
                          python -m PyInstaller --onefile --windowed --name PitWall --icon server/pitwall.ico --add-data "server/pitwall.ico;." --add-data "server/pitwall-logo.png;." --collect-data customtkinter server/launcher.py
                          and attach dist/PitWall.exe to a GitHub release. Rebuild only when the launcher changes, or when the
                          server starts importing a standard-library module the launcher does not list.
-web/                     index.html, css/ (app.css, modules-1.css, modules-2.css), js/ (one file per concern, below), data/tracks.js
+web/                     index.html, css/ (app.css, modules-1.css, modules-2.css), js/ (one file per concern, below), data/tracks.js,
+                         vendor/three.module.min.js (three.js 0.160.0, MIT, for the 3D car)
 docs/                    screenshots
 ```
 
 `web/js`, loaded in this order: `util.js` (helpers, units, formatters), `workspaces.js` (the `Pit` API, the module registry, the
 workspace grid and render scheduler), `templates.js` (built-in templates, `Tpl`), `appearance.js`, `editor.js` (edit mode, module
-options), `manager.js` (template manager, import and export, migration), `settings.js`, `recorder.js`, `charts.js`, `car3d.js` (the GT3 mesh and its renderer), the modules
+options), `manager.js` (template manager, import and export, migration), `settings.js`, `recorder.js`, `charts.js`, `car3d.js` (the GT3 model and its WebGL view), the modules
 (`mod-timing.js`, `mod-strategy.js`, `mod-pit.js`, `mod-car.js`, `mod-laps.js`, `mod-log.js`), and `main.js` (the feed, the chrome, keys, boot).
 
 The browser keeps its own things in `localStorage` under `pitwall.*`: templates, appearances, the active template, preferences,
@@ -424,6 +428,7 @@ Python standard library only. Windows, since that is where ACC runs.
 
 ## Credits
 
+- 3D car: [three.js](https://github.com/mrdoob/three.js) 0.160.0, MIT License, in `web/vendor` (with its licence).
 - Fonts: [Barlow Semi Condensed](https://github.com/jpt/barlow) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), SIL Open Font License, in `web/fonts`.
 
 - Shared memory layout: Kunos' *ACC Shared Memory Documentation* 1.8.12.

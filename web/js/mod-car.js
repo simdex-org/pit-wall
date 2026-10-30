@@ -203,13 +203,16 @@
   // ---------- damage in 3D: a GT3 painted green to red by what ACC reports, turned by dragging or by the view buttons ----------
   const C3_VIEWS = [['iso', '3D'], ['top', 'Top'], ['front', 'Front'], ['rear', 'Rear'], ['left', 'Left'], ['right', 'Right']];
   const c3Draw = inst => {
-    const st = inst.state, c = Pit.ctx; if (!st.lv || !c || !c.r) return;
-    const at = drawCar3d(st.cv, st.view, st.lv), g = st.cv.getContext('2d'), tk = Pit.tokens(), w = st.cv.clientWidth;
+    const st = inst.state, c = Pit.ctx; if (!st.lv || !c || !c.r || !st.gl) return;
+    const at = st.gl.draw(st.view, st.lv), [g, w] = fitCanvas(st.cv), tk = Pit.tokens();   // st.cv: the labels, over the WebGL canvas
     if (!inst.opts.labels) return;
     g.font = `600 11px ${tk.num}`; g.textBaseline = 'middle';
+    const taken = [];
     for (const [part, text] of st.tags) {   // the figure next to its part; parts on the far side of the car keep quiet
-      const [x, y, faces] = at[part]; if (!faces) continue;
+      let [x, y, faces] = at[part]; if (!faces) continue;
       const lv = st.lv[part], tw = g.measureText(text).width, bx = Math.max(2, Math.min(w - tw - 12, x - tw / 2 - 5));
+      for (let k = 0; k < 6 && taken.some(([a, b, c]) => bx < a + c && a < bx + tw + 10 && Math.abs(b - y) < 19); k++) y += 20;   // under a label already placed
+      taken.push([bx, y, tw + 10]);
       g.globalAlpha = .88; g.fillStyle = tk.bg; g.fillRect(bx, y - 9, tw + 10, 18); g.globalAlpha = 1;
       g.strokeStyle = lv == null ? tk.line : `rgb(${levelColour(lv, tk).map(Math.round).join(',')})`; g.lineWidth = 1; g.strokeRect(bx + .5, y - 8.5, tw + 9, 17);
       g.fillStyle = tk.text; g.fillText(text, bx + 5, y);
@@ -229,16 +232,20 @@
     build(el, inst){
       el.innerHTML = `<div class="c3-bar">${C3_VIEWS.map(([k, t]) => `<button class="btn" data-v="${k}">${t}</button>`).join('')}
         <button class="btn" data-x aria-pressed="false" title="See the suspension and steering through the bodywork">See-through</button></div>
-        <div class="cv c3"><canvas aria-label="Car damage in 3D: drag to turn the car"></canvas></div>
+        <div class="cv c3" role="img" aria-label="Car damage in 3D: drag to turn the car"><canvas class="c3-tags"></canvas></div>
         <div class="c3-key"></div>
         <p class="note c3-na">ACC reports bodywork damage in five zones (front, rear, left, right, centre), suspension damage per corner and brake pad
         thickness: those are painted. It does not report the glass, the steering, the engine, the wing on its own, or tyre wear, so those
         stay grey; the wing, splitter and diffuser take their zone's colour.</p>`;
-      const cv = inst.state.cv = el.querySelector('canvas'), v = inst.state.view = {az:CAR3D.VIEWS.iso[0], el:CAR3D.VIEWS.iso[1], x:false};
+      const host = el.querySelector('.cv.c3'), v = inst.state.view = {az:CAR3D.VIEWS.iso[0], el:CAR3D.VIEWS.iso[1], x:false};
+      inst.state.cv = el.querySelector('.c3-tags');
+      const st = inst.state;
+      car3dView(host).then(gl => { if (inst.state !== st) return gl.dispose(); st.gl = gl; c3Draw(inst); })   // three.js loads the first time a car is shown; rebuilt meanwhile: drop it
+        .catch(e => { console.error(e); inst.setState('na', 'This view needs WebGL, which this browser has turned off or does not have.'); });
       let drag = null;
-      cv.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY, v.az, v.el]; cv.setPointerCapture(e.pointerId); });
-      cv.addEventListener('pointermove', e => { if (!drag) return; v.az = drag[2] - (e.clientX - drag[0]) * .01; v.el = clamp(drag[3] + (e.clientY - drag[1]) * .01, -.15, 1.5707); c3Draw(inst); });
-      cv.addEventListener('pointerup', () => { drag = null; });
+      host.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY, v.az, v.el]; host.setPointerCapture(e.pointerId); });
+      host.addEventListener('pointermove', e => { if (!drag) return; v.az = drag[2] - (e.clientX - drag[0]) * .01; v.el = clamp(drag[3] + (e.clientY - drag[1]) * .01, -.15, 1.5707); c3Draw(inst); });
+      host.addEventListener('pointerup', () => { drag = null; });
       el.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => c3Turn(inst, b.dataset.v)));
       const xb = el.querySelector('[data-x]');
       xb.addEventListener('click', () => { v.x = !v.x; xb.setAttribute('aria-pressed', v.x); c3Draw(inst); });
@@ -264,7 +271,8 @@
       const worst = Math.max(0, ...['front', 'rear', 'left', 'right', 'centre', 's0', 's1', 's2', 's3'].map(k => lv[k] || 0));
       inst.setInfo(worst > 0 ? `worst ${Math.round(Math.min(worst, 9.99) * 100)} % of red · drag to turn` : 'no damage · drag to turn');
       inst.setAlert(dmg.some(v => v > 0) || sus.some(v => v > 0) ? 2 : 0);
-    }});
+    },
+    destroy(inst){ if (inst.state.gl) inst.state.gl.dispose(); }});
 
   // ---------- G-G ----------
   Pit.module({type:'gg', title:'G-G', group:'Car', blurb:'Lateral against longitudinal G over the last seconds: the friction circle.',
