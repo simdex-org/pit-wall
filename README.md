@@ -301,8 +301,9 @@ race lasts about 7 hours, with the pit window scaled to match, so Strategy works
 layout until the first whole lap, then the recorded racing lines with the field on them. Speed, throttle, brake and steering
 are still made-up waves there, and the laps are nearly identical: it shows how the charts look on a long track.
 
-Twelve more real layouts, from OpenStreetMap, at a GT3's lap time: `monza`, `spa`, `silverstone`, `nurburgring` (GP),
-`brands_hatch`, `suzuka`, `laguna_seca`, `mount_panorama`, `imola`, `barcelona`, `zandvoort`, `paul_ricard`, e.g.
+Twenty-four more real layouts, from OpenStreetMap, at a GT3's lap time: `monza`, `spa`, `silverstone`, `nurburgring` (GP),
+`brands_hatch`, `suzuka`, `laguna_seca`, `mount_panorama`, `imola`, `barcelona`, `zandvoort`, `paul_ricard`, `hungaroring`, `misano`, `zolder`, `kyalami`, `cota`,
+`indianapolis`, `watkins_glen`, `red_bull_ring`, `valencia`, `donington`, `oulton_park`, `snetterton`, e.g.
 
 ```
 python server/bridge.py --simulate-acc --sim-track spa --sim-speed 4 --key demo
