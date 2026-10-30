@@ -340,7 +340,7 @@ class Telemetry:
                       "gear": r["gear"] - 1, "rpm": r["rpm"]})
         x, z = r["xyz"][0], r["xyz"][2]
         if (x or z) and (not self.line or math.hypot(self.line[-1][0] - x, self.line[-1][1] - z) > 1.5):
-            self.line.append([x, z])
+            self.line.append([x, z, p])   # p: ACC's lap fraction here; the map places the field by it, not by metres
 
     def _lap_done(self, r, p, ext):
         ms, lines, n = r["last_ms"], [], r["laps"]
@@ -412,7 +412,7 @@ class Telemetry:
         if not t:
             return None
         return {"n": n, "ms": t["ms"], "valid": t["valid"], "ch": {k: [round(v, 3) for v in t["ch"][k]] for k in LCH},
-                "line": [[round(x, 1), round(z, 1)] for x, z in t["line"]]}
+                "line": [[round(x, 1), round(z, 1), round(p, 5)] for x, z, p in t["line"]]}
 
     # ---------- the summary ----------
     def _own_pace(self):

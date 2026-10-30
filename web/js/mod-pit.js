@@ -78,12 +78,14 @@
       if (i.type === 'checkbox') i.checked = !!v; else i.value = /^p\d$/.test(k) ? pin(v) : v;
     }
   }
+  const stepper = (l, input) => `<span class="stp"><button type="button" class="step" data-step="-1" aria-label="Decrease ${l}">−</button>${input}<button type="button" class="step" data-step="1" aria-label="Increase ${l}">+</button></span>`;
   const rowHtml = ([k, l, t, a, b, c, u]) => {
     const input = t === 'check' ? `<input type="checkbox" data-f="${k}" aria-label="${l}">`
       : t === 'select' ? `<select data-f="${k}" aria-label="${l}">${a.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>`
-      : t === 'press' ? `<input type="number" data-f="${k}" step="${pstep()}" aria-label="Pressure ${l}"><span class="u"> ${un('press').u}</span>`
-      : `<input type="number" data-f="${k}" min="${a}" max="${b}" step="${c}" aria-label="${l}">${u ? `<span class="u"> ${u}</span>` : ''}`;
-    return `<tr data-row="${k}"><td>${l}</td><td class="n" data-now="${k}">—</td><td class="pp-in">${input}</td><td class="n" data-chg="${k}"></td><td data-r="${RES[k]}"></td></tr>`;
+      : t === 'press' ? `${stepper(l, `<input type="number" data-f="${k}" step="${pstep()}" aria-label="Pressure ${l}">`)}<span class="u"> ${un('press').u}</span>`
+      : stepper(l, `<input type="number" data-f="${k}" min="${a}" max="${b}" step="${c}" aria-label="${l}">`) + (u ? `<span class="u"> ${u}</span>` : '');
+    return `<div class="pr" data-row="${k}"><span class="pr-l">${l}</span><span class="pp-in">${input}</span>
+      <span class="pr-meta"><span class="pr-now" title="${/^p\d$|^(fuel|tyre_set)$/.test(k) ? 'In the MFD now' : 'ACC does not publish this field'}">MFD <span data-now="${k}">—</span></span><span class="pr-chg" data-chg="${k}"></span><span class="pr-res" data-r="${RES[k]}"></span></span></div>`;
   };
   async function send(inst, only, confirmed){
     const el = inst.body, p = readPlan(el), st = inst.state, c = Pit.ctx;
@@ -117,13 +119,15 @@
     options:[{key:'confirm', label:'Confirm before sending', type:'toggle', def:true}],
     build(el, inst){
       INSTS.add(inst); inst.state.confirm = inst.opts.confirm; inst.state.flash = new Set();
-      el.innerHTML = `<div class="split pp"><table class="tt pp-t"><thead><tr><th>Item</th><th class="n">MFD now</th><th>Plan</th><th class="n">Change</th><th>Result</th></tr></thead><tbody>${GROUPS.map(([g, only, rows]) =>
-        `<tr class="tt-group"><td colspan="5">${g}<button type="button" class="btn send" data-only="${only}">Send ${g.toLowerCase()}</button></td></tr>${rows.map(rowHtml).join('')}`).join('')}</tbody></table>
-        <div class="split-v pp-side"><p class="pp-state" data-state role="status">Draft</p><dl class="kv pp-sets"></dl>
-          <div class="pp-confirm" hidden><p></p><div class="pp-acts"><button type="button" class="btn primary" data-go>Send</button><button type="button" class="btn" data-cancel>Cancel</button></div></div>
-          <button type="button" class="btn primary" data-whole>Send whole plan</button><button type="button" class="btn" data-copy>Copy MFD into plan</button><button type="button" class="btn" data-close title="Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)">Close pit page</button>
-          <label class="check"><input type="checkbox" data-confirm${inst.state.confirm ? ' checked' : ''}> Confirm before sending</label>
-          <p class="note">Send one block, or the whole plan. Only what is sent is touched on the driver's pit page, typed in with ACC's own MFD controls. Fuel, tyre set and pressures are read back from the game; the rest ACC does not publish.</p></div></div>`;
+      el.innerHTML = `<div class="pp">
+        <header class="pp-head"><div class="pp-hl"><p class="pp-state" data-state role="status">Draft</p><dl class="kv pp-sets"></dl></div>
+          <div class="pp-acts"><button type="button" class="btn" data-copy>Copy MFD into plan</button><button type="button" class="btn" data-close title="Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)">Close pit page</button>
+            <button type="button" class="btn primary" data-whole>Send whole plan</button></div></header>
+        <div class="pp-confirm" hidden><p></p><div class="pp-acts"><button type="button" class="btn primary" data-go>Send</button><button type="button" class="btn" data-cancel>Cancel</button></div></div>
+        <div class="pp-cards">${GROUPS.map(([g, only, rows]) =>
+          `<section class="pc pc-${only}"><h3><span>${g}</span><button type="button" class="btn send" data-only="${only}">Send</button></h3><div class="pc-rows">${rows.map(rowHtml).join('')}</div></section>`).join('')}</div>
+        <footer class="pp-foot"><label class="check"><input type="checkbox" data-confirm${inst.state.confirm ? ' checked' : ''}> Confirm before sending</label>
+          <p class="note">Each block sends on its own; only what is sent is touched on the driver's pit page. Fuel, tyre set and pressures are read back from the game. “MFD —” means ACC does not publish that field: it is typed in, but cannot be verified.</p></footer></div>`;
       fill(el, plan());
       el.addEventListener('change', e => {
         const t = e.target;
@@ -137,6 +141,9 @@
       });
       el.addEventListener('click', e => {
         const b = e.target.closest('button'); if (!b || b.disabled) return;
+        if (b.dataset.step) {   // − / +: the input's own step, clamped to its min and max
+          const i = b.parentNode.querySelector('input'); b.dataset.step < 0 ? i.stepDown() : i.stepUp(); i.dispatchEvent(new Event('change', {bubbles:true})); return;
+        }
         if (b.hasAttribute('data-cancel')) { el.querySelector('.pp-confirm').hidden = true; return; }
         if (b.hasAttribute('data-go')) return send(inst, inst.state.pending || undefined, true);
         if (b.hasAttribute('data-copy')) {
@@ -157,14 +164,13 @@
     render(c, inst){
       seed(c);
       const p = c.pit, job = c.pitJob, live = p && p.status === 'live', busy = job && job.state === 'running', el = inst.body, st = inst.state, P = readPlan(el);
-      el.firstChild.classList.toggle('pp-narrow', el.clientWidth > 0 && el.clientWidth < 600);
-      if (st.unit !== Pit.prefs.units.press) { st.unit = Pit.prefs.units.press; for (const i of el.querySelectorAll('[data-f^="p"]')) i.step = pstep(); for (const u of el.querySelectorAll('.pp-in .u')) if (u.previousSibling.dataset.f[0] === 'p') u.textContent = ' ' + un('press').u; fill(el, plan()); }
+      if (st.unit !== Pit.prefs.units.press) { st.unit = Pit.prefs.units.press; for (const i of el.querySelectorAll('[data-f^="p"]')) i.step = pstep(); for (const u of el.querySelectorAll('.pp-in .u')) if (u.parentNode.querySelector('[data-f]').dataset.f[0] === 'p') u.textContent = ' ' + un('press').u; fill(el, plan()); }
       el.querySelectorAll('[data-only],[data-whole],[data-go]').forEach(b => { b.disabled = !live || busy || !Pit.key; b.title = !Pit.key ? 'Needs the access key: Settings › Connection' : !live ? 'ACC is not live on the driver\'s PC' : busy ? 'A plan is still being typed' : ''; });
       el.querySelector('[data-copy]').disabled = !live;
       let n = 0;
       for (const td of el.querySelectorAll('[data-now]')) {
         const k = td.dataset.now, v = nowOf(p, k), chg = el.querySelector(`[data-chg="${k}"]`), pl = pv(P, k), u = k === 'fuel' ? ' L' : '';
-        td.textContent = v === undefined ? '—' : v === null ? 'not published' : show(k, v) + u; td.classList.toggle('s-dim', v == null);
+        td.textContent = v == null ? '—' : show(k, v) + u; td.classList.toggle('s-dim', v == null);
         const diff = v != null && pl != null && !same(k, v, pl);
         const matters = typeof pl === 'boolean' ? pl : GROUP_OF[k] === 'tyres' ? P.tyres : GROUP_OF[k] === 'brakes' ? P.brakes : true;   // pads only matter with a brake change
         setHtml(chg, diff ? `<span class="diff"><s>${esc(show(k, v))}</s>→<b>${esc(show(k, pl))}</b>${u}</span>` : v === null && matters ? `<span class="s-dim">→ ${esc(show(k, pl))}</span>` : '');
@@ -173,7 +179,7 @@
         el.querySelector(`[data-row="${k}"]`).classList.toggle('pp-new', st.flash.has(k));
       }
       const res = job && job.state === 'done' ? job.res || {} : {};
-      for (const td of el.querySelectorAll('[data-r]')) { const r = resOf(job, td.parentNode.dataset.row, P); td.textContent = r ? r.txt : ''; td.className = r ? r.cls : ''; td.title = r ? r.title : ''; }
+      for (const td of el.querySelectorAll('[data-r]')) { const r = resOf(job, td.closest('[data-row]').dataset.row, P); td.textContent = r ? r.txt : ''; td.className = 'pr-res ' + (r ? r.cls : ''); td.title = r ? r.title : ''; }
       const vals = Object.values(res), verified = vals.length && vals.every(v => OK_RES.includes(v)), when = job && job.t ? hms(new Date(job.t * 1000)) : '';
       el.querySelector('[data-state]').textContent = !p ? 'No pit control' : busy ? (p.waiting_lift ? 'Applying: waiting for the driver to lift' : 'Applying…')
         : st.msg ? st.msg : job && job.state === 'error' ? 'Failed: ' + job.msg : job && job.state === 'done' ? `Applied ${when}${job.by ? ' by ' + job.by : ''}${verified ? ' · verified' : ' · check the results'}${n ? ` · draft: ${n} change${n === 1 ? '' : 's'}` : ''}` : `Draft (${n} change${n === 1 ? '' : 's'})`;

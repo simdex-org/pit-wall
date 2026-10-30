@@ -314,6 +314,9 @@ def _t_at(pts, dists, d):
     return t0 + (t1 - t0) * (d - d0) / (d1 - d0) if d1 > d0 else t1
 
 
+REL_WINDOW = 0.25   # Relative only lists cars within this fraction of a lap of me
+
+
 def _wrap(x):
     return ((x + 1.5) % 1) - 0.5
 
@@ -501,6 +504,8 @@ class Field:
                 c["rel"] = 0 if c is me else None
                 continue
             f = _wrap(c["spl"] - me["spl"])
+            if abs(f) > REL_WINDOW:   # not a neighbour: "ahead" or "behind" there is only where the half-lap wrap cuts
+                continue
             if f >= 0:     # ahead on track: how long ago it passed where I am
                 tc = _t_at(*c["_pts"], c["dist"] - f)
                 c["rel"] = None if tc is None else int(round(self.t - tc))
