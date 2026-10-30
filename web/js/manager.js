@@ -113,7 +113,7 @@ const Manager = {
     lsSet('pitwall.migrated', '1');
   },
   migrateBoard(board, rows){
-    const MAP = {timeline:'stint-timeline', fuel:'fuel', window:'race-plan', gaps:'battle', weather:'weather', tyres:'tyres', degradation:'degradation', brakes:'brakes', pitstop:'pit-plan', electronics:'electronics', damage:'damage'};
+    const MAP = {timeline:'fuel-calc', fuel:'fuel', window:'race-plan', gaps:'battle', weather:'weather', tyres:'tyres', degradation:'degradation', brakes:'brakes', pitstop:'pit-plan', electronics:'electronics', damage:'damage'};
     const race = BUILTIN_TEMPLATES.find(b => b.id === 'builtin-race'), t = deep(race), mods = [];
     const add = (type, w, h, hidden) => {
       const def = Pit.registry.get(type), s = def ? def.size : {minW:1, minH:1, w:4, h:6};

@@ -696,3 +696,16 @@ table.tt{width:100%;border-collapse:collapse}
 .stp .step{border:0;border-radius:0;background:none;width:30px;height:auto}
 .stp .step:hover:not(:disabled){background:var(--line2)}
 .stp input[type=number]{border:0;background:none;box-shadow:none;border-radius:0;text-align:center;height:32px;flex:1 1 auto}
+
+/* flag ring: the frame is the padding box minus the content box (mask), so the page underneath stays clickable */
+#flagRing{position:fixed;inset:0;z-index:9999;pointer-events:none;padding:14px;background:#888;
+  -webkit-mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;animation:flagBlink 1s steps(1) infinite}
+#flagRing[hidden]{display:none}
+#flagRing[data-flag=green]{background:#1f9d55}#flagRing[data-flag=yellow]{background:#f5c518}#flagRing[data-flag=blue]{background:#2f6fde}
+#flagRing[data-flag=white]{background:#f2f2f2}#flagRing[data-flag=orange]{background:#ff7a1a}#flagRing[data-flag=red]{background:#d61f2c}
+#flagRing[data-flag=black]{background:#000;box-shadow:inset 0 0 0 3px #f2f2f2}
+#flagRing[data-flag=penalty]{background:repeating-linear-gradient(45deg,#000 0 14px,#ff7a1a 0 28px)}
+#flagRing[data-flag=chequered]{background:repeating-conic-gradient(#f2f2f2 0 25%,#111 0 50%) 0 0/28px 28px;animation:none}
+@keyframes flagBlink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){#flagRing{animation:none}}
