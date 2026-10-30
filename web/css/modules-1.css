@@ -27,6 +27,7 @@ svg.spark circle{fill:var(--txt)}
 
 /* ---------- pit lane ---------- */
 .pa-now{margin-bottom:8px}
+.pa-now td.drv{max-width:none;width:100%}   /* the name takes the slack, so # and "in lane" hug their content */
 
 /* ---------- you vs focus car ---------- */
 .sc-int{margin-top:8px}

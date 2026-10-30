@@ -385,3 +385,4 @@ Python standard library only. Windows, since that is where ACC runs.
 - Shared memory layout: Kunos' *ACC Shared Memory Documentation* 1.8.12.
 - How ACC's pitstop MFD is laid out and navigated: [Simulator Controller](https://github.com/SeriousOldMan/Simulator-Controller).
 - Nürburgring 24h layout traced from Wikimedia Commons *Circuit Nürburgring-2002-24h.svg* (Pitlane02, CC BY-SA 3.0).
+- Track outlines drawn from OpenStreetMap data: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), [ODbL](https://opendatacommons.org/licenses/odbl/1-0/).

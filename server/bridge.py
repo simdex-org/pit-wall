@@ -198,10 +198,41 @@ def acc_loop(pages, tel, sim):
                 STATE["summary"], STATE["t_summary"] = _rnd(summary), time.time()
             if tel.laps_ver != STATE["laps_ver"]:
                 STATE["laps"], STATE["laps_ver"] = _rnd(tel.laps), tel.laps_ver
+                lay = None if sim else tel.best_layout()   # the pretend track is not a real one
+                if lay:
+                    save_layout(raw["track"], lay)
             for sev, cat, text in tel.events:   # a LAP line reports the lap just completed, not the one in progress
                 log(sev, cat, text, raw["laps"] if cat == "LAP" else None)
             tel.events.clear()
             STATE["ver"] += 1
+
+
+TRACK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tracks")
+
+
+def track_file(name):
+    return os.path.join(TRACK_DIR, "".join(c if c.isalnum() or c in "_-" else "_" for c in str(name).lower())[:60] + ".json")
+
+
+def load_layout(name):
+    try:
+        with open(track_file(name), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def save_layout(name, lay):
+    """Keep a track's layout between sessions: replaced only by a better one (valid beats invalid, then faster). Never raises."""
+    old = load_layout(name)
+    if old and (not old.get("valid"), old.get("ms", 9e9)) <= (not lay["valid"], lay["ms"]):
+        return
+    try:
+        os.makedirs(TRACK_DIR, exist_ok=True)
+        with open(track_file(name), "w", encoding="utf-8") as f:
+            json.dump(dict(lay, track=name), f, separators=(",", ":"))
+    except OSError:
+        pass
 
 
 def field_err(e, said=set()):
@@ -349,6 +380,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             with LOCK:
                 laps = FIELD["f"].car_laps(v) if FIELD["f"] else []
             return self.reply_json(200, {"car": v, "laps": laps})
+        if u.path == "/track":   # the saved layout of the track being driven: the map needs no lap of its own
+            with LOCK:
+                name = (STATE["reading"] or {}).get("reading", {}).get("fixed", {}).get("track")
+            lay = name and load_layout(name)
+            return self.reply_json(200, lay) if lay else self.reply_json(404, {})
         if self.path == "/":
             self.path = "/index.html"
         return super().do_GET()

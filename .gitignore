@@ -6,3 +6,4 @@ PitWall.exe
 build/
 dist/
 *.spec
+server/tracks/
