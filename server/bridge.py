@@ -457,6 +457,9 @@ def main():
                                                        "(default: updListenerPort in broadcasting.json; 0 turns field timing off, also with --simulate-acc)")
     ap.add_argument("--broadcast-password", help="connectionPassword for ACC's broadcasting (default: the one in broadcasting.json)")
     ap.add_argument("--sim-session", choices=("race", "quali"), default="race", help="with --simulate-acc: a race (default) or qualifying, ordered by best lap")
+    ap.add_argument("--sim-track", choices=("demo", "nordschleife"), default="demo", help="with --simulate-acc: the made-up circuit (default, 1:00 laps) "
+                                                                                     "or the Nordschleife 24h layout (8:17 laps)")
+    ap.add_argument("--sim-speed", type=float, default=1.0, help="with --simulate-acc: run the pretend session N times faster (e.g. 8)")
     args = ap.parse_args()
     hh, _, hp = args.http.rpartition(":")
     if not hh or not hp.isdigit():
@@ -470,8 +473,11 @@ def main():
 
     pages = None
     try:
-        pages = acc_telemetry.FakePages(session=1 if args.sim_session == "quali" else 2) if args.simulate_acc else acc_telemetry.AccPages()
-        TEL["t"] = acc_telemetry.Telemetry(STATE["config"])
+        t0, k = time.monotonic(), max(0.1, args.sim_speed)
+        clock = (lambda: t0 + (time.monotonic() - t0) * k) if args.simulate_acc else time.monotonic   # the pretend session's own time
+        pages = (acc_telemetry.FakePages(session=1 if args.sim_session == "quali" else 2, clock=clock, track=args.sim_track)
+                 if args.simulate_acc else acc_telemetry.AccPages())
+        TEL["t"] = acc_telemetry.Telemetry(STATE["config"], clock=clock)
         threading.Thread(target=acc_loop, args=(pages, TEL["t"], args.simulate_acc), daemon=True).start()
     except (OSError, AttributeError, TypeError) as e:   # not Windows: no named shared memory
         print(f"telemetry off: {e}")
