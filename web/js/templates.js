@@ -10,7 +10,7 @@ const BUILTIN_WS = {   // workspaces shared by several built-ins
   strategy: ['w-strategy', 'Strategy', [['stint-timeline', 0, 0, 12, 3], ['pit-plan', 0, 3, 6, 19], ['stop-options', 6, 3, 6, 8], ['race-plan', 6, 11, 3, 11], ['rejoin', 9, 11, 3, 7], ['rules', 9, 18, 3, 4]]],
   car: ['w-car', 'Car', [['tyres', 0, 0, 4, 11, {corrections:false}], ['brakes', 4, 0, 4, 6], ['press-fix', 4, 6, 4, 5], ['electronics', 8, 0, 4, 5], ['damage', 8, 5, 4, 6], ['tyre-history', 0, 11, 8, 11], ['weather', 8, 11, 4, 7], ['flags', 8, 18, 4, 4]]],
   laps: ['w-laps', 'Laps', [['laps', 0, 0, 8, 15], ['degradation', 0, 15, 8, 7], ['stops', 8, 0, 4, 7], ['debrief', 8, 7, 4, 15]]],
-  analysis: ['w-analysis', 'Analysis', [['lap-picker', 0, 0, 3, 22], ['traces', 3, 0, 6, 22], ['track-map', 9, 0, 3, 12, {colourBy:'delta', field:false, follow:false}], ['segments', 9, 12, 3, 10]]],
+  analysis: ['w-analysis', 'Analysis', [['lap-picker', 0, 0, 3, 22], ['traces', 3, 0, 6, 22], ['track-map', 9, 0, 3, 12, {field:false, follow:false}], ['segments', 9, 12, 3, 10]]],
   log: ['w-log', 'Log', [['event-log', 0, 0, 8, 22], ['notes', 8, 0, 4, 14], ['pit-log', 8, 14, 4, 8]]],
 };
 const BUILTIN_SRC = [
