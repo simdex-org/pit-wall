@@ -79,7 +79,9 @@ Limits, plainly:
 
 **Driver's PC** (Windows; ACC runs here), the easy way: download
 **[PitWall.exe](https://github.com/simdex-org/pit-wall/releases/latest/download/PitWall.exe)** into an empty folder and open it.
-It needs no Python. The first time, click **Download** to fetch Pit Wall into that folder. Windows may warn that the program is
+It needs no Python, not even for the one-time setup below: **Turn on field timing** and **Bind vJoy in ACC** are buttons in its
+window. **Stop** ends the connection without closing the program; **Start** brings it back. The first time, click **Download**
+to fetch Pit Wall into that folder. Windows may warn that the program is
 unknown (it is not signed): *More info → Run anyway*. Each time it opens, it checks GitHub, and **Update** brings the folder up
 to date with `main` (by `git pull` when the folder is a git clone).
 
@@ -107,7 +109,7 @@ The engineer's browser reaches the driver's PC on port **8765** over the VPN. No
    Set-NetConnectionProfile -InterfaceAlias "Hamachi" -NetworkCategory Private
    ```
 
-   Then, the first time `bridge.py` starts, allow Python on **Private** networks only. Hamachi may need the command again after it
+   Then, the first time Pit Wall starts, allow PitWall.exe (or Python) on **Private** networks only. Hamachi may need the command again after it
    reinstalls its adapter. (ZeroTier's and Tailscale's adapters are named differently: `Get-NetConnectionProfile` lists them.)
 
 Using **ZeroTier** instead: create a network at my.zerotier.com, join it from both PCs with its network ID, tick *Auth* for both
@@ -145,7 +147,8 @@ Wall. Any arguments given to the exe go to `bridge.py` (e.g. `PitWall.exe --simu
 ### Field timing: the other cars
 
 Standings, relative, battle, pit lane, rejoin and the cars on the map come from ACC's **broadcasting API**, which ACC only opens
-when its `broadcasting.json` says so. Once, with ACC closed:
+when its `broadcasting.json` says so. Once, with ACC closed: in PitWall.exe click **Turn on field timing** (it shows
+*✓ Field timing on* when it already is), or from a terminal:
 
 ```bash
 python server/acc_broadcast.py --enable
@@ -163,7 +166,8 @@ holding. A virtual controller avoids that: the MFD buttons are pressed on it, an
 
 1. Install [vJoy](https://github.com/BrunnerInnovation/vJoy/releases) (free, open source). In *Configure vJoy*, device 1 needs at least
    6 buttons (the default 8 is fine).
-2. Bind ACC's MFD to it, once. In a terminal in this folder:
+2. Bind ACC's MFD to it, once. In PitWall.exe switch on *Press the pit page through vJoy* and click **Bind vJoy in ACC**, or in
+   a terminal in this folder:
 
    ```bash
    python server/acc_pit.py --bind-vjoy
@@ -202,7 +206,7 @@ Four built-in templates, read-only:
 
 | Template | Workspaces |
 |---|---|
-| **Race engineer** | Live, Timing, Strategy, Car, Laps, Analysis, Log |
+| **Race engineer** | Live, Timing, Strategy, Car, Damage, Laps, Analysis, Log |
 | **Strategist** | Overview (standings, pit lane, map, stop options, battle, rejoin), Timing, Strategy, Laps, Log |
 | **Driver coach** | Live (map, live channels, lap timer, inputs, tyres, G-G), Laps, Analysis, Car, Log |
 | **Minimal** | Pit wall (map, relative, fuel to the flag, tyres), Pit (pit plan, fuel to the flag, pressure correction) |
@@ -250,7 +254,7 @@ ACC shares no rival inputs, fuel or tyres; the page never pretends it does.
 | Timing | Standings, Relative, Battle, Pit lane, You vs focus car, Session, Flags & penalties, Stint rules, Big number |
 | Strategy | Fuel, Fuel to the flag, Stint timeline, Stop options, Rejoin, Pit stops, Track & weather, Pace |
 | Pit | Pit stop (the plan), Pit sends (every send and its result), Pressure correction |
-| Car | Track map, Driver inputs, Lap, Tyres, Tyre history, Brakes, Electronics, Damage & engine, G-G, Live channels |
+| Car | Track map, Driver inputs, Lap, Tyres, Tyre history, Brakes, Electronics, Damage & engine, Car damage 3D, G-G, Live channels |
 | Laps / Analysis | Laps, Debrief, Lap picker, Traces, Where the time goes |
 | Log | Event log, Notes |
 
@@ -259,6 +263,32 @@ screen shows the same numbers. *Fuel to the flag* and *Stop options* agree on th
 and the ranking puts the fewest stops to the flag first, then the rejoin position, then the time lost. In practice and qualifying the
 page plans no fuel to a flag; it says how far the fuel goes. **ACC does not publish tyre wear**, so *Pace* shows what the tyres cost
 in lap time instead.
+
+### Car damage in 3D
+
+The **Damage** workspace (Race engineer) shows a generic GT3 (splitter, canards, hood vents, mirrors, side skirts, swan-neck wing,
+diffuser, wheels with their brakes, and under the bodywork the wishbones, track rods, steering and seat) painted by what ACC reports,
+from green (none) through yellow to red. Drag it to turn it any way, or jump to **3D, Top, Front, Rear, Left, Right**;
+**See-through** shows the suspension and steering through the bodywork. Each part's figure sits next to it.
+
+![Car damage 3D: a GT3 painted green to red by zone, with each zone's figure and every corner's suspension and pads](docs/damage-3d.png)
+
+![The same car from above, the front, the rear, the left, the right, and see-through](docs/damage-3d-views.png)
+
+What is painted, and from which of ACC's figures:
+
+| Part | ACC figure | Red at |
+|---|---|---|
+| Nose, splitter, canards, headlights, front fenders | bodywork damage, front zone | 100 (option: 50, 100, 200) |
+| Tail, wing, diffuser, tail lights | bodywork damage, rear zone | the same |
+| Left doors, sill, mirror, skirt / the same on the right | bodywork damage, left / right zone | the same |
+| Roof, pillars | bodywork damage, centre zone | the same |
+| Each wheel, its wishbones and (front) track rod | suspension damage of that corner | 0.30 (option: 0.10, 0.30, 1.00) |
+| Each brake (the ring inside the wheel) | pad thickness of that corner | the pads-low line (12 mm GT3); green 6 mm above it |
+
+ACC publishes bodywork damage only as those five numbers, without a unit or a maximum, which is why *red at* is an option. It does not
+publish broken glass, steering damage, engine damage, the wing on its own or tyre wear, so the glass, steering wheel and seat stay
+neutral and the wing takes the rear zone's colour; the page never invents those.
 
 ### Pit stop
 
@@ -381,7 +411,7 @@ docs/                    screenshots
 
 `web/js`, loaded in this order: `util.js` (helpers, units, formatters), `workspaces.js` (the `Pit` API, the module registry, the
 workspace grid and render scheduler), `templates.js` (built-in templates, `Tpl`), `appearance.js`, `editor.js` (edit mode, module
-options), `manager.js` (template manager, import and export, migration), `settings.js`, `recorder.js`, `charts.js`, the modules
+options), `manager.js` (template manager, import and export, migration), `settings.js`, `recorder.js`, `charts.js`, `car3d.js` (the GT3 mesh and its renderer), the modules
 (`mod-timing.js`, `mod-strategy.js`, `mod-pit.js`, `mod-car.js`, `mod-laps.js`, `mod-log.js`), and `main.js` (the feed, the chrome, keys, boot).
 
 The browser keeps its own things in `localStorage` under `pitwall.*`: templates, appearances, the active template, preferences,

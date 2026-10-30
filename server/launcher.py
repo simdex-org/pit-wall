@@ -2,6 +2,7 @@
 
     python server/launcher.py              the window (PitWall.exe is this file)
     python server/launcher.py --selftest
+    PitWall.exe --bridge ARGS              the bridge alone, as the window starts it (its own process, so Stop can end it)
     PitWall.exe --simulate-acc             any other arguments go to bridge.py as they are
 
 The window needs pip install customtkinter pillow (the bridge itself stays standard library only).
@@ -128,31 +129,52 @@ def bind_error(e, ip, port):
     return f"Cannot use {ip}:{port}: {e.strerror or e}"
 
 
-class Out(io.TextIOBase):
-    """The bridge's prints, into the window."""
-    def __init__(self, q):
-        self.q = q
-
-    def write(self, t):
-        self.q.put(t)
-        return len(t)
+def bridge_cmd(args):
+    """The command that runs the bridge in a process of its own: this exe (or this file) with --bridge."""
+    me = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-u", os.path.abspath(__file__)]
+    return me + ["--bridge"] + args
 
 
-def run_bridge(ip, port, key, vjoy, out):
-    sys.stdout = sys.stderr = out
-    sys.argv = ["bridge.py", "--http", f"{ip}:{port}", "--key", key, "--no-browser"] + (["--vjoy"] if vjoy else []) + sys.argv[1:]
-    srv = os.path.join(ROOT, "server")
-    sys.path.insert(0, srv)
-    spec = importlib.util.spec_from_file_location("bridge", os.path.join(srv, "bridge.py"))
+def bridge_child(args):
+    """PitWall.exe --bridge: the bridge, printing to the window through a pipe. When the window closes the pipe (Stop, or the
+    window is gone) the bridge stops as on Ctrl+C, so its atexit handlers run and the port is free again."""
+    import _thread
+    if sys.stdout is None:   # a windowed exe has no sys.stdout; the window's pipe is fd 1
+        sys.stdout = sys.stderr = open(1, "w", buffering=1, encoding="utf-8", errors="replace", closefd=False)
+    stdin = sys.stdin or open(0, "rb", closefd=False)
+
+    def watch():
+        try:
+            while stdin.read(1):
+                pass
+        except (OSError, ValueError):
+            pass
+        _thread.interrupt_main()
+    threading.Thread(target=watch, daemon=True).start()
+    sys.argv = ["bridge.py"] + args
+    sys.path.insert(0, os.path.join(ROOT, "server"))
+    spec = importlib.util.spec_from_file_location("bridge", os.path.join(ROOT, "server", "bridge.py"))
     mod = importlib.util.module_from_spec(spec)
     sys.modules["bridge"] = mod
-    spec.loader.exec_module(mod)
     try:
+        spec.loader.exec_module(mod)
         mod.main()
-    except SystemExit:
+    except (SystemExit, KeyboardInterrupt):
         pass
     except Exception as e:   # shown in the window rather than lost
         print(f"Pit Wall stopped: {e!r}")
+    print("Pit Wall stopped.")
+
+
+def server_mod(name):
+    """A module of server/, read from disk like the bridge (Update changes it; the exe carries only this launcher)."""
+    srv = os.path.join(ROOT, "server")
+    if srv not in sys.path:
+        sys.path.insert(0, srv)
+    spec = importlib.util.spec_from_file_location(name, os.path.join(srv, name + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def asset(name):   # bundled into the exe; from source it sits next to this file
@@ -308,8 +330,17 @@ def gui():
     ctk.CTkEntry(card, textvariable=key, **field).grid(row=4, column=1, sticky="we", padx=(0, 20))
     vjoy = ctk.BooleanVar(value=bool(prefs.get("vjoy")))
     ctk.CTkSwitch(card, text="Press the pit page through vJoy", variable=vjoy, font=font(13), text_color=TXT, fg_color=LINE,
-                  switch_width=44, switch_height=24, border_width=3, button_length=0, cursor="hand2",
-                  progress_color=ACC, button_color=TXT, button_hover_color="#ffffff").grid(row=5, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 18))
+                  switch_width=44, switch_height=24, border_width=3, button_length=0, cursor="hand2", command=lambda: vjoy_ok(),
+                  progress_color=ACC, button_color=TXT, button_hover_color="#ffffff").grid(row=5, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 12))
+    # the two one-time setups the README does from a terminal, here so the exe needs no Python
+    once = ctk.CTkFrame(card, fg_color="transparent")
+    once.grid(row=6, column=0, columnspan=2, sticky="we", padx=20, pady=(0, 18))
+    small = {"height": 32, "corner_radius": 6, "border_width": 1, "border_color": LINE, "fg_color": RAISE, "hover_color": LINE,
+             "text_color": TXT, "text_color_disabled": DIM, "font": font(13)}
+    fld_b = ctk.CTkButton(once, text="Turn on field timing", **small)
+    fld_b.pack(side="left", fill="x", expand=True, padx=(0, 6))
+    bind_b = ctk.CTkButton(once, text="Bind vJoy in ACC", **small)
+    bind_b.pack(side="left", fill="x", expand=True, padx=(6, 0))
     err = label(setup, "", 12, BAD, wraplength=460)
     err.pack(fill="x", pady=(6, 0))
     start = ctk.CTkButton(setup, text="Start Pit Wall", height=48, corner_radius=8, font=font(16, "bold"),
@@ -329,6 +360,49 @@ def gui():
     def can_start():
         on = have_code()
         start.configure(state="normal" if on else "disabled", fg_color=ACC if on else RAISE)
+        field_state()
+        vjoy_ok()
+
+    def say(text, color=BAD):
+        err.configure(text=text, text_color=color)
+
+    def field_port():   # ACC's broadcasting port, 0 when off or unreadable
+        try:
+            return server_mod("acc_broadcast").read_config()["port"]
+        except Exception:
+            return 0
+
+    def field_state():
+        on = have_code() and field_port()
+        fld_b.configure(text="✓  Field timing on" if on else "Turn on field timing", text_color=OK if on else TXT,
+                        state="normal" if have_code() else "disabled")
+
+    def field_on():
+        if field_port():
+            return say(f"Field timing is on (ACC's broadcasting port {field_port()}): the other cars come from it.", OK)
+        try:
+            text = server_mod("acc_broadcast").enable()
+            say(text, OK if text.startswith("Broadcasting") else BAD)
+        except Exception as e:
+            say(f"Could not turn field timing on: {e}")
+        field_state()
+    fld_b.configure(command=field_on)
+
+    def vjoy_ok():
+        bind_b.configure(state="normal" if vjoy.get() and have_code() else "disabled")
+
+    def bind():
+        bind_b.configure(state="disabled")
+        say("Switch to ACC, Options > Controls, and find the MFD actions. In 10 s the beeps start: click each action's binding when you "
+            "hear its beeps (1 pit page, 2 up, 3 down, 4 left, 5 right, 6 cycle MFD). Then save the controls.", MUT)
+        def work():
+            try:
+                server_mod("acc_pit").bind_vjoy()
+                return lambda: (say("Done: ACC's six MFD actions should show vJoy buttons 1 to 6.", OK), vjoy_ok())
+            except Exception as e:
+                return lambda: (say(f"vJoy binding failed (is vJoy installed, device 1 with 6 buttons?): {e}"), vjoy_ok())
+        later(work)
+    bind_b.configure(command=bind)
 
     def show_upd(kind, text):
         """ok: green; new (an update, or the first download): yellow; checking/busy: disabled; fail: Retry."""
@@ -367,28 +441,34 @@ def gui():
     def do_start():
         a, k = ip.get().strip(), key.get().strip()
         if not re.fullmatch(r"\d{1,5}", port.get().strip()) or not 0 < int(port.get()) < 65536:
-            return err.configure(text="The port is a number from 1 to 65535 (8765 if unsure).")
+            return say("The port is a number from 1 to 65535 (8765 if unsure).")
         if not re.fullmatch(r"[A-Za-z0-9_-]{4,64}", k):
-            return err.configure(text="The key: 4 to 64 letters, digits, - or _.")
+            return say("The key: 4 to 64 letters, digits, - or _.")
         p = int(port.get())
         s = socket.socket()
         try:
             s.bind((a, p))
         except OSError as e:
-            return err.configure(text=bind_error(e, a, p))
+            return say(bind_error(e, a, p))
         finally:
             s.close()
         with open(PREFS, "w") as f:
             json.dump({"ip": a, "port": p, "key": k, "vjoy": vjoy.get()}, f)
         setup.pack_forget()
-        run = ctk.CTkFrame(root, fg_color="transparent")
+        run = live["run"] = ctk.CTkFrame(root, fg_color="transparent")
         run.pack(fill="x", padx=28, pady=(20, 24))
         url = f"http://{a}:{p}/?key={k}"
         status = ctk.CTkFrame(run, fg_color=PANEL, border_color=LINE, border_width=1, corner_radius=10)
         status.pack(fill="x")
-        label(status, "●", 18, OK).pack(side="left", padx=(18, 8), pady=10)
-        label(status, "Running", 15, TXT, "bold").pack(side="left")
-        ctk.CTkLabel(status, text=f"{a}:{p}", font=ctk.CTkFont("Consolas", 13), text_color=MUT).pack(side="right", padx=18)
+        dot = label(status, "●", 18, OK)
+        dot.pack(side="left", padx=(18, 8), pady=10)
+        state = label(status, "Running", 15, TXT, "bold")
+        state.pack(side="left")
+        stop_b = ctk.CTkButton(status, text="Stop", width=84, height=32, corner_radius=6, font=font(13, "bold"), fg_color=RAISE,
+                               hover_color=BAD, border_width=1, border_color=BAD, text_color=TXT, command=lambda: stop())
+        stop_b.pack(side="right", padx=(0, 12))
+        ctk.CTkLabel(status, text=f"{a}:{p}", font=ctk.CTkFont("Consolas", 13), text_color=MUT).pack(side="right", padx=12)
+        live["stopping"] = lambda: (dot.configure(text_color=NEW), state.configure(text="Stopping…"), stop_b.configure(state="disabled"))
         label(run, "SEND THIS LINK TO YOUR ENGINEER", 11, MUT, "bold").pack(fill="x", pady=(18, 6))
         row = ctk.CTkFrame(run, fg_color="transparent")
         row.pack(fill="x")
@@ -412,12 +492,39 @@ def gui():
                              text_color=MUT, font=ctk.CTkFont("Consolas", 11), scrollbar_button_color=LINE, wrap="none")
         log.configure(state="disabled")
         log.pack(fill="x")
-        label(run, "Leave this window open (minimise it) while you drive. Closing it stops Pit Wall.", 12, DIM).pack(fill="x", pady=(12, 0))
+        label(run, "Leave this window open (minimise it) while you drive. Stop ends the connection; closing the window does too.", 12,
+              DIM, wraplength=520).pack(fill="x", pady=(12, 0))
         fit()
-        live["on"], live["log"] = True, log
-        out = queue.Queue()
-        live["out"] = out
-        threading.Thread(target=run_bridge, args=(a, p, k, vjoy.get(), Out(out)), daemon=True).start()
+        live["on"], live["log"], live["out"] = True, log, queue.Queue()
+        args = ["--http", f"{a}:{p}", "--key", k, "--no-browser"] + (["--vjoy"] if vjoy.get() else []) + sys.argv[1:]
+        proc = live["proc"] = subprocess.Popen(bridge_cmd(args), cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                               stderr=subprocess.STDOUT, creationflags=NOWIN)
+
+        def read():   # the bridge's lines into the log; when it ends (Stop, or it stopped by itself) back to the setup screen
+            for b in iter(proc.stdout.readline, b""):
+                live["out"].put(b.decode("utf-8", "replace"))
+            proc.wait()
+            q.put(stopped)
+        threading.Thread(target=read, daemon=True).start()
+
+    def stop():
+        """Ask the bridge to stop (closing its pipe: it ends as on Ctrl+C); after 3 s it is ended outright."""
+        proc = live.get("proc")
+        if not proc or proc.poll() is not None:
+            return
+        live["stopping"]()
+        try:
+            proc.stdin.close()
+        except OSError:
+            pass
+        root.after(3000, lambda: proc.poll() is None and proc.kill())
+
+    def stopped():
+        live["on"], live["proc"] = False, None
+        live["run"].destroy()
+        setup.pack(fill="x", padx=28, pady=(20, 24))
+        say("Pit Wall stopped. Start it again when you want.", MUT)
+        fit()
     start.configure(command=do_start)
 
     def pump():
@@ -438,8 +545,15 @@ def gui():
 
     def close():
         if not live["on"] or messagebox.askokcancel("Pit Wall", "Stop Pit Wall? Your engineer loses the dashboard."):
+            proc = live.get("proc")
+            if proc and proc.poll() is None:   # closing its pipe stops it; give it a moment, then end it
+                try:
+                    proc.stdin.close()
+                    proc.wait(3)
+                except (OSError, subprocess.TimeoutExpired):
+                    proc.kill()
             root.destroy()
-            os._exit(0)   # the bridge's threads (and the keyboard hook) end with the process
+            os._exit(0)
     root.protocol("WM_DELETE_WINDOW", close)
     root.bind("<Return>", lambda e: live["on"] or (do_start() if have_code() else do_update()))
     if have_code():
@@ -466,11 +580,34 @@ def selftest():
     extract(buf.getvalue(), os.path.join(d, "pw"))
     assert open(os.path.join(d, "pw", "server", "bridge.py")).read() == "x" and not os.path.exists(os.path.join(d, "evil.txt"))
     shutil.rmtree(d)
-    print("ok: address picked Hamachi first, zip written into the folder only")
+    import ast   # the exe has no Python of its own to fall back on: every module the server imports must be imported here too
+    mods = lambda f: {a.name for n in ast.walk(ast.parse(open(f, encoding="utf-8").read())) if isinstance(n, ast.Import) for a in n.names} | \
+        {n.module for n in ast.walk(ast.parse(open(f, encoding="utf-8").read())) if isinstance(n, ast.ImportFrom) and n.module and not n.level}
+    srv = os.path.dirname(os.path.abspath(__file__))
+    need = set().union(*(mods(os.path.join(srv, f)) for f in ("bridge.py", "acc_telemetry.py", "acc_broadcast.py", "acc_pit.py")))
+    missing = need - mods(os.path.abspath(__file__)) - {"acc_telemetry", "acc_broadcast", "acc_pit"}
+    assert not missing, f"import these in launcher.py and rebuild PitWall.exe: {sorted(missing)}"
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    p = subprocess.Popen(bridge_cmd(["--simulate-acc", "--broadcast-port", "0", "--http", f"127.0.0.1:{port}", "--key", "selftest", "--no-browser"]),
+                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=NOWIN)
+    lines = []
+    for b in iter(p.stdout.readline, b""):
+        lines.append(b.decode(errors="replace"))
+        if "Pit Wall on" in lines[-1]:
+            break
+    assert urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5).status == 200, lines
+    p.stdin.close()   # Stop
+    assert p.wait(10) == 0 and "Pit Wall stopped." in p.stdout.read().decode(), "the bridge did not stop when its pipe closed"
+    print("ok: address picked Hamachi first, zip written into the folder only, every server import bundled, Stop ends the bridge")
 
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["--selftest"]:
         selftest()
+    elif sys.argv[1:2] == ["--bridge"]:
+        bridge_child(sys.argv[2:])
     else:
         gui()
