@@ -53,26 +53,6 @@ svg.spark circle{fill:var(--txt)}
 .rp-f input{width:9ch;text-align:right}
 .rp-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 
-/* ---------- stint timeline (svg in px; labels inside) ---------- */
-.stl-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
-.stl-wrap>svg{position:absolute;inset:0;display:block}
-.stl text{font:500 var(--t-xs) var(--num);fill:var(--mut)}
-.stl .stl-top{fill:var(--txt);font-weight:600;letter-spacing:.04em}
-.stl .stl-t{fill:var(--txt)}
-
-.stl .stl-ax{fill:var(--dim)}
-.stl-base,.stl-tick{stroke:var(--line);stroke-width:1}
-.stl-win{fill:none;stroke:var(--mut);stroke-width:1;stroke-dasharray:2 2}
-.stl-st{fill:var(--line2);stroke:var(--dim);stroke-width:1}
-.stl-st.wet,.stl-cur.wet{stroke:var(--cold);stroke-width:1.5}
-.stl-cur{fill:var(--raise);stroke:var(--txt);stroke-width:1}
-.stl-fuel{fill:none;stroke:var(--txt);stroke-width:1}
-.stl-fuel.short{stroke:var(--bad)}
-.stl-hl{stroke:var(--bad);stroke-width:1.5;stroke-opacity:.6}
-.stl-box{stroke:var(--warn);stroke-width:1.5;stroke-dasharray:4 3}
-.stl-flag{stroke:var(--txt);stroke-width:1.5}
-.stl-now{stroke:var(--txt);stroke-width:1}
-.stl-nowm{fill:var(--txt)}
 
 /* ---------- stop options ---------- */
 .tt.so tr.so-best>td{font-weight:700;color:var(--txt)}
@@ -152,7 +132,6 @@ svg.spark circle{fill:var(--txt)}
 /* ---------- pressure correction ---------- */
 
 .pf-acts{margin-top:8px}
-.stl .stl-wt{fill:var(--mut);font-weight:600;letter-spacing:.04em}
 .rp-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 8px}
 .rp-g .rp-f{flex-direction:column;align-items:stretch;gap:2px;font-size:var(--t-xs)}
 .rp-g .rp-f input{width:100%}
@@ -167,3 +146,13 @@ svg.spark circle{fill:var(--txt)}
 .pc-pressures .pr-l{align-self:auto}
 .pc-pressures .pr-meta{justify-content:center;align-self:auto}
 .pc-pressures .pp-in{justify-self:center;width:100%;max-width:190px;justify-content:center}
+
+/* ---------- fuel & stints calculator ---------- */
+.fc-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:4px 16px}
+.fc-in{display:inline-flex;align-items:center;gap:4px}.fc-in .u{min-width:3ch}
+.fc-in input[type=text]{width:8ch}
+.fc-h{margin-top:12px}
+.fc-bar{display:flex;gap:2px;margin:8px 0;min-height:3.2em}
+.fc-seg{min-width:0;overflow:hidden;padding:4px 6px;background:var(--line2);border:1px solid var(--dim);font:500 var(--t-xs) var(--num);color:var(--txt);white-space:nowrap}
+.fc-seg span{color:var(--mut)}
+.fc-op tbody tr{cursor:pointer}

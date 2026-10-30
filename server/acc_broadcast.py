@@ -473,7 +473,8 @@ class Field:
         return sum(ok) / len(ok) if ok else None
 
     def _order(self):
-        return sorted(self.cars.items(), key=lambda kv: (kv[1]["pos"] or 999, kv[0]))
+        # ACC's positions come in per-car packets, so a snapshot can hold two P11s and no P26: a tie goes to whoever is further round
+        return sorted(self.cars.items(), key=lambda kv: (kv[1]["pos"] or 999, -(kv[1]["dist"] or 0) if self.mode() == "race" else 0, kv[0]))
 
     def _compute(self):
         for c in self.cars.values():
@@ -481,7 +482,12 @@ class Field:
         order = self._order()
         race = self.mode() == "race"
         p1 = order[0][1] if order else None
+        cup_n = {}
         for k, (i, c) in enumerate(order):
+            c["pos"] = k + 1   # the order is the truth: ranks always run 1..n without repeats
+            cup = self.ent.get(i, {}).get("cup")
+            if c["cpos"]:
+                cup_n[cup] = c["cpos"] = cup_n.get(cup, 0) + 1
             if k == 0:
                 c["gap"], c["gap_laps"], c["int"], c["int_laps"] = 0 if race or c["best"] else None, 0, None, 0
             elif race:

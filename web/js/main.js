@@ -86,9 +86,35 @@ setInterval(() => Pit.dirty('tick'), 1000);
 // Page log lines (Pit.log) reach ctx.log on the next frame.
 WS.hooks.push(d => { if (d.has('log')) mergeLog(); ctx.now = performance.now(); });
 
+// ---------- flag ring: a big outline round the window while a flag is out ----------
+// The driver's flag first, then the track's. All blink; chequered is steady and stays latched until the session ends or the game drops.
+const flagRing = document.body.appendChild(Object.assign(document.createElement('div'), {id:'flagRing', hidden:true}));
+let chequeredKey = null;
+function flagNow(){
+  const r = ctx.r;
+  if (!r || !ctx.stale || r.session.status === 'Off') { chequeredKey = null; return null; }
+  const s = r.session, g = s.global_flags || {}, f = FLAGS[s.flag], key = s.session_index + '/' + s.kind;
+  if (chequeredKey && chequeredKey !== key) chequeredKey = null;   // a new session
+  if (f === 'chequered' || g.chequered) chequeredKey = key;
+  if (chequeredKey) return 'chequered';
+  if (g.red) return 'red';
+  if (f === 'black' || f === 'penalty') return f;
+  if (f === 'blue') return 'blue';
+  if (f === 'yellow' || g.yellow || g.y1 || g.y2 || g.y3) return 'yellow';
+  if (f === 'orange') return 'orange';
+  if (f === 'white' || g.white) return 'white';
+  if (f === 'green' || g.green) return 'green';
+  return null;
+}
+WS.hooks.push(d => {
+  if (!d.has('reading') && !d.has('tick')) return;
+  const f = flagNow();
+  if (flagRing.dataset.flag !== (f || '')) { flagRing.dataset.flag = f || ''; flagRing.hidden = !f; }
+});
+
 // ---------- topbar: template switcher, workspace tabs, clock, link ----------
 const ADVICE_MODS = {press_front:['tyres', 'press-fix'], press_rear:['tyres', 'press-fix'], tyres_cold:['tyres'], brakes_hot:['brakes', 'tyres'], pads_low:['brakes'],
-  fuel_box:['race-plan', 'fuel', 'stint-timeline'], fuel_low:['race-plan', 'fuel', 'stint-timeline'], fuel_flag:['race-plan', 'fuel', 'stint-timeline'],
+  fuel_box:['race-plan', 'fuel', 'fuel-calc'], fuel_low:['race-plan', 'fuel', 'fuel-calc'], fuel_flag:['race-plan', 'fuel', 'fuel-calc'],
   damage:['damage'], rain_coming:['weather'], window_closing:['rules', 'race-plan'], stint_limit:['rules'], penalty:['flags']};
 // Per workspace: the number is the distinct advice lines (warning or worse) that concern one of its modules, counted the
 // same way from every tab. The mounted modules' own alerts (only the open workspace has them) may raise the level, never

@@ -99,7 +99,7 @@ const NARROW_AUTO = new Set(['pit-plan', 'standings', 'stop-options', 'laps', 's
   'race-plan', 'rejoin', 'rules', 'brakes', 'weather', 'damage', 'electronics', 'flags', 'press-fix', 'battle', 'relative', 'car-status']);   // not tyres: its drawing fills the module's height
 const NARROW_MIN_ROWS = {tyres:11};   // narrow: the fewest rows a fixed-height module gets, whatever its template height
 // narrow: the stacking order (DOM order, so Tab and screen readers follow it), what the engineer needs first on a phone; the rest 10, in reading order
-const NARROW_ORDER = {'race-plan':1, 'relative':2, 'lap-timer':2, 'tyres':3, 'press-fix':4, 'rejoin':5, 'stop-options':6, 'battle':7, 'standings':8, 'stint-timeline':9, 'pit-plan':20};
+const NARROW_ORDER = {'race-plan':1, 'relative':2, 'lap-timer':2, 'tyres':3, 'press-fix':4, 'rejoin':5, 'stop-options':6, 'battle':7, 'standings':8, 'fuel-calc':9, 'pit-plan':20};
 const STALE_MS = {reading:['r', 1500], summary:['s', 3000], field:['field', 2000]};
 const ALERTS = new Map();          // instance id -> [level, count], for the workspace tab badges
 

@@ -1,5 +1,5 @@
 'use strict';
-// mod-strategy.js (D1): fuel, race-plan, stint-timeline, stop-options, rejoin, stops, weather, degradation.
+// mod-strategy.js (D1): fuel, race-plan, stop-options, rejoin, stops, weather, degradation.
 // The page computes no strategy maths: every fuel, lap, stop, loss and rejoin figure is summary.strategy (ctx.st), worked
 // out once in the bridge (Telemetry.strategy) so that every screen on every PC shows the same numbers.
 (() => {
@@ -92,49 +92,6 @@
       if (km && !msg.textContent) msg.textContent = km;
       const sev = Math.max(0, ...(c.s.advice || []).filter(a => /^fuel_(low|box|flag)$/.test(a.id)).map(a => a.severity | 0));
       inst.setAlert(crit ? 2 : Math.min(2, sev));   // header and body agree: BOX THIS LAP is red in both
-    }});
-
-  // ---------- stint timeline ----------
-  Pit.module({type:'stint-timeline', title:'Stint timeline', group:'Strategy', blurb:'The race on one lap axis: stints done, fuel range, pit window, planned box and the flag.',
-    size:{w:12, h:4, minW:6, minH:3}, needs:['summary', 'reading', 'laps'],
-    build(el){ el.innerHTML = '<div class="stl-wrap"></div>'; },
-    render(c, inst){
-      const ss = c.r && c.r.session, st = c.st, s = c.s; if (!ss || !st) return inst.setState('empty', 'Waiting for the driver and the bridge strategy.');
-      const wrap = inst.body.firstChild, W = wrap.clientWidth, H = wrap.clientHeight; if (W < 50 || H < 30) return;
-      const done = ss.completed_laps, now = done + ss.track_position, lf = st.laps_of_fuel || 0, lapN = ss.lap_number != null ? ss.lap_number : done + 1, race = isRace(c);
-      const total = race && st.laps_to_go != null ? done + st.laps_to_go : Math.ceil(now + lf + 2);
-      const stints = (s.stints || []), cur = stints.find(x => x.current), w = st.pit_window;
-      const key = JSON.stringify([W, H, total, Math.round(now * 10), Math.round(lf * 10), stints, w, st.box_by_lap, st.stops_needed, st.laps_src]);
-      if (inst.state.k === key) return; inst.state.k = key;
-      const pl = 4, pr = 4, top = 14, bot = H - 14, x = L => (pl + clamp(L, 0, total) / Math.max(1, total) * (W - pl - pr)).toFixed(1), bw = (a, b) => Math.max(0, x(b) - x(a)).toFixed(1);
-      const lab = (x0, wd, y, t, cls) => wd > t.length * 6 + 6 ? `<text class="${cls || 'stl-t'}" x="${(+x0 + 4).toFixed(1)}" y="${y}">${t}</text>` : '';
-      const pid = 'stlh-' + inst.id, mid = ((top + bot) / 2 + 4).toFixed(1);
-      let g = `<defs><pattern id="${pid}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="stl-hl" x1="0" y1="0" x2="0" y2="6"/></pattern></defs>`;
-      const step = [1, 2, 5, 10, 20, 50].find(k => total / k * 36 < W) || 100;
-      for (let L = 0; L <= total; L += step) g += `<line class="stl-tick" x1="${x(L)}" y1="${bot}" x2="${x(L)}" y2="${bot + 3}"/><text class="stl-ax" x="${x(L)}" y="${H - 1}" text-anchor="${L === 0 ? 'start' : x(L) > W - pr - 12 ? 'end' : 'middle'}">${L}</text>`;
-      g += `<line class="stl-base" x1="${pl}" y1="${bot}" x2="${W - pr}" y2="${bot}"/>`;
-      const boxOn = race && st.stops_needed > 0 && st.box_by_lap != null;
-      if (w && race) {   // a pit window is a race rule; its label moves to the band's right end only when the BOX line crosses it
-        const wt = `WINDOW L${w.open_lap}–${w.close_lap}`, wd = bw(w.open_lap - 1, w.close_lap), bx = boxOn ? x(st.box_by_lap) - x(w.open_lap - 1) : -1e9, near = bx >= -2 && bx < wt.length * 6 + 12;
-        g += `<rect class="stl-win" x="${x(w.open_lap - 1)}" y="${top}" width="${wd}" height="${bot - top}"/>`
-          + (!near ? lab(x(w.open_lap - 1), wd, top + 9, wt, 'stl-wt') : wd > wt.length * 6 + 6 ? `<text class="stl-wt" x="${(x(w.close_lap) - 4).toFixed(1)}" y="${top + 9}" text-anchor="end">${wt}</text>` : '');
-      }
-      const by = top + 13, bh = bot - top - 16;   // the window's label sits above the bars, inside its band
-      for (const t of stints.filter(t => !t.current && t.from != null)) {
-        const a = t.from - 1, b = t.to;
-        g += `<rect class="stl-st${t.wet ? ' wet' : ''}" x="${x(a)}" y="${by}" width="${bw(a, b)}" height="${bh}"/>` + lab(x(a), bw(a, b), mid, `S${t.n} · ${t.wet ? 'W' : 'D'}${t.tyre_set || ''} · ${t.laps} L`);
-      }
-      const cs = cur && cur.from != null ? cur.from - 1 : (stints.filter(t => !t.current && t.to != null).map(t => t.to).pop() || 0);
-      if (cur) g += `<rect class="stl-cur${cur.wet ? ' wet' : ''}" x="${x(cs)}" y="${by}" width="${bw(cs, now)}" height="${bh}"/>` + lab(x(cs), bw(cs, now), mid, `S${cur.n} · ${cur.wet ? 'W' : 'D'}${cur.tyre_set || ''} · ${cur.laps} L`);
-      const fe = now + lf, short = race && fe < total;   // no flag outside races: nothing to be short of
-      // the label names where the bar ends (the box lap is the BOX line's), and is dropped rather than drawn across that line
-      const fw = boxOn && x(st.box_by_lap) > +x(now) ? Math.min(bw(now, fe), x(st.box_by_lap) - x(now) - 4) : bw(now, fe);
-      if (lf > 0) g += `<rect class="stl-fuel${short ? ' short' : ''}" x="${x(now)}" y="${by}" width="${bw(now, fe)}" height="${bh}"${short ? ` fill="url(#${pid})"` : ''}/>` + lab(x(now), fw, mid, short ? `fuel to ≈L${Math.ceil(fe)} · short of flag` : race ? 'fuel to the flag' : `fuel to ≈L${Math.ceil(fe)}`);
-      if (boxOn) g += `<line class="stl-box" x1="${x(st.box_by_lap)}" y1="${top}" x2="${x(st.box_by_lap)}" y2="${bot}"/><text class="stl-top" x="${x(st.box_by_lap)}" y="${top - 3}" text-anchor="middle">BOX L${st.box_by_lap}</text>`;
-      if (race && st.laps_to_go != null) g += `<line class="stl-flag" x1="${x(total)}" y1="${top}" x2="${x(total)}" y2="${bot}"/><text class="stl-top" x="${x(total)}" y="${top - 3}" text-anchor="end">FLAG ${st.laps_src === 'timed' ? '≈' : ''}L${total}</text>`;
-      g += `<line class="stl-now" x1="${x(now)}" y1="${top - 2}" x2="${x(now)}" y2="${bot}"/><path class="stl-nowm" d="M${x(now)} ${bot} l-4 6 h8 z"/>`;
-      wrap.innerHTML = `<svg class="stl" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Stint timeline: ${stints.length} stints, lap ${lapN} of about ${total}${short ? ', fuel short of the flag' : ''}">${g}</svg>`;
-      inst.setInfo(`lap ${lapN}${race && st.laps_to_go != null ? ` / ${st.laps_src === 'timed' ? '≈' : ''}${total}` : ''} · ${plural(stints.length, 'stint')}${race ? '' : ' · flag planned in races only'}`);
     }});
 
   // ---------- stop options ----------
