@@ -103,7 +103,8 @@ class AccMfd:
     """ACC's pit page on this PC. Keys go only to ACC: every press first checks ACC is the focused window."""
     ARROWS = {"up": 0x48, "down": 0x50, "left": 0x4B, "right": 0x4D}   # scan codes; games read scan codes, not virtual keys
 
-    VJOY_BUTTONS = {"pit": 1, "up": 2, "down": 3, "left": 4, "right": 5}   # bound to ACC's MFD actions in its Controls screen
+    VJOY_BUTTONS = {"pit": 1, "up": 2, "down": 3, "left": 4, "right": 5, "close": 6}   # bound to ACC's MFD actions in its Controls screen
+    CLOSE_SCAN = 0x52   # Insert, ACC's default "Cycle MFD": leaves the pit page for the next one (extended key)
     VJOY_DLL = r"C:\Program Files\vJoy\x64\vJoyInterface.dll"
 
     def __init__(self, pit_key="p", key_ms=40, vjoy=None):
@@ -119,7 +120,7 @@ class AccMfd:
         self.u.SetWindowsHookExW.restype = ctypes.c_void_p
         self.u.CallNextHookEx.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t, ctypes.c_ssize_t]
         self.u.CallNextHookEx.restype = ctypes.c_ssize_t
-        self.scan = dict(self.ARROWS, pit=self._scan_of(pit_key))
+        self.scan = dict(self.ARROWS, pit=self._scan_of(pit_key), close=self.CLOSE_SCAN)
         self.hold = key_ms / 1000   # ponytail: one knob for hold and gap; raise it if ACC misses presses at low frame rates
         self.waiting, self.vjoy = False, vjoy
         if vjoy:
@@ -225,7 +226,7 @@ class AccMfd:
                     time.sleep(0.2)
             return
         for _ in range(n):
-            ext = 1 if key in self.ARROWS else 0   # KEYEVENTF_EXTENDEDKEY: arrows are on the extended block
+            ext = 1 if key in self.ARROWS or key == "close" else 0   # KEYEVENTF_EXTENDEDKEY: arrows and Insert are on the extended block
             for flags in (8 | ext, 8 | ext | 2):   # KEYEVENTF_SCANCODE, then + KEYEVENTF_KEYUP
                 self._lift()
                 if not self.focused():
@@ -274,7 +275,8 @@ def bind_vjoy(dev=1):
     """Help bind ACC's MFD actions to the vJoy buttons: each one is pressed every second for 10 s, announced by beeps."""
     import winsound
     vj = vjoy_device(dev)
-    actions = [("pit", "MFD pitstop page"), ("up", "MFD up"), ("down", "MFD down"), ("left", "MFD left"), ("right", "MFD right")]
+    actions = [("pit", "MFD pitstop page"), ("up", "MFD up"), ("down", "MFD down"), ("left", "MFD left"), ("right", "MFD right"),
+               ("close", "Cycle MFD (closes the pit page)")]
     print("In ACC open Options > Controls and find the MFD actions. Starting in 10 s.")
     print("For each action below: when you hear its beeps, click that action's binding in ACC; the button presses itself.")
     for i, (key, name) in enumerate(actions, 1):
@@ -289,7 +291,7 @@ def bind_vjoy(dev=1):
             vjoy_press(vj, dev, AccMfd.VJOY_BUTTONS[key], 0.15)
             time.sleep(0.7)
     vj.RelinquishVJD(dev)
-    print("Done. Check in ACC that the five MFD actions show vJoy buttons 1 to 5.")
+    print("Done. Check in ACC that the six MFD actions show vJoy buttons 1 to 6.")
 
 
 # ---------- driving the page to a plan ----------
@@ -427,6 +429,8 @@ class FakeMfd:
     def press(self, key, n=1):
         for _ in range(n):
             self.presses += 1
+            if key == "close":   # leaves the pit page; where the cursor is does not matter until the page is opened again
+                continue
             if key == "pit":
                 self.cur = 0
             elif key in ("up", "down"):
