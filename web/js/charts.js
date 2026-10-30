@@ -172,7 +172,25 @@ function atSpl(pts, s){             // the point at ACC's lap fraction s (each p
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 const PIT_LOCS =['pit', 'entry', 'exit'];
-// view: {zoom, follow, dx, dy} (pan in metres); o: {field, labels, lines, colourBy}. Returns {hits:[{i,x,y}], info, empty, noField}.
+// The field comes every 250 ms or so: between updates each car carries on at its own pace, and the step a new update makes
+// is blended away over ~150 ms, so the dots glide instead of jumping. SMOOTH: car index -> {s, t, v, e, te, last}.
+const SMOOTH = new Map();
+function smoothSpl(car, now){
+  const wrap = d => d - Math.round(d), m = SMOOTH.get(car.i);
+  const shown = m => m.s + m.v * Math.min(now - m.t, 1000) + m.e * Math.exp(-(now - m.te) / 150);   // ponytail: 1 s at most on a stalled feed
+  if (!m) { SMOOTH.set(car.i, {s:car.spl, t:now, v:0, e:0, te:now, last:car.spl}); return car.spl; }
+  if (car.spl !== m.s) {
+    const d = wrap(car.spl - m.s), dt = now - m.t, was = shown(m), jump = Math.abs(d) > 0.05 || dt > 2000;   // a reset or a pit teleport: no glide
+    m.v = jump || dt < 30 ? (jump ? 0 : m.v) : m.v ? (m.v + d / dt) / 2 : d / dt;
+    m.e = jump ? 0 : Math.abs(wrap(was - car.spl)) < 0.02 ? wrap(was - car.spl) : 0;
+    m.s = car.spl; m.t = m.te = now;
+    if (jump) m.last = car.spl;
+  }
+  const p = shown(m), back = wrap(p - m.last);
+  if (back >= 0 || back <= -0.01) m.last = p;   // a correction never slides a car backwards: it holds until the car catches up
+  return ((m.last % 1) + 1) % 1;
+}
+// view: {zoom, follow, dx, dy} (pan in metres); o: {field, labels (none|number|short|gap), corners, size (s|m|l), lines, colourBy}. Returns {hits:[{i,x,y}], info, empty, noField}.
 function drawMap(cv, view, c, o){
   const [g, w, h] = fitCanvas(cv), tk = Pit.tokens(), r = c.r, out = {hits:[], info:'', empty:false, noField:false};
   if (!r) return out;
@@ -186,10 +204,12 @@ function drawMap(cv, view, c, o){
     g.lineJoin = g.lineCap = 'round';
     g.beginPath(); t.pit.forEach((q, i) => { const [x, y] = P(q); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.strokeStyle = tk.line; g.lineWidth = 2; g.setLineDash([4, 3]); g.stroke(); g.setLineDash([]);
     g.beginPath(); t.loop.forEach((q, i) => { const [x, y] = P(q); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.strokeStyle = tk.line; g.lineWidth = 8; g.stroke(); g.strokeStyle = tk.muted; g.lineWidth = 2; g.stroke();
-    g.font = `500 10px ${tk.font}`; g.fillStyle = tk.dim; g.textBaseline = 'middle'; for (const [x, y, s] of t.labels) g.fillText(s, ox + x * sc, oy + y * sc);
-    const pos = r.session.track_position, [x, y] = P(t.loop[clamp(Math.floor(pos * t.loop.length), 0, t.loop.length - 1)]);
-    meDisc(g, x, y, tk, r.session.in_pit_lane);
-    out.info = `${(pos * 100).toFixed(1)} % of lap · the racing line replaces this drawing after your first whole lap`;
+    if (o.corners !== false) { g.font = `500 ${Math.round(10 * mapScale(o))}px ${tk.font}`; g.fillStyle = tk.dim; g.textBaseline = 'middle'; for (const [x, y, s] of t.labels) g.fillText(s, ox + x * sc, oy + y * sc); }
+    const pos = r.session.track_position, [x, y] = P(t.loop[clamp(Math.floor(pos * t.loop.length), 0, t.loop.length - 1)]), now = performance.now();
+    const dots = o.field && c.field && c.bc && c.bc.state === 'live' ? [...c.cars.values()].filter(car => car.i !== c.me && car.spl != null)   // the field on the drawing too
+      .map(car => { const [sx, sy] = P(atFrac(t.loop, smoothSpl(car, now))); return {car, sx, sy}; }) : [];
+    drawField(g, tk, c, o, dots, x, y, c.focus !== 'self' ? c.cars.get(c.focus) : null, r.session.in_pit_lane, w, h, out);
+    out.info = `${(pos * 100).toFixed(1)} % of lap${dots.length ? ` · ${dots.length + 1} cars` : ''} · the racing line replaces this drawing after your first whole lap`;
     return out;
   }
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
@@ -197,9 +217,10 @@ function drawMap(cv, view, c, o){
   // the field: placed by spline on the best recorded line (no coordinate frame needed), else by broadcast x/z once checked
   const F = c.field, geo = best || lines[0] || L && {pts:L.pts}, cars = [];
   if (o.field && F && c.bc && c.bc.state === 'live') {
+    const now = performance.now();
     for (const car of c.cars.values()) {
       if (car.i === c.me) continue;
-      const q = geo ? atSpl(geo.pts, car.spl) : F.xz_ok && Array.isArray(car.xz) ? car.xz : null;
+      const q = geo && car.spl != null ? atSpl(geo.pts, smoothSpl(car, now)) : F.xz_ok && Array.isArray(car.xz) ? car.xz : null;
       if (q) cars.push([car, q]);
     }
     out.noField = !geo && !F.xz_ok;
@@ -245,45 +266,51 @@ function drawMap(cv, view, c, o){
     if (c.sel.cursor != null) { const [qx, qz] = atFrac(dGeo.pts, c.sel.cursor); g.strokeStyle = tk.text; g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(qx) - 6, Y(qz)); g.lineTo(X(qx) + 6, Y(qz)); g.moveTo(X(qx), Y(qz) - 6); g.lineTo(X(qx), Y(qz) + 6); g.stroke(); }
   }
   if (lines.length) { const [sx, sz] = (best || lines[0]).pts[0]; g.fillStyle = tk.text; g.fillRect(X(sx) - 5, Y(sz) - 1.5, 10, 3); }   // start/finish
-  // other cars: circles for GT3, squares for every other class; hollow in the pit lane; ring on the focus car
-  const dots = cars.map(([car, [x, z]]) => ({car, sx:X(x), sy:Y(z)}));
-  for (const {car, sx, sy} of dots) {
-    const pit = PIT_LOCS.includes(car.loc), sq = car.class && car.class !== 'GT3';
-    g.beginPath(); sq ? g.rect(sx - 4.5, sy - 4.5, 9, 9) : g.arc(sx, sy, 5, 0, 7);
-    if (pit) { g.strokeStyle = tk.muted; g.lineWidth = 1.5; g.stroke(); } else { g.fillStyle = tk.muted; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1; g.stroke(); }
-    if (car === (foc && foc[0])) { g.beginPath(); g.arc(sx, sy, 10, 0, 7); g.strokeStyle = tk.accent; g.lineWidth = 2; g.stroke(); }
-    out.hits.push({i:car.i, x:sx, y:sy});
-  }
-  const mx = X(p[0]), my = Y(p[2]);
-  meDisc(g, mx, my, tk, r.session.in_pit_lane);
-  if (o.labels !== 'none') {
-    // labels in priority order (focus car, then the nearest on track, then by position), each at the first of four spots
-    // whose box overlaps nothing placed yet (your disc counts); a label with no free spot is skipped, the dot stays
-    const fs = Math.round(clamp(Math.min(w, h) / 60, 10, 14));
-    g.font = `600 ${fs}px ${tk.num}`; g.textBaseline = 'middle'; g.textAlign = 'left';
-    const taken = [[mx - 9, my - 9, 18, 18], ...dots.map(d => [d.sx - 6, d.sy - 6, 12, 12])], hit = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
-    const meCar = c.cars && c.cars.get(c.me), meLb = (o.labels === 'short' && meCar && Pit.carName(meCar, 'code')) || 'YOU';   // your own car is named too
-    g.fillStyle = tk.me; g.fillText(meLb, mx + 10, my); taken.push([mx + 10, my - fs / 2, g.measureText(meLb).width, fs + 1]);
-    const pri = d => d.car === (foc && foc[0]) ? -1e9 : d.car.rel != null && isFinite(d.car.rel) ? Math.abs(d.car.rel) : 1e6 + (d.car.pos || 99);
-    for (const d of dots.slice().sort((a, b) => pri(a) - pri(b))) {
-      const lb = o.labels === 'short' ? Pit.carName(d.car, 'code') : d.car.num != null ? String(d.car.num) : ''; if (!lb) continue;
-      const tw = g.measureText(lb).width, th = fs + 1;
-      const spot = [[d.sx + 8, d.sy - th / 2], [d.sx - 8 - tw, d.sy - th / 2], [d.sx - tw / 2, d.sy - 8 - th], [d.sx - tw / 2, d.sy + 8]].map(([x, y]) => [x, y, tw, th])
-        .find(b => b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= w && b[1] + b[3] <= h && !taken.some(t => hit(b, t)));
-      if (!spot) continue;
-      taken.push(spot); g.fillStyle = d.car === (foc && foc[0]) ? tk.accent : tk.muted; g.fillText(lb, spot[0], spot[1] + th / 2);
-    }
-  }
+  const dots = cars.map(([car, [x, z]]) => ({car, sx:X(x), sy:Y(z)})), mx = X(p[0]), my = Y(p[2]);
+  drawField(g, tk, c, o, dots, mx, my, foc && foc[0], r.session.in_pit_lane, w, h, out);
   if (c.me != null) out.hits.push({i:c.me, x:X(p[0]), y:Y(p[2])});
   out.info = [lines.length ? `${lines.length} lap${lines.length > 1 ? 's' : ''}` : L ? 'saved layout' : 'first lap', best ? `● fastest traced L${best.n}` : '',
     REC.spread ? `line spread ${REC.spread.m.toFixed(1)} m` : '', cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · ');
   return out;
 }
-function meDisc(g, x, y, tk, pit){   // own car: a --me disc, --bg outline and a --bg centre dot; hollow in the pit lane
-  g.beginPath(); g.arc(x, y, 7, 0, 7);
+// the field's dots (and your own disc) with their labels, over a map already drawn; dots: [{car, sx, sy}] in canvas pixels
+function drawField(g, tk, c, o, dots, mx, my, foc, inPit, w, h, out){
+  const k = mapScale(o);
+  // other cars: circles for GT3, squares for every other class; hollow in the pit lane; ring on the focus car
+  for (const {car, sx, sy} of dots) {
+    const pit = PIT_LOCS.includes(car.loc), sq = car.class && car.class !== 'GT3';
+    g.beginPath(); sq ? g.rect(sx - 4.5 * k, sy - 4.5 * k, 9 * k, 9 * k) : g.arc(sx, sy, 5 * k, 0, 7);
+    if (pit) { g.strokeStyle = tk.muted; g.lineWidth = 1.5; g.stroke(); } else { g.fillStyle = tk.muted; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1; g.stroke(); }
+    if (car === foc) { g.beginPath(); g.arc(sx, sy, 10 * k, 0, 7); g.strokeStyle = tk.accent; g.lineWidth = 2; g.stroke(); }
+    out.hits.push({i:car.i, x:sx, y:sy});
+  }
+  meDisc(g, mx, my, tk, inPit, k);
+  if (o.labels !== 'none') {
+    // labels in priority order (focus car, then the nearest on track, then by position), each at the first of four spots
+    // whose box overlaps nothing placed yet (your disc counts); a label with no free spot is skipped, the dot stays
+    const fs = Math.round(clamp(Math.min(w, h) / 60, 10, 14) * k);
+    g.font = `600 ${fs}px ${tk.num}`; g.textBaseline = 'middle'; g.textAlign = 'left';
+    const taken = [[mx - 9 * k, my - 9 * k, 18 * k, 18 * k], ...dots.map(d => [d.sx - 6 * k, d.sy - 6 * k, 12 * k, 12 * k])], hit = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+    const meCar = c.cars && c.cars.get(c.me), meLb = (o.labels === 'short' && meCar && Pit.carName(meCar, 'code')) || 'YOU';   // your own car is named too
+    g.fillStyle = tk.me; g.fillText(meLb, mx + 10 * k, my); taken.push([mx + 10 * k, my - fs / 2, g.measureText(meLb).width, fs + 1]);
+    const pri = d => d.car === foc ? -1e9 : d.car.rel != null && isFinite(d.car.rel) ? Math.abs(d.car.rel) : 1e6 + (d.car.pos || 99);
+    for (const d of dots.slice().sort((a, b) => pri(a) - pri(b))) {
+      const lb = o.labels === 'gap' ? (d.car.rel != null && isFinite(d.car.rel) ? fmtRel(d.car.rel) : '') : o.labels === 'short' ? Pit.carName(d.car, 'code')
+        : d.car.num != null ? String(d.car.num) : ''; if (!lb) continue;
+      const tw = g.measureText(lb).width, th = fs + 1;
+      const o8 = 8 * k, spot = [[d.sx + o8, d.sy - th / 2], [d.sx - o8 - tw, d.sy - th / 2], [d.sx - tw / 2, d.sy - o8 - th], [d.sx - tw / 2, d.sy + o8]].map(([x, y]) => [x, y, tw, th])
+        .find(b => b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= w && b[1] + b[3] <= h && !taken.some(t => hit(b, t)));
+      if (!spot) continue;
+      taken.push(spot); g.fillStyle = d.car === foc ? tk.accent : tk.muted; g.fillText(lb, spot[0], spot[1] + th / 2);
+    }
+  }
+}
+function mapScale(o){ return {s:0.75, l:1.4}[o.size] || 1; }   // the map's Size option: cars, labels and corner names
+function meDisc(g, x, y, tk, pit, k = 1){   // own car: a --me disc, --bg outline and a --bg centre dot; hollow in the pit lane
+  g.beginPath(); g.arc(x, y, 7 * k, 0, 7);
   if (pit) { g.strokeStyle = tk.me; g.lineWidth = 2; g.stroke(); }
   else { g.fillStyle = tk.me; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1.5; g.stroke(); }
-  g.beginPath(); g.arc(x, y, 2, 0, 7); g.fillStyle = pit ? tk.me : tk.bg; g.fill();
+  g.beginPath(); g.arc(x, y, 2 * k, 0, 7); g.fillStyle = pit ? tk.me : tk.bg; g.fill();
 }
 // Wheel to zoom, drag to pan, double-click to follow; a click without a drag goes to onClick(x, y) in canvas pixels.
 function bindMapControls(cv, view, onChange, onClick){
