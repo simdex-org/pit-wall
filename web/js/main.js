@@ -6,7 +6,7 @@
 // Strings reach the DOM, so only these keys may stay strings; every other string becomes a number (NaN if it is not one).
 const TEXT_KEYS = new Set(['what', 'from', 'magic', 'game', 'driver', 'app_version', 'car_model', 'track', 'track_config', 'driver_name', 'kind', 'status',
   'compound', 'text', 'id', 'track_status', 'car_class', 'loc', 'mode', 'first', 'last', 'short', 'team', 'model_name', 'class', 'cup_name', 'name', 'cat',
-  'by', 'msg', 'state', 'fuel_and_tyres', 'lap_ref_src', 'laps_src', 'best_src', 'drive_loss_src', 'refuel_src', 'tyre_src', 'stops_why', 'src', 'label', 'only']);
+  'by', 'msg', 'state', 'fuel_and_tyres', 'lap_ref_src', 'laps_src', 'best_src', 'drive_loss_src', 'refuel_src', 'tyre_src', 'stops_why', 'src', 'label', 'only', 'busy']);
 const numbersOnly = (o, k) => typeof o === 'string' ? (TEXT_KEYS.has(k) ? o : Number(o))
   : Array.isArray(o) ? o.map(v => numbersOnly(v, k)) : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([kk, v]) => [kk, numbersOnly(v, kk)])) : o;
 
@@ -277,7 +277,7 @@ function renderEngBar(){
   if (s) { D.prevAdvice = ids; D.seenSummary = true; }
   // right: the bridge, rate, field, pit control and template; Pit.say() messages replace it for 6 s
   const say = Pit._say && Pit._say.until > performance.now() ? Pit._say : null, info = $('engInfo');
-  const pit = !ctx.pit ? 'pit off' : ctx.pitJob && ctx.pitJob.state === 'running' ? 'pit busy' : !Pit.key ? 'pit: no key' : ctx.pit.status === 'live' ? 'pit ready' : 'pit off';
+  const pit = !ctx.pit ? 'pit off' : (ctx.pitJob && ctx.pitJob.state === 'running') || ctx.pit.busy ? (ctx.pit.waiting_lift ? 'pit busy: driver must lift' : 'pit busy') : !Pit.key ? 'pit: no key' : ctx.pit.status === 'live' ? 'pit ready' : 'pit off';
   const fld = fieldLive() ? `field ${ctx.cars.size} cars` : 'field off';
   const txt = say ? say.text : `bridge ${location.host} · ${ctx.live ? Math.round(D.rx.length / 2) : 0} Hz · ${fld} · ${pit} · ${Tpl.cur.name}`;
   if (info.textContent !== txt) { info.textContent = txt; info.className = 'eng-info' + (say ? ' say s-' + (['dim', 'warn', 'bad'][say.sev] || 'dim') : ''); }

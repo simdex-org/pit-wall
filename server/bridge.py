@@ -47,7 +47,7 @@ STATE = {"reading": None, "summary": None, "t_reading": 0.0, "t_summary": 0.0, "
          "pit_log": [], "pit_log_ver": 0, "config": acc_telemetry.clean_config({}), "config_ver": 0,
          "bc": {"state": "off", "msg": "", "port": 0}}
 LOCK = threading.Lock()
-PIT = {"mfd": None, "key": "", "busy": threading.Lock()}
+PIT = {"mfd": None, "key": "", "busy": threading.Lock(), "doing": "", "closed_at": 0.0}   # doing: what holds busy, "plan" or "close"
 FIELD = {"f": None}    # the acc_broadcast.Field (or FakeField); only touched under LOCK
 CTX = {"hint": None, "mandatory": None, "loss_ms": None}   # what the broadcast thread needs from the telemetry thread
 TEL = {"t": None}
@@ -64,10 +64,11 @@ def _rnd(o):
     return o
 
 
-def log(sev, cat, text):
-    """One line of the bridge log. Call under LOCK."""
+def log(sev, cat, text, lap=None):
+    """One line of the bridge log, stamped with the lap in progress unless lap is given. Call under LOCK."""
     STATE["log_seq"] += 1
-    STATE["log"].append({"seq": STATE["log_seq"], "t": round(time.time(), 3), "lap": STATE["lap"], "sev": sev, "cat": cat, "text": text})
+    STATE["log"].append({"seq": STATE["log_seq"], "t": round(time.time(), 3), "lap": STATE["lap"] if lap is None else lap,
+                         "sev": sev, "cat": cat, "text": text})
     del STATE["log"][:-500]
     STATE["ver"] += 1
 
@@ -77,7 +78,7 @@ def pit_snapshot():
         if not PIT["mfd"]:
             return None
         s = PIT["mfd"].read()
-        s["busy"] = PIT["busy"].locked()   # also a Close pit page waiting for the driver to lift, which has no pit_job
+        s["busy"] = PIT["doing"] if PIT["busy"].locked() else ""   # "plan" or "close" (a Close pit page has no pit_job)
         return s
     except (OSError, ValueError):
         return None
@@ -92,6 +93,7 @@ def set_job(**job):
 def close_page():
     try:
         PIT["mfd"].press("close")
+        PIT["closed_at"] = time.time()
         sev, text = 0, "Cycle MFD sent to close the pit page"   # what was pressed: ACC does not say which MFD page is showing
     except Exception as e:   # not focused, vJoy gone: said in the log rather than lost
         sev, text = 2, f"Could not close the pit page: {e}"
@@ -196,8 +198,8 @@ def acc_loop(pages, tel, sim):
                 STATE["summary"], STATE["t_summary"] = _rnd(summary), time.time()
             if tel.laps_ver != STATE["laps_ver"]:
                 STATE["laps"], STATE["laps_ver"] = _rnd(tel.laps), tel.laps_ver
-            for e in tel.events:
-                log(*e)
+            for sev, cat, text in tel.events:   # a LAP line reports the lap just completed, not the one in progress
+                log(sev, cat, text, raw["laps"] if cat == "LAP" else None)
             tel.events.clear()
             STATE["ver"] += 1
 
@@ -297,7 +299,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not snap or snap.get("status") != "live":
                 return self.reply(409, "ACC is not live on the driver's PC")
             if not PIT["busy"].acquire(blocking=False):
-                return self.reply(409, "a plan is still being applied")
+                return self.reply(409, "a plan is still being applied" if PIT["doing"] == "plan" else "the pit page is already being closed")
+            if time.time() - PIT["closed_at"] < 2:   # a second Cycle MFD would move the driver's MFD on to another page
+                PIT["busy"].release()
+                return self.reply(409, "the pit page was just closed; wait 2 s")
+            PIT["doing"] = "close"
             threading.Thread(target=close_page, daemon=True).start()
             return self.reply(202, "closing")
         if self.path == "/config":
@@ -317,7 +323,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except ValueError as e:
             return self.reply(400, str(e))
         if not PIT["busy"].acquire(blocking=False):
-            return self.reply(409, "a plan is still being applied")
+            return self.reply(409, "a plan is still being applied" if PIT["doing"] == "plan" else "the pit page is being closed")
+        PIT["doing"] = "plan"
         threading.Thread(target=run_plan, args=(plan, self.client_address[0]), daemon=True).start()
         self.reply(202, "applying")
 
@@ -433,6 +440,11 @@ def start_field(args, pages):
 
 
 def main():
+    for s in (sys.stdout, sys.stderr):   # line by line also when redirected to a file (None under pythonw)
+        try:
+            s.reconfigure(line_buffering=True)
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--http", default="127.0.0.1:8765", help="where the page is served: this PC's VPN address and a port (default 127.0.0.1:8765, this PC only)")
     ap.add_argument("--no-browser", action="store_true", help="do not open the page automatically")
@@ -468,11 +480,12 @@ def main():
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
     try:
         server = Server((hh, int(hp)), functools.partial(Handler, directory=here))
-    except OSError as e:   # 10049: an address of another PC (often the other person's Hamachi address); 10048: port in use
+    except OSError as e:   # 10049: an address of another PC (often the other person's Hamachi address); 10048: port in use; 10013: reserved by Windows
         mine = sorted({a[4][0] for a in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)})
         print(f"Cannot serve on {args.http}: {e.strerror or e}")
-        if getattr(e, "winerror", None) == 10048 or e.errno == 98:
-            print(f"Port {hp} is already in use: another bridge is running, or pass another port, e.g. --http {hh}:8766")
+        if getattr(e, "winerror", None) in (10048, 10013) or e.errno in (98, errno.EADDRINUSE, errno.EACCES):
+            print(f"Port {hp} is in use or reserved: another bridge or program has it, or Windows reserves it "
+                  f"(netsh int ipv4 show excludedportrange tcp). Pass another port, e.g. --http {hh}:8766")
         elif getattr(e, "winerror", None) == 10049 or e.errno == errno.EADDRNOTAVAIL:
             print("That address is not one of this PC's. Use this PC's own VPN address (Hamachi's is 25.x.x.x):")
             rest = " ".join(a for a in sys.argv[1:] if a not in (args.http, "--http") and not a.startswith("--http="))
