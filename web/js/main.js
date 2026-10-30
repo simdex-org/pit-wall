@@ -89,7 +89,7 @@ WS.hooks.push(d => { if (d.has('log')) mergeLog(); ctx.now = performance.now(); 
 // ---------- flag ring: a big outline round the window while a flag is out ----------
 // The driver's flag first, then the track's. All blink; chequered is steady and stays latched until the session ends or the game drops.
 const flagRing = document.body.appendChild(Object.assign(document.createElement('div'), {id:'flagRing', hidden:true}));
-let chequeredKey = null;
+let chequeredKey = null, greenSince = 0;
 function flagNow(){
   const r = ctx.r;
   if (!r || !ctx.stale || r.session.status === 'Off') { chequeredKey = null; return null; }
@@ -103,7 +103,11 @@ function flagNow(){
   if (f === 'yellow' || g.yellow || g.y1 || g.y2 || g.y3) return 'yellow';
   if (f === 'orange') return 'orange';
   if (f === 'white' || g.white) return 'white';
-  if (f === 'green' || g.green) return 'green';
+  if (f === 'green' || g.green) {   // green only announces a start or restart: 5 s, then quiet until it goes off and comes back
+    greenSince = greenSince || performance.now();
+    return performance.now() - greenSince < 5000 ? 'green' : null;
+  }
+  greenSince = 0;
   return null;
 }
 WS.hooks.push(d => {
