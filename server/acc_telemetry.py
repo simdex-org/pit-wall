@@ -658,7 +658,7 @@ class FakePages:
             "tc": 3, "tc_cut": 2, "map": 0, "abs": 2, "fuel_per_lap": 3.0, "rain_lights": 0, "lights_stage": 0, "exhaust": 610.0, "wiper": 0,
             "stint_total_left": int(3600000 - el), "stint_left": int(3600000 - el), "rain_tyres": 0, "session_index": 0,
             "used_fuel": t / self.lap * 3.1, "delta_ms": int(-214 + 100 * math.sin(w)), "est_lap_ms": self.lap, "valid": int(laps % 5 != 2),
-            "fuel_laps": 12.0, "track_status": "", "missing_pits": int(laps < 20), "clock": 14 * 3600 + el / 1000,
+            "fuel_laps": 12.0, "track_status": "", "missing_pits": int(laps < 20) if self.session == 2 else 255, "clock": 14 * 3600 + el / 1000,
             "g_flags": [0, 0, int(yellow), 0, 0, 0, 0, 0], "grip": 2, "rain": [0, 1, 2], "tyre_set": 3,
             "gap_ahead": int(1840 - 90 * (t / self.lap)), "gap_behind": int(950 + 60 * (t / self.lap)),
             "car": "ferrari_296_gt3", "track": "demo_circuit", "name": "Daniel", "sectors": 3, "max_rpm": 8000, "max_fuel": 120.0,

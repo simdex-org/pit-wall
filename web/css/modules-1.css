@@ -73,6 +73,7 @@ svg.spark circle{fill:var(--txt)}
 
 /* ---------- stop options ---------- */
 .tt.so tr.so-best>td{font-weight:700;color:var(--txt)}
+.tt.so tr.so-off>td{color:var(--dim)}
 .tt.so td:first-child{max-width:24ch}
 
 /* ---------- rejoin ---------- */
@@ -92,9 +93,9 @@ svg.spark circle{fill:var(--txt)}
 .dg-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
 .dg-wrap>svg{position:absolute;inset:0;display:block}
 .dg-grid{stroke:var(--line);stroke-width:1}
-.dg-bar{fill:var(--mut)}
-.dg-bar.inv{stroke:var(--inv);stroke-width:1}
-.dg-hl{stroke:var(--inv);stroke-width:1.5}
+.dg-dot{fill:var(--txt);stroke:var(--bg);stroke-width:1}
+.dg-dot.inv{fill:none;stroke:var(--inv);stroke-width:1.5}
+.dg-wrap text.dg-tag{font-size:9px;fill:var(--inv);letter-spacing:.06em}
 .dg-fit{stroke:var(--txt);stroke-width:1.5}
 .dg-prev{stroke:var(--dim);stroke-width:1.5;stroke-dasharray:4 3}
 .dg-wrap text{font:500 var(--t-xs) var(--num);fill:var(--dim)}
@@ -104,6 +105,7 @@ svg.spark circle{fill:var(--txt)}
 .pp>.tt{flex:1 1 auto}
 .pp-side{flex:0 0 220px;position:sticky;top:0}
 .pp-t td.pp-in{white-space:nowrap}
+.pp-t tr.tt-group .send{margin-left:12px}   /* beside the block's name, so it stays in view when the table scrolls on a phone */
 .pp-t td.pp-in input[type=number]{width:8ch;text-align:right}
 .pp-t tr.pp-new>td{background:var(--warn-soft)}
 .pp-t tr.pp-new>td:first-child{box-shadow:inset 2px 0 0 var(--warn)}

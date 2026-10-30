@@ -6,6 +6,11 @@
   const L_ = v => `${nf(v, 1)}<span class="u"> L</span>`;
   const S_ = v => `${nf(v, 1)}<span class="u"> s</span>`;
   const keyMsg = () => Pit.key ? '' : 'Needs the access key (Settings › Connection) to change shared values.';
+  // Stop options, best first: the ones the fuel reaches, then fewest stops to the flag, then rejoin, then time lost.
+  // race-plan names the same first row, so both modules always agree on "the" stop.
+  const rankOpts = st => (st && st.options || []).slice().sort((a, b) => (b.reach !== false) - (a.reach !== false) || (a.more_stops || 0) - (b.more_stops || 0)
+    || (a.rejoin_pos == null) - (b.rejoin_pos == null) || (a.rejoin_pos || 0) - (b.rejoin_pos || 0) || a.loss_s - b.loss_s);
+  const isRace = c => c.r ? c.r.session.kind === 'Race' : c.mode !== 'best';
   const postMsg = r => r.status === 200 ? 'Saved for everyone watching this bridge.' : r.status === 403 ? 'Wrong or missing access key: Settings › Connection.' : r.status === 0 ? r.text : 'Refused: ' + r.text;
 
   // ---------- fuel ----------
@@ -54,20 +59,36 @@
     },
     render(c, inst){
       const st = c.st, b = inst.body; if (!st) return inst.setState('empty', 'Waiting for the bridge strategy figures.');
-      const box = st.stops_needed > 0, ss = c.r && c.r.session;
-      setHtml(b.querySelector('.rp-head'), box ? `<div class="lbl">Box by end of lap</div><div class="big">${st.box_by_lap != null ? 'L' + st.box_by_lap : '—'}<span class="u"> in ${nf(st.box_in_laps, 0)} laps</span></div>`
-        : `<div class="lbl">Fuel to the flag</div><div class="big">${nf(st.spare_l)}<span class="u"> L spare</span></div>`);
+      const ss = c.r && c.r.session, car = c.r && c.r.car, cap = c.r && c.r.fixed.max_fuel > 0 ? c.r.fixed.max_fuel : null, w = st.pit_window;
+      const lapNow = ss ? (ss.lap_number != null ? ss.lap_number : ss.completed_laps + 1) : null, race = isRace(c), box = race && st.stops_needed > 0;
+      const late = (st.options || []).find(o => o.id === 'late_f'), top = rankOpts(st)[0];
+      let head;
+      if (!race) head = `<div class="lbl">Fuel lasts to the end of lap</div><div class="big">${st.box_by_lap != null ? 'L' + st.box_by_lap : '—'}${st.box_in_laps > 0 ? `<span class="u"> in ${plural(st.box_in_laps, 'lap')}</span>` : ''}</div><p class="note">Fuel to the flag is planned in races only.</p>`;
+      else if (box && (st.box_in_laps <= 0 || st.box_by_lap != null && lapNow != null && st.box_by_lap < lapNow)) head = '<div class="lbl">Fuel</div><div class="big s-bad">■ BOX THIS LAP</div>';
+      else if (box) head = `<div class="lbl">Box by end of lap</div><div class="big">${st.box_by_lap != null ? 'L' + st.box_by_lap : '—'}<span class="u"> in ${plural(st.box_in_laps, 'lap')}</span></div>`;
+      else head = `<div class="lbl">Fuel to the flag</div><div class="big">${nf(st.spare_l)}<span class="u"> L spare</span></div>`;
+      if (box && w && st.box_by_lap != null && st.box_by_lap < w.open_lap) head += `<p class="s-warn">▲ The fuel runs out before the pit window opens (L${w.open_lap}).</p>`;
+      if (box && top && top.reach !== false && top.lap !== st.box_by_lap) head += `<p class="note">Best stop: ${esc(top.label)}, see Stop options.</p>`;
+      setHtml(b.querySelector('.rp-head'), head);
       const pace = {leader:"leader's", own:'own', best:'best-lap'}[st.lap_ref_src] || '';
       const src = st.laps_src === 'timed' ? `timed, ${pace} pace ${fmtLap(st.lap_ref_ms)}` : st.laps_src === 'laps' ? 'lap count' : st.laps_src === 'override' ? 'set by hand' : '';
-      const w = st.pit_window, save = st.save_lpl != null && st.fuel_per_lap > 0 ? `${nf(st.save_lpl, 2)}<span class="u"> L/lap</span> <span class="note">${MINUS}${nf((1 - st.save_lpl / st.fuel_per_lap) * 100, 0)} %</span>` : null;
-      setHtml(b.querySelector('.kv'), kvHtml([['Laps to go', `${nf(st.laps_to_go, 0)}${src ? ` <span class="note">${esc(src)}</span>` : ''}`],
-        ['Fuel needed', L_(st.fuel_needed_l)], ['In tank', ss ? L_(c.r.car.fuel_litres) : '—'], ['To add now', L_(st.fuel_to_add_l)], ['Add at the box', box ? L_(st.add_at_box_l) : '—'],
-        ['Fits the tank', st.fits_tank ? 'yes' : '<span class="s-bad">■ NO</span>'], ['Stops needed', `${nf(st.stops_needed, 0)}${st.stops_why ? ` <span class="note">${esc(st.stops_why)}</span>` : ''}`],
-        save && ['Save to make it', save], ['Pit window', w ? `L${w.open_lap}–L${w.close_lap} <span class="note">${w.src === 'config' ? 'set' : 'ACC'}</span>` : '—']]));
+      const save = st.save_lpl != null && st.fuel_per_lap > 0 ? `${nf(st.save_lpl, 2)}<span class="u"> L/lap</span> <span class="note">${MINUS}${nf((1 - st.save_lpl / st.fuel_per_lap) * 100, 0)} %</span>` : null;
+      // "now" is what the tank takes now; what does not fit is said, not shown as a figure that cannot go in
+      const room = cap != null && car ? Math.max(0, cap - car.fuel_litres) : null, addNow = st.fuel_to_add_l != null && room != null ? Math.min(st.fuel_to_add_l, room) : st.fuel_to_add_l;
+      const over = st.fuel_to_add_l != null && addNow != null ? st.fuel_to_add_l - addNow : 0;
+      const showNow = box && st.box_in_laps > 0 && addNow != null && (st.add_at_box_l == null || Math.abs(addNow - st.add_at_box_l) >= 1);   // boxing this lap: the box figure is the one
+      const ml = st.mandatory_left || 0, one = st.fits_tank ? 'yes' : st.fits_tank == null ? '—' : `<span class="${st.stops_needed > ml + 1 ? 's-bad' : 's-dim'}">no · ${plural(st.stops_needed, 'stop')}</span>`;
+      setHtml(b.querySelector('.kv'), race ? kvHtml([['Laps to go', `${nf(st.laps_to_go, 0)}${src ? ` <span class="note">${esc(src)}</span>` : ''}`],
+        ['Fuel needed', L_(st.fuel_needed_l)], ['In tank', car ? L_(car.fuel_litres) : '—'],
+        showNow && ['To add now', `${L_(addNow)}${over >= 0.5 ? ` <span class="note">+${nf(over, 0)} L does not fit</span>` : ''}`],
+        ['Add at the box', box ? `${L_(st.add_at_box_l)}${late && late.more_stops > 0 ? ` <span class="note">then ${plural(late.more_stops, 'more stop')}</span>` : ''}` : '—'],
+        ['One tank to the flag', one], ['Stops needed', `${nf(st.stops_needed, 0)}${st.stops_why ? ` <span class="note">${esc(st.stops_why)}</span>` : ''}`],
+        save && ['Save to make it', save]])
+        : kvHtml([['In tank', car ? L_(car.fuel_litres) : '—'], ['Per lap', `${nf(st.fuel_per_lap, 2)}<span class="u"> L</span>`], ['Laps of fuel', nf(st.laps_of_fuel)]]));
       const S = c.cfg && c.cfg.strategy, km = keyMsg(), msg = b.querySelector('[data-msg]');
       for (const i of b.querySelectorAll('[data-k]')) { i.disabled = !!km; if (S && !inst.state.edited && document.activeElement !== i) i.value = S[i.dataset.k] == null ? '' : S[i.dataset.k]; }
       b.querySelector('[data-save]').disabled = !!km;
-      b.querySelector('[data-plan]').disabled = !box || st.add_at_box_l == null;
+      b.querySelector('[data-plan]').disabled = !box || st.add_at_box_l == null;   // practice and qualifying: nothing to plan to the flag
       if (km && !msg.textContent) msg.textContent = km;
       inst.setAlert((c.s.advice || []).some(a => /^fuel_(low|box)$/.test(a.id) && a.severity >= 1) ? 1 : 0);
     }});
@@ -79,8 +100,8 @@
     render(c, inst){
       const ss = c.r && c.r.session, st = c.st, s = c.s; if (!ss || !st) return inst.setState('empty', 'Waiting for the driver and the bridge strategy.');
       const wrap = inst.body.firstChild, W = wrap.clientWidth, H = wrap.clientHeight; if (W < 50 || H < 30) return;
-      const done = ss.completed_laps, now = done + ss.track_position, lf = st.laps_of_fuel || 0;
-      const total = st.laps_to_go != null ? done + st.laps_to_go : Math.ceil(now + lf + 2);
+      const done = ss.completed_laps, now = done + ss.track_position, lf = st.laps_of_fuel || 0, lapN = ss.lap_number != null ? ss.lap_number : done + 1, race = isRace(c);
+      const total = race && st.laps_to_go != null ? done + st.laps_to_go : Math.ceil(now + lf + 2);
       const stints = (s.stints || []), cur = stints.find(x => x.current), w = st.pit_window;
       const key = JSON.stringify([W, H, total, Math.round(now * 10), Math.round(lf * 10), stints, w, st.box_by_lap, st.stops_needed, st.laps_src]);
       if (inst.state.k === key) return; inst.state.k = key;
@@ -91,7 +112,12 @@
       const step = [1, 2, 5, 10, 20, 50].find(k => total / k * 36 < W) || 100;
       for (let L = 0; L <= total; L += step) g += `<line class="stl-tick" x1="${x(L)}" y1="${bot}" x2="${x(L)}" y2="${bot + 3}"/><text class="stl-ax" x="${x(L)}" y="${H - 1}" text-anchor="${L === 0 ? 'start' : 'middle'}">${L}</text>`;
       g += `<line class="stl-base" x1="${pl}" y1="${bot}" x2="${W - pr}" y2="${bot}"/>`;
-      if (w) g += `<rect class="stl-win" x="${x(w.open_lap - 1)}" y="${top}" width="${bw(w.open_lap - 1, w.close_lap)}" height="${bot - top}"/>` + lab(x(w.open_lap - 1), bw(w.open_lap - 1, w.close_lap), top + 9, `WINDOW L${w.open_lap}–${w.close_lap}`, 'stl-wt');
+      const boxOn = race && st.stops_needed > 0 && st.box_by_lap != null;
+      if (w) {   // its label moves to the band's right end when the BOX line would cross it
+        const wt = `WINDOW L${w.open_lap}–${w.close_lap}`, wd = bw(w.open_lap - 1, w.close_lap), near = boxOn && Math.abs(x(st.box_by_lap) - x(w.open_lap - 1)) < wt.length * 6 + 12;
+        g += `<rect class="stl-win" x="${x(w.open_lap - 1)}" y="${top}" width="${wd}" height="${bot - top}"/>`
+          + (!near ? lab(x(w.open_lap - 1), wd, top + 9, wt, 'stl-wt') : wd > wt.length * 6 + 6 ? `<text class="stl-wt" x="${(x(w.close_lap) - 4).toFixed(1)}" y="${top + 9}" text-anchor="end">${wt}</text>` : '');
+      }
       const by = top + 13, bh = bot - top - 16;   // the window's label sits above the bars, inside its band
       for (const t of stints.filter(t => !t.current && t.from != null)) {
         const a = t.from - 1, b = t.to;
@@ -99,24 +125,27 @@
       }
       const cs = cur && cur.from != null ? cur.from - 1 : (stints.filter(t => !t.current && t.to != null).map(t => t.to).pop() || 0);
       if (cur) g += `<rect class="stl-cur${cur.wet ? ' wet' : ''}" x="${x(cs)}" y="${by}" width="${bw(cs, now)}" height="${bh}"/>` + lab(x(cs), bw(cs, now), mid, `S${cur.n} · ${cur.wet ? 'W' : 'D'}${cur.tyre_set || ''} · ${cur.laps} L`);
-      const fe = now + lf, short = fe < total;
-      if (lf > 0) g += `<rect class="stl-fuel${short ? ' short' : ''}" x="${x(now)}" y="${by}" width="${bw(now, fe)}" height="${bh}"${short ? ` fill="url(#${pid})"` : ''}/>` + lab(x(now), bw(now, fe), mid, short ? 'fuel · short' : 'fuel to the flag');
-      if (st.stops_needed > 0 && st.box_by_lap != null) g += `<line class="stl-box" x1="${x(st.box_by_lap)}" y1="${top}" x2="${x(st.box_by_lap)}" y2="${bot}"/><text class="stl-top" x="${x(st.box_by_lap)}" y="${top - 3}" text-anchor="middle">BOX L${st.box_by_lap}</text>`;
-      g += `<line class="stl-flag" x1="${x(total)}" y1="${top}" x2="${x(total)}" y2="${bot}"/><text class="stl-top" x="${x(total)}" y="${top - 3}" text-anchor="end">FLAG ${st.laps_src === 'timed' ? '≈' : ''}L${total}</text>`;
+      const fe = now + lf, short = race && fe < total;   // no flag outside races: nothing to be short of
+      if (lf > 0) g += `<rect class="stl-fuel${short ? ' short' : ''}" x="${x(now)}" y="${by}" width="${bw(now, fe)}" height="${bh}"${short ? ` fill="url(#${pid})"` : ''}/>` + lab(x(now), bw(now, fe), mid, short ? `fuel to L${Math.floor(fe)}${race ? ' · short of flag' : ''}` : 'fuel to the flag');
+      if (boxOn) g += `<line class="stl-box" x1="${x(st.box_by_lap)}" y1="${top}" x2="${x(st.box_by_lap)}" y2="${bot}"/><text class="stl-top" x="${x(st.box_by_lap)}" y="${top - 3}" text-anchor="middle">BOX L${st.box_by_lap}</text>`;
+      if (race && st.laps_to_go != null) g += `<line class="stl-flag" x1="${x(total)}" y1="${top}" x2="${x(total)}" y2="${bot}"/><text class="stl-top" x="${x(total)}" y="${top - 3}" text-anchor="end">FLAG ${st.laps_src === 'timed' ? '≈' : ''}L${total}</text>`;
       g += `<line class="stl-now" x1="${x(now)}" y1="${top - 2}" x2="${x(now)}" y2="${bot}"/><path class="stl-nowm" d="M${x(now)} ${bot} l-4 6 h8 z"/>`;
-      wrap.innerHTML = `<svg class="stl" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Stint timeline: ${stints.length} stints, lap ${done} of about ${total}${short ? ', fuel short of the flag' : ''}">${g}</svg>`;
-      inst.setInfo(`lap ${done} / ${st.laps_src === 'timed' ? '≈' : ''}${total} · ${stints.length} stint${stints.length > 1 ? 's' : ''}`);
+      wrap.innerHTML = `<svg class="stl" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Stint timeline: ${stints.length} stints, lap ${lapN} of about ${total}${short ? ', fuel short of the flag' : ''}">${g}</svg>`;
+      inst.setInfo(`lap ${lapN}${race && st.laps_to_go != null ? ` / ${st.laps_src === 'timed' ? '≈' : ''}${total}` : ''} · ${plural(stints.length, 'stint')}`);
     }});
 
   // ---------- stop options ----------
   Pit.module({type:'stop-options', title:'Stop options', group:'Strategy', blurb:'Box now, at the last lap the fuel allows, or when the window opens: loss and rejoin position.',
     size:{w:6, h:7, minW:5, minH:6}, needs:['summary', 'field'], requires:['summary'],
-    build(el){ el.innerHTML = '<table class="tt so"><thead><tr><th>Option</th><th class="n">Lap</th><th class="n">Add L</th><th class="n">Stationary s</th><th class="n">Total loss s</th><th class="n">Rejoin</th></tr></thead><tbody></tbody></table><p class="note"></p>'; },
+    build(el){ el.innerHTML = '<table class="tt so"><thead><tr><th>Option</th><th class="n">Lap</th><th class="n">Add L</th><th class="n">Stationary s</th><th class="n">Total loss s</th><th class="n">Rejoin</th><th>To the flag</th></tr></thead><tbody></tbody></table><p class="note"></p>'; },
     render(c, inst){
-      const st = c.st, opts = st && st.options || []; if (!opts.length) return inst.setState('empty', 'Stop options appear once a lap time and the fuel use are known.');
+      const st = c.st, opts = rankOpts(st);
+      if (!isRace(c)) return inst.setState('empty', 'Stop options are planned in races only.');
+      if (!opts.length) return inst.setState('empty', 'Stop options appear once a lap time and the fuel use are known.');
       const est = (st.refuel_src === 'est' || st.tyre_src === 'est') ? ' <b class="tag est">est.</b>' : '';
-      const ranked = opts.filter(o => o.rejoin_pos != null).sort((a, b) => a.rejoin_pos - b.rejoin_pos || a.loss_s - b.loss_s), top = ranked[0];
-      setHtml(inst.body.querySelector('tbody'), opts.map(o => `<tr class="${o === top ? 'so-best' : ''}"><td>${o === top ? '▶ ' : ''}${esc(o.label)}</td><td class="n">L${nf(o.lap, 0)}</td><td class="n">${nf(o.add_l, 1)}</td><td class="n">${nf(o.stationary_s, 1)}${est}</td><td class="n">${nf(o.loss_s, 1)}</td><td class="n">${o.rejoin_pos != null ? 'P' + o.rejoin_pos : '—'}</td></tr>`).join(''));
+      const top = opts[0].reach !== false ? opts[0] : null;   // ranked: reachable, fewest stops, rejoin, loss
+      const flag = o => o.reach === false ? `<span class="s-bad">■ fuel lasts to L${nf(st.box_by_lap, 0)}</span>` : o.more_stops > 0 ? `<span class="s-warn">+${plural(o.more_stops, 'stop')}</span>` : 'yes';
+      setHtml(inst.body.querySelector('tbody'), opts.map(o => `<tr class="${[o === top && 'so-best', o.reach === false && 'so-off'].filter(Boolean).join(' ')}"><td>${o === top ? '▶ ' : ''}${esc(o.label)}</td><td class="n">L${nf(o.lap, 0)}</td><td class="n">${nf(o.add_l, 1)}</td><td class="n">${nf(o.stationary_s, 1)}${est}</td><td class="n">${nf(o.loss_s, 1)}</td><td class="n">${o.rejoin_pos != null ? 'P' + o.rejoin_pos : '—'}</td><td>${flag(o)}</td></tr>`).join(''));
       inst.body.querySelector('.note').textContent = `Loss = drive-through ${nf(st.drive_loss_s, 1)} s (${st.drive_loss_src === 'measured' ? 'measured' : 'from Settings until a stop is measured'}) + stationary. Rejoin assumes the others keep their pace.`;
       inst.setInfo(`refuel ${nf(st.refuel_s_per_l, 2)} s/L (${st.refuel_src}) · tyres ${nf(st.tyre_s, 0)} s (${st.tyre_src})`);
     }});
@@ -124,16 +153,16 @@
   // ---------- rejoin ----------
   Pit.module({type:'rejoin', title:'Rejoin', group:'Strategy', blurb:'Where you come out if you box at the end of this lap, and who is around you.',
     size:{w:4, h:7, minW:3, minH:6}, needs:['summary', 'field', 'entries'], requires:['field'],
-    build(el){ el.innerHTML = '<div class="lbl">Rejoin if you box this lap</div><div class="big"></div><div class="sub"></div><table class="tt rj"><tbody></tbody></table><p class="note"></p>'; },
+    build(el){ el.innerHTML = '<div class="lbl">Rejoin if you box this lap</div><div class="big"></div><div class="sub"></div><table class="tt rj"><thead><tr><th class="sb"></th><th class="n">Pos</th><th>Car</th><th class="n">Gap to you s</th></tr></thead><tbody></tbody></table><p class="note"></p>'; },
     render(c, inst){
       if (c.mode === 'best') return inst.setState('empty', 'Rejoin is predicted in races only.');
       const st = c.st, rj = st && st.rejoin; if (!rj) return inst.setState('empty', 'Rejoin needs a lap time and the field first.');
       const b = inst.body, nm = i => { const car = c.cars.get(i); return car ? `#${esc(car.num)} ${esc(Pit.carName(car, 'short'))}` : '—'; }, mine = c.cars.get(c.me);
       setHtml(b.querySelector('.big'), `P${rj.pos}${mine && mine.net != null ? `<span class="u"> · net P${mine.net}</span>` : ''}`);
-      setHtml(b.querySelector('.sub'), `<span>Ahead ${rj.ahead ? `<b>${nm(rj.ahead.i)}</b> ${fmtGap(Math.abs(rj.ahead.gap_ms))}` : '<b>nobody</b>'}</span><span>Behind ${rj.behind ? `<b>${nm(rj.behind.i)}</b> ${fmtGap(Math.abs(rj.behind.gap_ms))}` : '<b>nobody</b>'}</span>`);
+      setHtml(b.querySelector('.sub'), `<span>Ahead ${rj.ahead ? `<b>${nm(rj.ahead.i)}</b> ${fmtRel(rj.ahead.gap_ms)}` : '<b>nobody</b>'}</span><span>Behind ${rj.behind ? `<b>${nm(rj.behind.i)}</b> ${fmtRel(rj.behind.gap_ms)}` : '<b>nobody</b>'}</span>`);
       const k = (rj.around || []).findIndex(a => a.i === c.me);
       setHtml(b.querySelector('tbody'), (rj.around || []).map((a, j) => { const car = c.cars.get(a.i) || {i:a.i, loc:'track'};
-        return `<tr data-loc="${carLoc(car)}" class="${a.i === c.me ? 'me' : ''}"><td class="sb"></td><td class="n">P${k >= 0 ? rj.pos + j - k : '?'}</td><td>${a.i === c.me ? 'You <b class="tag you">YOU</b>' : nm(a.i)}</td><td class="n">${a.i === c.me ? '' : fmtDelta(a.gap_ms)}</td></tr>`; }).join(''));
+        return `<tr data-loc="${carLoc(car)}" class="${a.i === c.me ? 'me' : ''}"><td class="sb"></td><td class="n">P${k >= 0 ? rj.pos + j - k : '?'}</td><td>${a.i === c.me ? 'You <b class="tag you">YOU</b>' : nm(a.i)}</td><td class="n">${a.i === c.me ? '' : fmtRel(a.gap_ms)}</td></tr>`; }).join(''));
       const now = (st.options || []).find(o => o.id === 'now_f');
       b.querySelector('.note').textContent = `Loss ${nf(st.drive_loss_s, 1)} s drive-through (${st.drive_loss_src === 'measured' ? 'measured last stop' : 'from Settings, not measured yet'}) + ${nf(now ? now.stationary_s : 0, 1)} s stationary.`;
     }});
@@ -201,21 +230,23 @@
       if (W < 60 || H < 40 || inst.state.k === key) return; inst.state.k = key;
       const vals = pts.length ? pts.map(p => p[1]) : cur.map(cc);
       let lo = Math.min(...vals) - 300, hi = Math.max(...vals) + 300; if (hi - lo < 1000) { const m = (hi + lo) / 2; lo = m - 500; hi = m + 500; }
-      const n0 = cur[0].n, n1 = Math.max(cur[cur.length - 1].n, n0 + 4), pl = 4, top = 4, bot = H - 14, bwid = (W - pl - 4) / (n1 - n0 + 1);
-      const X = n => pl + (n - n0 + .5) * bwid, Y = v => bot - (bot - top) * clamp((v - lo) / (hi - lo), 0, 1);
-      let g = `<defs><pattern id="dgh-${inst.id}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="dg-hl" x1="0" y1="0" x2="0" y2="5"/></pattern></defs>`;
-      for (const k of [1, 2, 3]) { const y = (top + (bot - top) * k / 4).toFixed(1); g += `<line class="dg-grid" x1="0" y1="${y}" x2="${W}" y2="${y}"/>`; }
-      for (const l of cur) {
-        const v = cc(l), y = Y(v), over = v > hi, bx = (X(l.n) - bwid * .35).toFixed(1), w = (bwid * .7).toFixed(1);
-        g += `<rect class="dg-bar${clean(l) ? '' : ' inv'}" x="${bx}" y="${y.toFixed(1)}" width="${w}" height="${(bot - y).toFixed(1)}"${clean(l) ? '' : ` fill="url(#dgh-${inst.id})"`}><title>L${l.n} ${fmtLap(l.ms)}${l.valid ? '' : ' INV'}${l.out ? ' OUT' : ''}${l.in ? ' IN' : ''}</title></rect>`;
-        if (over) g += `<text class="dg-ax" x="${X(l.n).toFixed(1)}" y="${top + 9}" text-anchor="middle">▲</text>`;
-        if (!clean(l) && bwid > 18) g += `<text class="dg-ax" x="${X(l.n).toFixed(1)}" y="${(bot - 3).toFixed(1)}" text-anchor="middle">${l.valid ? (l.out ? 'OUT' : 'IN') : 'INV'}</text>`;
-      }
+      // one dot per lap at its time (a bar on a cut axis would exaggerate tenths); invalid, out and in laps hollow and named.
+      // The y labels live in a 62 px gutter at the left, never over the data; the x axis runs two laps past the last one.
+      const n0 = cur[0].n, n1 = Math.max(cur[cur.length - 1].n + 2, n0 + 4), gl = 62, top = 6, bot = H - 14, step0 = (W - gl - 6) / (n1 - n0 + 1);
+      const X = n => gl + (n - n0 + .5) * step0, Y = v => bot - (bot - top) * clamp((v - lo) / (hi - lo), 0, 1);
+      let g = '';
+      for (const k of [0, 1, 2, 3, 4]) { const y = (top + (bot - top) * k / 4).toFixed(1); g += `<line class="dg-grid" x1="${gl}" y1="${y}" x2="${W}" y2="${y}"/>`; }
       const line = (F, cls) => F ? `<line class="${cls}" x1="${X(n0).toFixed(1)}" y1="${Y(F[0] * n0 + F[1]).toFixed(1)}" x2="${X(n1).toFixed(1)}" y2="${Y(F[0] * n1 + F[1]).toFixed(1)}"/>` : '';
       g += line(pf, 'dg-prev') + line(f, 'dg-fit');
-      const step = Math.max(1, Math.ceil(28 / bwid));
-      for (let n = n0; n <= n1; n += step) g += `<text class="dg-ax" x="${X(n).toFixed(1)}" y="${H - 2}" text-anchor="middle">${n}</text>`;
-      g += `<text class="dg-ax" x="2" y="${top + 9}">${fmtLap(hi)}</text><text class="dg-ax" x="2" y="${bot - 3}">${fmtLap(lo)}</text>`;
+      for (const l of cur) {
+        const v = cc(l), ok = clean(l), over = v > hi, cx = X(l.n).toFixed(1), cy = (over ? top + 3 : Y(v)).toFixed(1);
+        g += `<circle class="dg-dot${ok ? '' : ' inv'}" cx="${cx}" cy="${cy}" r="3.5"><title>L${l.n} ${fmtLap(l.ms)}${l.valid ? '' : ' INV'}${l.out ? ' OUT' : ''}${l.in ? ' IN' : ''}</title></circle>`;
+        if (over) g += `<text class="dg-ax" x="${cx}" y="${top + 14}" text-anchor="middle">▲</text>`;
+        if (!ok) g += `<text class="dg-tag" x="${cx}" y="${(+cy - 7).toFixed(1)}" text-anchor="middle">${l.valid ? (l.out ? 'OUT' : 'IN') : 'INV'}</text>`;
+      }
+      const xs = Math.max(1, Math.ceil(28 / step0));
+      for (let n = n0; n <= n1; n += xs) g += `<text class="dg-ax" x="${X(n).toFixed(1)}" y="${H - 2}" text-anchor="middle">${n}</text>`;
+      for (const [v, y] of [[hi, top + 8], [(hi + lo) / 2, (top + bot) / 2 + 3], [lo, bot]]) g += `<text class="dg-ax" x="${gl - 6}" y="${y.toFixed(1)}" text-anchor="end">${fmtLap(v)}</text>`;
       wrap.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap times of stint ${sn} with a fitted line">${g}</svg>`;
     }});
 })();

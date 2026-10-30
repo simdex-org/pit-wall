@@ -143,9 +143,10 @@ function applyState(inst, kind, msg, action){
 }
 function gate(inst, c){   // the `requires` channels: missing ones show the na state and skip render
   for (const r of inst.def.requires) {
-    if (r === 'field' ? !(c.bc && c.bc.state === 'live' && c.field) : r === 'reading' ? !c.r : r === 'summary' ? !c.s : r === 'pit' ? !c.pit : c[r] == null)
+    if (r === 'field' ? !(c.bc && c.bc.state === 'live' && c.field) : r === 'reading' ? !c.r : r === 'summary' ? !c.s : r === 'pit' ? !c.pit : c[r] == null) {
       if (r === 'field' && c.bc && c.bc.state === 'off' && c.bc.msg) return c.bc.msg;   // off on purpose or by setup: the bridge's own words say why and what to do
       return (NA_MSG[r] || `Needs ${r}.`) + (r === 'field' && c.bc && c.bc.msg ? ' ' + c.bc.msg : '');
+    }
   }
   return null;
 }
@@ -203,10 +204,14 @@ const WS = {
     host.classList.toggle('narrow', this.narrow);
     // the rows the layout uses stretch to fill the window's height (CSS: repeat(var(--rows), minmax(var(--row), 1fr)))
     host.style.setProperty('--rows', Math.max(1, ...this.insts.filter(i => !i.el.hidden).map(i => i.m.y + i.m.h)));
+    // narrow: one column of stacked modules (CSS makes it a flex column); tables take their own height, the others their
+    // rows' height (at most 16), and the page scrolls once
+    const rp = parseFloat(css('--row')) || 28;
     for (const i of this.insts) {
-      const m = i.m, auto = this.narrow && NARROW_AUTO.has(m.type);   // narrow: tables take their own height, the page scrolls once
-      i.el.style.gridColumn = this.narrow ? '1 / -1' : `${m.x + 1} / span ${m.w}`;
-      i.el.style.gridRow = auto ? 'auto' : this.narrow ? `auto / span ${Math.min(m.h, 16)}` : `${m.y + 1} / span ${m.h}`;
+      const m = i.m, auto = this.narrow && NARROW_AUTO.has(m.type);
+      i.el.style.gridColumn = this.narrow ? '' : `${m.x + 1} / span ${m.w}`;
+      i.el.style.gridRow = this.narrow ? '' : `${m.y + 1} / span ${m.h}`;
+      i.el.style.height = this.narrow && !auto ? `${Math.min(m.h, 16) * (rp + 8) - 8}px` : '';
       i.el.classList.toggle('auto-h', auto);
     }
   },
@@ -218,7 +223,8 @@ const WS = {
     let wait = Infinity;
     if (c) for (const inst of this.insts) {
       if (!inst.def || !inst.visible || inst.el.hidden) continue;
-      if (all || inst.def.needs.some(n => DIRTY.has(n))) inst._pending = true;
+      // what it reads, and what it waits for: a module mounted before the driver (or the summary, or the field) arrived must wake when it does
+      if (all || inst.def.needs.some(n => DIRTY.has(n)) || inst.def.requires.some(n => DIRTY.has(n))) inst._pending = true;
       if (!inst._pending) continue;
       const gap = 1000 / inst.def.rate - (now - inst._last);
       if (gap > 0) { wait = Math.min(wait, gap); continue; }   // left pending: rendered at its next allowed slot
