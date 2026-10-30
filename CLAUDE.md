@@ -12,13 +12,14 @@ Pit Wall: a live browser dashboard for the race engineer watching a driver in As
 python server/bridge.py --http 25.x.x.x:8765          # on the driver's PC, on its VPN address; without --http: 127.0.0.1 only
 python server/bridge.py --simulate-acc --key demo     # a pretend race, 20-car field and pit page, no game needed
 python server/bridge.py --simulate-acc --sim-session quali --key demo   # the same as qualifying (field ordered by best lap)
+python server/bridge.py --simulate-acc --sim-track nordschleife --sim-speed 8 --key demo   # the demo on the Nordschleife 24h layout, 8x faster
 python server/acc_broadcast.py --enable               # once, ACC closed: switch on ACC's broadcasting port (field timing)
 python server/acc_telemetry.py; python server/acc_broadcast.py; python server/acc_pit.py; python server/launcher.py --selftest   # self-tests, all must pass
 python server/launcher.py                             # the start window (PitWall.exe: python -m PyInstaller --onefile --windowed --name PitWall server/launcher.py)
 python server/acc_telemetry.py --probe                # live session: print the not-yet-verified shared-memory fields
 ```
 
-Python 3.8+, stdlib only, Windows for the game side. Edit anything under `web/` and reload the page; only `server/` changes need a restart. Bridge flags: `--key`, `--pit-key`, `--key-ms`, `--vjoy [N]`, `--broadcast-port` (0 = field timing off), `--broadcast-password`, `--sim-session race|quali`, `--no-browser`.
+Python 3.8+, stdlib only, Windows for the game side. Edit anything under `web/` and reload the page; only `server/` changes need a restart. Bridge flags: `--key`, `--pit-key`, `--key-ms`, `--vjoy [N]`, `--broadcast-port` (0 = field timing off), `--broadcast-password`, `--sim-session race|quali`, `--sim-track demo|nordschleife`, `--sim-speed N`, `--no-browser`.
 
 ## Architecture
 

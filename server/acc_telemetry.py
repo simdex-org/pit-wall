@@ -14,8 +14,11 @@ Offsets follow Kunos' "ACC Shared Memory Documentation" 1.8.12.
     python server/acc_telemetry.py --probe  # print the not-yet-verified fields once a second from a live session
 """
 import copy
+import json
 import math
 import mmap
+import os
+import re
 import struct
 import sys
 import time
@@ -633,16 +636,38 @@ class Telemetry:
         return [{"id": i, "severity": s, "text": t} for s, i, t in sorted(out, key=lambda x: -x[0])]
 
 
+def _track_loop(name, metres):
+    """A track's loop from web/data/tracks.js, in metres (x, z), its length scaled to the real one."""
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web", "data", "tracks.js"), encoding="utf-8") as f:
+        src = f.read()
+    pts = json.loads(re.search(name + r': *\{.*?"loop":(\[\[.*?\]\])', src, re.S).group(1))
+    n = len(pts)
+    sc = metres / sum(math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) for i in range(n))
+    return [(x * sc, z * sc) for x, z in pts]
+
+
 class FakePages:
     """A pretend ACC session (a Ferrari 296 on a made-up circuit), for --simulate-acc and the self-test."""
 
-    def __init__(self, lap_ms=60000, clock=time.monotonic, session=2):
+    def __init__(self, lap_ms=60000, clock=time.monotonic, session=2, track=None):
         self.lap, self.clock, self.t0, self.session = lap_ms, clock, clock(), session   # session: ACC's kind, 2 race, 1 qualifying
+        self.track, self.track_len, self.loop, self.every, self.lpl = "demo_circuit", 5000.0, None, 18, 3.1   # a stop every 18 laps, 3.1 L a lap
+        if track == "nordschleife":   # tracks.js' 24h layout at its real 25.378 km, a GT3's 8:17 and 25 L a lap
+            self.lap, self.track, self.track_len, self.every, self.lpl = 497000, "nurburgring_24h", 25378.0, 4, 25.0
+            self.loop = _track_loop(self.track, self.track_len)
+        self.k = self.lap / 60000   # the session's times scale with the lap
 
     def _where(self, w, lap):
-        """World position (metres) on the made-up circuit, a little off the ideal line, differently every lap."""
-        x, z = 800 * math.cos(w), 450 * math.sin(w) + 120 * math.sin(2 * w)
-        dx, dz = -800 * math.sin(w), 450 * math.cos(w) + 240 * math.cos(2 * w)
+        """World position (metres) on the circuit, a little off the ideal line, differently every lap."""
+        if self.loop:
+            pts, f = self.loop, w / (2 * math.pi) * len(self.loop)
+            i = int(f) % len(pts)
+            (ax, az), (bx, bz) = pts[i], pts[(i + 1) % len(pts)]
+            dx, dz, t = bx - ax, bz - az, f - int(f)
+            x, z = ax + dx * t, az + dz * t
+        else:
+            x, z = 800 * math.cos(w), 450 * math.sin(w) + 120 * math.sin(2 * w)
+            dx, dz = -800 * math.sin(w), 450 * math.cos(w) + 240 * math.cos(2 * w)
         off = 2.0 * math.sin(3 * w + lap * 1.7) + 0.8 * math.sin(7 * w + lap)
         n = math.hypot(dx, dz) or 1
         return [x - dz / n * off, 0.0, z + dx / n * off]
@@ -651,32 +676,33 @@ class FakePages:
         el = (self.clock() - self.t0) * 1000
         t = el + 3.5 * self.lap
         pos, laps, w = (t % self.lap) / self.lap, int(t // self.lap), (t % self.lap) / self.lap * 2 * math.pi
-        u = t / self.lap % 18   # the stint: every 18 laps a stop, in the lane for the last 5 % of a lap and the first 8 % of the next
-        lane, box = u > 17.95 or u < 0.08, 0.01 <= u < 0.06   # stood in the box for 3 s of a 60 s lap, taking the fuel
-        burn = 3.1 * (u + 18 * (1 - max(0.0, min(1.0, (u - 0.01) / 0.05))))   # the last stint's burn until the box, refilled in it
+        e, k = self.every, self.k
+        u = t / self.lap % e   # the stint: every 18 laps a stop, in the lane for the last 5 % of a lap and the first 8 % of the next
+        lane, box = u > e - 0.05 or u < 0.08, 0.01 <= u < 0.06   # stood in the box for 3 s of a 60 s lap, taking the fuel
+        burn = self.lpl * (u + e * (1 - max(0.0, min(1.0, (u - 0.01) / 0.05))))   # the last stint's burn until the box, refilled in it
         sp = 0.0 if box else 60.0 if lane else 175 + 70 * math.sin(w * 6)
         yellow = laps % 7 == 3 and 0.33 < pos < 0.66
         return {
             "status": 2, "session": self.session, "gas": 0.0 if box else 0.3 if lane else max(0.0, min(1.0, 0.6 + 0.5 * math.sin(w * 6 + 0.4))),
-            "brake": 0.0 if lane else max(0.0, -math.sin(w * 6 + 0.4) - 0.5), "fuel": 60 - burn, "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": int(5200 + 2200 * math.sin(w * 25) ** 2),
+            "brake": 0.0 if lane else max(0.0, -math.sin(w * 6 + 0.4) - 0.5), "fuel": e * self.lpl + 4.2 - burn, "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": int(5200 + 2200 * math.sin(w * 25) ** 2),
             "steer": 0.3 * math.sin(w * 5), "speed": sp, "acc_g": [1.2 * math.sin(w * 5), 0.0, 0.8 * math.cos(w * 5)],
             "pressure": [27.6, 27.8, 26.6, 26.8], "core_temp": [84.0, 86.0, 79.0, 81.0], "damage": [0.0] * 5, "tyres_out": 0, "limiter": int(lane),
             "air": 22.4, "road": 29.1, "brake_temp": [412.0, 405.0, 330.0, 338.0], "clutch": 0.0, "bias": 0.565, "tc_on": 0, "abs_on": 0,
             "susp_damage": [0.0] * 4, "water": 92.0, "brake_press": [0.0] * 4, "front_pad_compound": 0, "rear_pad_compound": 0,
             "pad": [round(x - t / self.lap * k, 2) for x, k in zip([24.1, 24.0, 25.2, 25.3], [0.21, 0.2, 0.12, 0.12])], "disc": [31.8, 31.8, 31.9, 31.9],
             "laps": laps, "position": 7, "cur_ms": int(t % self.lap), "last_ms": self.lap - 500 + 110 * laps + laps * 7919 % 400 if laps else 0,
-            "best_ms": self.lap - 120 if laps > 1 else 2147483647, "time_left": 3.2e6 - t, "in_box": int(box), "sector": int(pos * 3),
+            "best_ms": self.lap - 120 if laps > 1 else 2147483647, "time_left": 3.2e6 * k - t, "in_box": int(box), "sector": int(pos * 3),
             "last_sector_ms": self.lap // 3,
             "compound": "dry_compound", "track_pos": pos, "xyz": self._where(w, laps), "me": 7, "penalty_time": 0.0,
             "flag": 2 if yellow else 0, "penalty": 0, "pit_lane": int(lane), "mandatory_done": int(laps >= 20), "wind": 2.3, "wind_dir": 3.73,
-            "tc": 3, "tc_cut": 2, "map": 0, "abs": 2, "fuel_per_lap": 3.0, "rain_lights": 0, "lights_stage": 0, "exhaust": 610.0, "wiper": 0,
-            "stint_total_left": int(3600000 - el), "stint_left": int(3600000 - el), "rain_tyres": 0, "session_index": 0,
+            "tc": 3, "tc_cut": 2, "map": 0, "abs": 2, "fuel_per_lap": self.lpl - 0.1, "rain_lights": 0, "lights_stage": 0, "exhaust": 610.0, "wiper": 0,
+            "stint_total_left": int(3600000 * k - el), "stint_left": int(3600000 * k - el), "rain_tyres": 0, "session_index": 0,
             "used_fuel": burn, "delta_ms": int(-214 + 100 * math.sin(w)), "est_lap_ms": self.lap, "valid": int(laps % 5 != 2),
             "fuel_laps": 12.0, "track_status": "", "missing_pits": int(laps < 20) if self.session == 2 else 255, "clock": 14 * 3600 + el / 1000,
             "g_flags": [0, 0, int(yellow), 0, 0, 0, 0, 0], "grip": 2, "rain": [0, 1, 2], "tyre_set": 3,
             "gap_ahead": int(1840 - 90 * (t / self.lap)), "gap_behind": int(950 + 60 * (t / self.lap)),
-            "car": "ferrari_296_gt3", "track": "demo_circuit", "name": "Daniel", "sectors": 3, "max_rpm": 8000, "max_fuel": 120.0,
-            "fuel_rate": 1.0, "tyre_rate": 1.0, "track_len": 5000.0, "timed": 1, "extra_lap": 0, "pit_open": 1200000, "pit_close": 2400000,
+            "car": "ferrari_296_gt3", "track": self.track, "name": "Daniel", "sectors": 3, "max_rpm": 8000, "max_fuel": 120.0,
+            "fuel_rate": 1.0, "tyre_rate": 1.0, "track_len": self.track_len, "timed": 1, "extra_lap": 0, "pit_open": int(1200000 * k), "pit_close": int(2400000 * k),
             "online": 0}
 
 

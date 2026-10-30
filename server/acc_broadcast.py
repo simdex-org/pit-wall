@@ -600,7 +600,8 @@ FAKE_MODELS = [32, 30, 34, 31, 25, 33, 35, 22, 24, 20, 36, 23, 16, 19, 21, 50, 6
 
 class FakeField(Field):
     """20 made-up cars round FakePages' circuit, on the same clock, so the map, the laps and the positions agree. Car 7 is
-    the player, driven by FakePages; the others lap at 58.8-62.6 s and stop every 18-26 laps for 52 s in the pit lane."""
+    the player, driven by FakePages; the others lap at 58.8-62.6 s and stop every 18-26 laps for 52 s in the pit lane (on the Nordschleife
+    the laps scale to its 8:17 and the stints to FakePages' 4 laps)."""
 
     LANE_MS, PIT_IN = 52000, 0.97
 
@@ -613,11 +614,11 @@ class FakeField(Field):
         for i in range(1, 21):
             if i == 7:
                 continue
-            every = rnd.randint(18, 26)
+            every = max(2, rnd.randint(18, 26) * pages.every // 18)
             age = every - 1 if i == 2 else rnd.randint(0, 25) % every   # car 2 is on its in-lap: someone pits in the first minutes
             d0 = 3.5 + rnd.uniform(-0.45, 0.45)
             first, last = next(names)
-            self.sim[i] = {"base": rnd.uniform(58800, 62600), "every": every, "stint": age, "laps": int(d0), "spl": d0 % 1,
+            self.sim[i] = {"base": rnd.uniform(58800, 62600) * pages.k, "every": every, "stint": age, "laps": int(d0), "spl": d0 % 1,
                            "start": None, "dur": None, "pit": None, "out": False, "valid": True, "last": None, "best": None,
                            "model": next(models), "num": [3, 11, 14, 22, 27, 33, 41, 46, 52, 58, 61, 66, 72, 77, 81, 88, 91, 95, 99][i - 1 - (i > 7)],
                            "team": TEAMS[i % len(TEAMS)], "cup": i % 3, "first": first, "last_name": last}
@@ -679,7 +680,7 @@ class FakeField(Field):
             best = self._lapd(raw["best_ms"], split(raw["best_ms"]), car=7)
         if not self.started:
             self.started = True
-            out.append((5, {"conn": 1, "name": "Demo circuit", "id": 0, "meters": 5000}))
+            out.append((5, {"conn": 1, "name": "Nurburgring 24h" if self.pages.loop else "Demo circuit", "id": 0, "meters": int(self.pages.track_len)}))
             out.append((4, {"conn": 1, "cars": list(range(1, 21))}))
             for i, c in sorted(self.sim.items()):
                 out.append((6, {"i": i, "model": c["model"], "team": c["team"], "num": c["num"], "cup": c["cup"], "cur_drv": 0, "nat": 0,
