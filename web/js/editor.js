@@ -234,6 +234,10 @@ const Editor = {
       }
       return '';
     };
+    // redrawn below: focus is given back to the same control
+    const fa = document.activeElement, q = d.contains(fa) && fa.dataset, ce = s => CSS.escape(s || '');
+    const was = !q ? '' : q.c ? `[data-c="${ce(q.c)}"]` : q.o ? `[data-o="${ce(q.o)}"]` : q.m ? `[data-m="${ce(q.m)}"][value="${ce(fa.value)}"]`
+      : q.mv ? `[data-mv="${ce(q.mv)}"][data-x="${ce(q.x)}"][data-d="${ce(q.d)}"]` : 'reset' in q ? '[data-reset]' : '';
     d.innerHTML = `<form method="dialog" class="dlg-body"><header class="dlg-h"><h2>${esc(m.title || def.title)} <span class="note">options</span></h2><button class="btn icon" value="" aria-label="Close"><i data-lucide="x"></i></button></header>
       <div class="dlg-scroll">
         <label class="fld"><span>Title</span><input type="text" data-c="title" maxlength="40" value="${esc(m.title || '')}" placeholder="${esc(def.title)}"></label>
@@ -242,6 +246,7 @@ const Editor = {
       </div>
       <div class="dlg-foot"><span class="note">${Editor.active ? 'Saved with the layout.' : Tpl.isBuiltin(Tpl.cur.id) ? 'A change makes your own copy of this built-in template.' : 'Changes are saved at once.'}</span><button type="button" class="btn" data-reset>Reset options</button><button class="btn primary" value="">Done</button></div></form>`;
     refreshIcons(d);
+    const f = was && d.querySelector(was); if (f) f.focus();
   },
   modById(id){ for (const w of Tpl.cur.workspaces) { const m = w.modules.find(x => x.id === id); if (m) return m; } return null; },
   // An options change: with the editor, an undoable change; in view mode, saved at once (forking a built-in first).

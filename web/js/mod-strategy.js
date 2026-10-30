@@ -127,7 +127,9 @@
       const cs = cur && cur.from != null ? cur.from - 1 : (stints.filter(t => !t.current && t.to != null).map(t => t.to).pop() || 0);
       if (cur) g += `<rect class="stl-cur${cur.wet ? ' wet' : ''}" x="${x(cs)}" y="${by}" width="${bw(cs, now)}" height="${bh}"/>` + lab(x(cs), bw(cs, now), mid, `S${cur.n} · ${cur.wet ? 'W' : 'D'}${cur.tyre_set || ''} · ${cur.laps} L`);
       const fe = now + lf, short = race && fe < total;   // no flag outside races: nothing to be short of
-      if (lf > 0) g += `<rect class="stl-fuel${short ? ' short' : ''}" x="${x(now)}" y="${by}" width="${bw(now, fe)}" height="${bh}"${short ? ` fill="url(#${pid})"` : ''}/>` + lab(x(now), bw(now, fe), mid, short ? `fuel to L${st.box_by_lap != null ? st.box_by_lap : Math.floor(fe)} · short of flag` : race ? 'fuel to the flag' : `fuel to L${st.box_by_lap != null ? st.box_by_lap : Math.floor(fe)}`);
+      // the label names where the bar ends (the box lap is the BOX line's), and is dropped rather than drawn across that line
+      const fw = boxOn && x(st.box_by_lap) > +x(now) ? Math.min(bw(now, fe), x(st.box_by_lap) - x(now) - 4) : bw(now, fe);
+      if (lf > 0) g += `<rect class="stl-fuel${short ? ' short' : ''}" x="${x(now)}" y="${by}" width="${bw(now, fe)}" height="${bh}"${short ? ` fill="url(#${pid})"` : ''}/>` + lab(x(now), fw, mid, short ? `fuel to ≈L${Math.ceil(fe)} · short of flag` : race ? 'fuel to the flag' : `fuel to ≈L${Math.ceil(fe)}`);
       if (boxOn) g += `<line class="stl-box" x1="${x(st.box_by_lap)}" y1="${top}" x2="${x(st.box_by_lap)}" y2="${bot}"/><text class="stl-top" x="${x(st.box_by_lap)}" y="${top - 3}" text-anchor="middle">BOX L${st.box_by_lap}</text>`;
       if (race && st.laps_to_go != null) g += `<line class="stl-flag" x1="${x(total)}" y1="${top}" x2="${x(total)}" y2="${bot}"/><text class="stl-top" x="${x(total)}" y="${top - 3}" text-anchor="end">FLAG ${st.laps_src === 'timed' ? '≈' : ''}L${total}</text>`;
       g += `<line class="stl-now" x1="${x(now)}" y1="${top - 2}" x2="${x(now)}" y2="${bot}"/><path class="stl-nowm" d="M${x(now)} ${bot} l-4 6 h8 z"/>`;
@@ -143,11 +145,13 @@
       const st = c.st, ranked = rankOpts(st);
       if (!isRace(c)) return inst.setState('empty', 'Stop options are planned in races only.');
       if (!ranked.length) return inst.setState('empty', 'Stop options appear once a lap time and the fuel use are known.');
-      // rows that differ only in the lap are one row: "Box L11–L18, fuel + tyres"
+      // rows that differ only in the lap are one row: "Box L11–L18, fuel + tyres", but only when no other option's lap lies inside that range
+      const kOf = o => [o.id.endsWith('_ft'), nf(o.add_l, 1), nf(o.stationary_s, 1), nf(o.loss_s, 1), o.rejoin_pos, o.more_stops, o.reach !== false, !!o.outside_window].join();
       const groups = [];
       for (const o of ranked) {
-        const k = [o.id.endsWith('_ft'), nf(o.add_l, 0), nf(o.stationary_s, 1), nf(o.loss_s, 1), o.rejoin_pos, o.more_stops, o.reach !== false, !!o.outside_window].join();
-        const g = groups.find(x => x.k === k); if (g) g.laps.push(o.lap); else groups.push({k, o, laps:[o.lap]});
+        const k = kOf(o);
+        const g = groups.find(x => { if (x.k !== k) return false; const a = Math.min(o.lap, ...x.laps), b = Math.max(o.lap, ...x.laps); return !ranked.some(p => p.lap > a && p.lap < b && kOf(p) !== k); });
+        if (g) g.laps.push(o.lap); else groups.push({k, o, laps:[o.lap]});
       }
       const opts = groups.map(({o, laps}) => { const a = Math.min(...laps), b = Math.max(...laps);
         return a === b ? {...o, lapTxt:`L${nf(o.lap, 0)}`} : {...o, lap:a, lapTxt:`L${a}–${b}`, label:`Box L${a}–L${b}, fuel${o.id.endsWith('_ft') ? ' + tyres' : ''}`}; });
