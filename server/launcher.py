@@ -155,6 +155,17 @@ def run_bridge(ip, port, key, vjoy, out):
         print(f"Pit Wall stopped: {e!r}")
 
 
+def server_mod(name):
+    """A module of server/, read from disk like the bridge (Update changes it; the exe carries only this launcher)."""
+    srv = os.path.join(ROOT, "server")
+    if srv not in sys.path:
+        sys.path.insert(0, srv)
+    spec = importlib.util.spec_from_file_location(name, os.path.join(srv, name + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def asset(name):   # bundled into the exe; from source it sits next to this file
     return os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), name)
 
@@ -308,8 +319,17 @@ def gui():
     ctk.CTkEntry(card, textvariable=key, **field).grid(row=4, column=1, sticky="we", padx=(0, 20))
     vjoy = ctk.BooleanVar(value=bool(prefs.get("vjoy")))
     ctk.CTkSwitch(card, text="Press the pit page through vJoy", variable=vjoy, font=font(13), text_color=TXT, fg_color=LINE,
-                  switch_width=44, switch_height=24, border_width=3, button_length=0, cursor="hand2",
-                  progress_color=ACC, button_color=TXT, button_hover_color="#ffffff").grid(row=5, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 18))
+                  switch_width=44, switch_height=24, border_width=3, button_length=0, cursor="hand2", command=lambda: vjoy_ok(),
+                  progress_color=ACC, button_color=TXT, button_hover_color="#ffffff").grid(row=5, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 12))
+    # the two one-time setups the README does from a terminal, here so the exe needs no Python
+    once = ctk.CTkFrame(card, fg_color="transparent")
+    once.grid(row=6, column=0, columnspan=2, sticky="we", padx=20, pady=(0, 18))
+    small = {"height": 32, "corner_radius": 6, "border_width": 1, "border_color": LINE, "fg_color": RAISE, "hover_color": LINE,
+             "text_color": TXT, "text_color_disabled": DIM, "font": font(13)}
+    fld_b = ctk.CTkButton(once, text="Turn on field timing", **small)
+    fld_b.pack(side="left", fill="x", expand=True, padx=(0, 6))
+    bind_b = ctk.CTkButton(once, text="Bind vJoy in ACC", **small)
+    bind_b.pack(side="left", fill="x", expand=True, padx=(6, 0))
     err = label(setup, "", 12, BAD, wraplength=460)
     err.pack(fill="x", pady=(6, 0))
     start = ctk.CTkButton(setup, text="Start Pit Wall", height=48, corner_radius=8, font=font(16, "bold"),
@@ -329,6 +349,49 @@ def gui():
     def can_start():
         on = have_code()
         start.configure(state="normal" if on else "disabled", fg_color=ACC if on else RAISE)
+        field_state()
+        vjoy_ok()
+
+    def say(text, color=BAD):
+        err.configure(text=text, text_color=color)
+
+    def field_port():   # ACC's broadcasting port, 0 when off or unreadable
+        try:
+            return server_mod("acc_broadcast").read_config()["port"]
+        except Exception:
+            return 0
+
+    def field_state():
+        on = have_code() and field_port()
+        fld_b.configure(text="✓  Field timing on" if on else "Turn on field timing", text_color=OK if on else TXT,
+                        state="normal" if have_code() else "disabled")
+
+    def field_on():
+        if field_port():
+            return say(f"Field timing is on (ACC's broadcasting port {field_port()}): the other cars come from it.", OK)
+        try:
+            text = server_mod("acc_broadcast").enable()
+            say(text, OK if text.startswith("Broadcasting") else BAD)
+        except Exception as e:
+            say(f"Could not turn field timing on: {e}")
+        field_state()
+    fld_b.configure(command=field_on)
+
+    def vjoy_ok():
+        bind_b.configure(state="normal" if vjoy.get() and have_code() else "disabled")
+
+    def bind():
+        bind_b.configure(state="disabled")
+        say("Switch to ACC, Options > Controls, and find the MFD actions. In 10 s the beeps start: click each action's binding when you "
+            "hear its beeps (1 pit page, 2 up, 3 down, 4 left, 5 right, 6 cycle MFD). Then save the controls.", MUT)
+        def work():
+            try:
+                server_mod("acc_pit").bind_vjoy()
+                return lambda: (say("Done: ACC's six MFD actions should show vJoy buttons 1 to 6.", OK), vjoy_ok())
+            except Exception as e:
+                return lambda: (say(f"vJoy binding failed (is vJoy installed, device 1 with 6 buttons?): {e}"), vjoy_ok())
+        later(work)
+    bind_b.configure(command=bind)
 
     def show_upd(kind, text):
         """ok: green; new (an update, or the first download): yellow; checking/busy: disabled; fail: Retry."""
@@ -367,15 +430,15 @@ def gui():
     def do_start():
         a, k = ip.get().strip(), key.get().strip()
         if not re.fullmatch(r"\d{1,5}", port.get().strip()) or not 0 < int(port.get()) < 65536:
-            return err.configure(text="The port is a number from 1 to 65535 (8765 if unsure).")
+            return say("The port is a number from 1 to 65535 (8765 if unsure).")
         if not re.fullmatch(r"[A-Za-z0-9_-]{4,64}", k):
-            return err.configure(text="The key: 4 to 64 letters, digits, - or _.")
+            return say("The key: 4 to 64 letters, digits, - or _.")
         p = int(port.get())
         s = socket.socket()
         try:
             s.bind((a, p))
         except OSError as e:
-            return err.configure(text=bind_error(e, a, p))
+            return say(bind_error(e, a, p))
         finally:
             s.close()
         with open(PREFS, "w") as f:
@@ -466,7 +529,14 @@ def selftest():
     extract(buf.getvalue(), os.path.join(d, "pw"))
     assert open(os.path.join(d, "pw", "server", "bridge.py")).read() == "x" and not os.path.exists(os.path.join(d, "evil.txt"))
     shutil.rmtree(d)
-    print("ok: address picked Hamachi first, zip written into the folder only")
+    import ast   # the exe has no Python of its own to fall back on: every module the server imports must be imported here too
+    mods = lambda f: {a.name for n in ast.walk(ast.parse(open(f, encoding="utf-8").read())) if isinstance(n, ast.Import) for a in n.names} | \
+        {n.module for n in ast.walk(ast.parse(open(f, encoding="utf-8").read())) if isinstance(n, ast.ImportFrom) and n.module and not n.level}
+    srv = os.path.dirname(os.path.abspath(__file__))
+    need = set().union(*(mods(os.path.join(srv, f)) for f in ("bridge.py", "acc_telemetry.py", "acc_broadcast.py", "acc_pit.py")))
+    missing = need - mods(os.path.abspath(__file__)) - {"acc_telemetry", "acc_broadcast", "acc_pit"}
+    assert not missing, f"import these in launcher.py and rebuild PitWall.exe: {sorted(missing)}"
+    print("ok: address picked Hamachi first, zip written into the folder only, every server import bundled")
 
 
 if __name__ == "__main__":
