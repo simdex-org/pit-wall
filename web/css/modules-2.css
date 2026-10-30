@@ -1,0 +1,80 @@
+/* modules-2.css (D2): geometry for the car, laps, analysis and log modules. Tokens only; the shared vocabulary is app.css. */
+
+/* ---------- track map ---------- */
+.cv.map>canvas{cursor:grab;touch-action:none}
+.cv.map>canvas:active{cursor:grabbing}
+.mtools [aria-pressed=true]{color:var(--acc)}
+
+/* ---------- driver inputs ---------- */
+.cs-top{display:flex;align-items:flex-end;gap:24px;margin-bottom:8px}
+.cs-shift{margin-left:auto;font-size:var(--t-lg);letter-spacing:.08em}
+.cs-m{display:grid;grid-template-columns:7ch minmax(0,1fr) 6ch;align-items:center;gap:8px;min-height:20px}
+.cs-m .n{text-align:right;font-size:var(--t-sm)}
+.cs-steer{position:relative;height:6px;background:var(--line2)}
+.cs-steer::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--dim)}
+.cs-steer>i{position:absolute;top:0;bottom:0;background:var(--c-steer)}
+.cs-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+
+/* ---------- lap timer: a left-edge bar says track / pit / invalid ---------- */
+.mod[data-type=lap-timer] .mb{box-shadow:inset 3px 0 0 var(--ok);padding-left:calc(var(--pad) + 4px)}
+.mod[data-type=lap-timer] .mb[data-loc=pit]{box-shadow:inset 3px 0 0 var(--cold)}
+.mod[data-type=lap-timer] .mb[data-loc=invalid]{box-shadow:inset 3px 0 0 var(--inv)}
+
+/* ---------- tyres: the drawing takes what the table leaves, never less than 150 px (the body scrolls instead) ---------- */
+.mod[data-type=tyres] .tyre-svg{flex:1 1 auto;min-height:150px;position:relative}
+.mod[data-type=tyres] .tyre-svg>svg{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none}
+.tyre-svg .ty-ring{fill:none;stroke:var(--txt);stroke-width:1.5}
+.tyre-svg .ty-ring.wet{stroke:var(--cold)}
+.tyre-svg .ty-ringt{fill:var(--txt);font:700 12px var(--font)}
+.tyre-svg .ty-ringt.wet{fill:var(--cold)}
+.tyre-svg .ty-comp{font-size:11px}
+.tt.ty-t{margin-top:8px}
+.tt.ty-t td:first-child,.tt.br td:first-child,.tt.pf td:first-child{color:var(--mut)}
+
+/* ---------- brakes ---------- */
+.tt.br .gauge{min-width:40px}
+
+/* ---------- damage ---------- */
+.dm-ok>span{display:inline-flex;align-items:center;gap:4px;margin-bottom:8px}
+.dm-ok svg{width:16px;height:16px}
+
+/* ---------- laps ---------- */
+.tt td.lp-sel,.tt th.lp-sel{width:1%;padding-right:4px}
+.tt .btn.sel-ref,.tt .btn.sel-cmp{height:18px;padding:0 4px;font-size:var(--t-xs);letter-spacing:.06em}
+.tt .btn.sel-ref[aria-pressed=true]{background:var(--raise);color:var(--c-ref);border:1px solid var(--c-ref)}
+.tt .btn.sel-cmp[aria-pressed=true]{background:var(--raise);color:var(--c-cmp);border:1px dashed var(--c-cmp)}
+.tt.lp tfoot td{white-space:normal}
+
+/* ---------- lap picker ---------- */
+.tt.lk td.lk-n{max-width:14ch}
+.lk-foot{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+
+/* ---------- traces ---------- */
+.tr-lg{display:flex;gap:12px;margin-bottom:4px}
+
+/* ---------- segments ---------- */
+.tt.sg td.sg-why{color:var(--mut);max-width:20ch}
+.tt.sg tr[data-f]{cursor:pointer}
+.tt.sg tr.sg-on>td{background:var(--acc-soft)}
+.tt.sg tfoot td{white-space:normal}
+
+/* ---------- events ---------- */
+.ev-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+.ev-chips{display:flex;flex-wrap:wrap;gap:4px}
+.ev-chip{cursor:pointer;font-family:var(--num)}
+.ev-chip[aria-pressed=false]{color:var(--dim);border-style:dashed}
+.ev-chip[aria-pressed=true]{color:var(--txt);border-color:var(--dim)}
+.ev-bar input[type=search]{width:16ch}
+.tt.ev td.ev-t{white-space:normal}
+.tt.ev td.ev-t .sev{padding:0}
+
+/* ---------- notes ---------- */
+.nt-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.dm-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
+.lt-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:2px 0 8px}
+.lt-d{display:flex;flex-direction:column;align-items:flex-end;font-size:var(--t-lg)}
+/* tyres, wide and low: the car at the left (at most 45 %), the table beside it */
+.mod[data-type=tyres] .mb.ty-wide{flex-direction:row;flex-wrap:wrap;gap:12px;align-items:stretch;align-content:flex-start}
+.mod[data-type=tyres] .mb.ty-wide>.tyre-svg{flex:0 1 45%;min-height:120px}
+.mod[data-type=tyres] .mb.ty-wide>.ty-t{flex:1 1 0;min-width:240px;align-self:flex-start}
+.mod[data-type=tyres] .mb.ty-wide>.note{flex:1 1 100%}

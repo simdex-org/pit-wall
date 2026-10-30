@@ -1,0 +1,135 @@
+/* modules-1.css (D1): geometry for the timing, strategy and pit modules. Tokens only; the shared vocabulary is app.css. */
+
+/* ---------- shared by the car tables: keyboard row cursor, sparklines ---------- */
+.tt tr.kcur>td{box-shadow:inset 0 1px 0 var(--acc),inset 0 -1px 0 var(--acc)}
+.tt tr.gaprow>td{height:16px;text-align:center;border-bottom-style:dashed}
+.tt td.drv{max-width:16ch}
+.tt td.car{max-width:18ch;color:var(--mut)}
+.tt td.tags{width:1%}
+.spk{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
+svg.spark{flex:none;overflow:visible}
+svg.spark polyline{fill:none;stroke:var(--mut);stroke-width:1.5;stroke-linejoin:round}
+svg.spark circle{fill:var(--txt)}
+.spk .note{font-family:var(--num);font-size:var(--t-xs)}
+
+/* ---------- relative ---------- */
+.tt.rel td.pos{width:5ch}
+.tt.rel td.drv{max-width:none}
+
+/* ---------- battle ---------- */
+.bat{display:flex;flex-direction:column;gap:8px}
+.bat-row{border-bottom:1px solid var(--line2);padding-bottom:8px}
+.bat-row:last-child{border-bottom:0}
+.bat-main{display:flex;align-items:center;gap:12px;min-width:0}
+.bat-main .drv{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bat-main .big{font-size:var(--t-xl)}
+.bat-row .sub{margin-top:2px}
+
+/* ---------- pit lane ---------- */
+.pa-now{margin-bottom:8px}
+
+/* ---------- you vs focus car ---------- */
+.sc-int{margin-top:8px}
+.sc-int .sub b{font-family:var(--num);color:var(--txt);font-weight:500}
+
+/* ---------- flags ---------- */
+.fl-main{display:flex;align-items:center;gap:12px;font-size:var(--t-lg);letter-spacing:.08em}
+.flag.big-flag{width:42px;height:28px}
+.fl-glob{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:12px;font-size:var(--t-sm)}
+.fl-glob>span{display:inline-flex;align-items:center;gap:4px}
+.fl-glob>span.on{color:var(--txt);font-weight:600}
+.fl-pen{margin-top:12px;padding-top:8px;border-top:1px solid var(--line2)}
+
+/* ---------- fuel ---------- */
+.fu-g{margin:8px 0}
+
+/* ---------- fuel to the flag ---------- */
+.rp-head{margin-bottom:8px}
+.rp-in{margin-top:12px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.rp-f{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--mut);font-size:var(--t-sm)}
+.rp-f input{width:9ch;text-align:right}
+.rp-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+
+/* ---------- stint timeline (svg in px; labels inside) ---------- */
+.stl-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
+.stl-wrap>svg{position:absolute;inset:0;display:block}
+.stl text{font:500 var(--t-xs) var(--num);fill:var(--mut)}
+.stl .stl-top{fill:var(--txt);font-weight:600;letter-spacing:.04em}
+.stl .stl-t{fill:var(--txt)}
+
+.stl .stl-ax{fill:var(--dim)}
+.stl-base,.stl-tick{stroke:var(--line);stroke-width:1}
+.stl-win{fill:none;stroke:var(--mut);stroke-width:1;stroke-dasharray:2 2}
+.stl-st{fill:var(--line2);stroke:var(--dim);stroke-width:1}
+.stl-st.wet,.stl-cur.wet{stroke:var(--cold);stroke-width:1.5}
+.stl-cur{fill:var(--raise);stroke:var(--txt);stroke-width:1}
+.stl-fuel{fill:none;stroke:var(--txt);stroke-width:1}
+.stl-fuel.short{stroke:var(--bad)}
+.stl-hl{stroke:var(--bad);stroke-width:1.5;stroke-opacity:.6}
+.stl-box{stroke:var(--warn);stroke-width:1.5;stroke-dasharray:4 3}
+.stl-flag{stroke:var(--txt);stroke-width:1.5}
+.stl-now{stroke:var(--txt);stroke-width:1}
+.stl-nowm{fill:var(--txt)}
+
+/* ---------- stop options ---------- */
+.tt.so tr.so-best>td{font-weight:700;color:var(--txt)}
+.tt.so td:first-child{max-width:24ch}
+
+/* ---------- rejoin ---------- */
+.tt.rj{margin-top:8px}
+
+/* ---------- weather ---------- */
+.wx-rain{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
+.wx-c{min-width:0;font-size:var(--t-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wx-lvl{display:flex;gap:2px;margin-top:4px}
+.wx-lvl i{flex:1;height:4px;background:var(--line2)}
+.wx-lvl i.on{background:var(--cold)}
+.wx-lvl i.on.w{background:var(--warn)}
+.wx-arrow{vertical-align:-2px;fill:var(--txt)}
+
+/* ---------- pace ---------- */
+.dg-sub{margin-bottom:4px}
+.dg-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
+.dg-wrap>svg{position:absolute;inset:0;display:block}
+.dg-grid{stroke:var(--line);stroke-width:1}
+.dg-bar{fill:var(--mut)}
+.dg-bar.inv{stroke:var(--inv);stroke-width:1}
+.dg-hl{stroke:var(--inv);stroke-width:1.5}
+.dg-fit{stroke:var(--txt);stroke-width:1.5}
+.dg-prev{stroke:var(--dim);stroke-width:1.5;stroke-dasharray:4 3}
+.dg-wrap text{font:500 var(--t-xs) var(--num);fill:var(--dim)}
+
+/* ---------- pit stop plan ---------- */
+.pp{flex-wrap:nowrap}
+.pp>.tt{flex:1 1 auto}
+.pp-side{flex:0 0 220px;position:sticky;top:0}
+.pp-t td.pp-in{white-space:nowrap}
+.pp-t td.pp-in input[type=number]{width:8ch;text-align:right}
+.pp-t tr.pp-new>td{background:var(--warn-soft)}
+.pp-t tr.pp-new>td:first-child{box-shadow:inset 2px 0 0 var(--warn)}
+.pp-state{font-weight:600;color:var(--txt)}
+.pp-confirm{border:1px solid var(--warn);padding:8px;display:flex;flex-direction:column;gap:8px;font-size:var(--t-sm)}
+.pp-acts{display:flex;gap:8px}
+@media (max-width:1100px){.pp{flex-wrap:wrap}.pp-side{position:static;flex:1 1 100%}}
+
+/* ---------- pit sends ---------- */
+.pl-e{border-bottom:1px solid var(--line2)}
+.pl-e>summary{display:flex;align-items:center;gap:8px;min-height:var(--trow);cursor:pointer;white-space:nowrap;overflow:hidden}
+.pl-e>summary .pl-r{margin-left:auto}
+.pl-e>.kv{padding:0 0 8px 16px}
+
+/* ---------- pressure correction ---------- */
+
+.pf-acts{margin-top:8px}
+.stl .stl-wt{fill:var(--mut);font-weight:600;letter-spacing:.04em}
+.rp-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 8px}
+.rp-g .rp-f{flex-direction:column;align-items:stretch;gap:2px;font-size:var(--t-xs)}
+.rp-g .rp-f input{width:100%}
+.pf-acts{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.pf-acts .pf-sub{margin:0}
+/* pit plan under 600 px of module width (a phone): no MFD-now column, the side panel below, the table scrolls sideways */
+.pp.pp-narrow{flex-wrap:wrap}
+.pp.pp-narrow>.pp-t{display:block;overflow-x:auto;max-width:100%;flex:1 1 100%}
+.pp.pp-narrow .pp-t :is(th:nth-child(2),td[data-now]){display:none}
+.pp.pp-narrow>.pp-side{position:static;flex:1 1 100%}
+.pp-sets{font-size:var(--t-sm)}

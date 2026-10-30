@@ -1,341 +1,87 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-panel="ruled" data-labels="upper">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Engineer View</title>
-<meta name="theme-color" content="#08090b">
+<title>Pit Wall</title>
+<meta name="theme-color" content="#0a0b0d">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/modules-1.css">
+<link rel="stylesheet" href="css/modules-2.css">
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
 <script src="data/tracks.js"></script>
-<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<main id="welcome" aria-labelledby="wTitle">
+<section id="welcome" aria-labelledby="wTitle">
   <div class="w-inner">
-    <div class="w-brand"><i data-lucide="radio"></i>ENGINEER</div>
-    <h1 id="wTitle">Live race engineering view</h1>
-    <p class="w-lead">Track map, car state, tyres, fuel, the engineer's advice and the next pit stop for the driver you are watching in Assetto Corsa Competizione.</p>
+    <div class="w-brand">PIT WALL</div>
+    <h1 id="wTitle">Race engineering for Assetto Corsa Competizione</h1>
+    <p class="w-lead">The field, the car, fuel and stops, the engineer's advice and the next pit stop, for the driver you are watching.</p>
     <ol class="w-steps" aria-live="polite">
       <li id="ws-bridge"><span class="w-mark"></span><div><b>Driver's PC</b><span id="ws-bridge-t">Connecting to the driver's PC</span></div></li>
       <li id="ws-signal"><span class="w-mark"></span><div><b>ACC</b><span id="ws-signal-t">Waiting for ACC on the driver's PC</span></div></li>
       <li id="ws-session"><span class="w-mark"></span><div><b>Session</b><span id="ws-session-t">Waiting for a session</span></div></li>
     </ol>
-    <div class="w-actions"><button id="wEnter" class="primary">Open dashboard</button><span id="wNote"></span></div>
+    <div class="w-actions"><button id="wEnter" class="btn primary" type="button">Open the pit wall</button><span id="wNote"></span></div>
     <details class="w-help"><summary>Not receiving anything?</summary>
       <ul>
         <li>ACC must be in a session (on track or in the pits) on the driver's PC, the same PC that runs <b>server/bridge.py</b>.</li>
         <li>The terminal running <b>server/bridge.py</b> says when it sees ACC and which car and track.</li>
-        <li>If this page does not load at all: check the VPN shows the driver online, and that Python is allowed through the driver's Windows firewall on Public networks.</li>
+        <li>If this page does not load at all: check the VPN shows the driver online, and that Python is allowed through the driver's Windows firewall on <b>Private</b> networks only.</li>
       </ul>
     </details>
   </div>
-</main>
+</section>
 
-<div class="app">
-  <aside class="side">
-    <div class="brand"><i data-lucide="radio"></i><span>ENGINEER</span></div>
-    <nav role="tablist" aria-label="Views" aria-orientation="vertical">
-      <button role="tab" id="t-live" aria-controls="p-live" aria-selected="true"><i data-lucide="activity"></i>Live<kbd>1</kbd></button>
-      <button role="tab" id="t-tyres" aria-controls="p-tyres" aria-selected="false"><i data-lucide="circle-dot"></i>Tyres &amp; brakes<span class="flag" id="flagTyres" title="Alert"></span><kbd>2</kbd></button>
-      <button role="tab" id="t-strategy" aria-controls="p-strategy" aria-selected="false"><i data-lucide="fuel"></i>Strategy<span class="flag" id="flagFuel" title="Alert"></span><kbd>3</kbd></button>
-      <button role="tab" id="t-laps" aria-controls="p-laps" aria-selected="false"><i data-lucide="list"></i>Laps<kbd>4</kbd></button>
-      <button role="tab" id="t-compare" aria-controls="p-compare" aria-selected="false"><i data-lucide="git-compare"></i>Compare<kbd>5</kbd></button>
-      <button role="tab" id="t-log" aria-controls="p-log" aria-selected="false"><i data-lucide="scroll-text"></i>Log &amp; notes<kbd>6</kbd></button>
-      <button role="tab" id="t-settings" aria-controls="p-settings" aria-selected="false"><i data-lucide="settings"></i>Settings<kbd>7</kbd></button>
-    </nav>
-    <div class="grp">Session</div>
-    <dl class="kv">
-      <dt>Driver</dt><dd id="driver">—</dd>
-      <dt>Car</dt><dd id="car">—</dd>
-      <dt>Track</dt><dd id="track">—</dd>
-      <dt>Type</dt><dd><span id="session">—</span><span id="status"></span></dd>
-      <dt>Position</dt><dd id="pos">—</dd>
-      <dt>Lap</dt><dd id="laps">—</dd>
-      <dt>Time left</dt><dd id="timeLeft">—</dd>
-    </dl>
-    <div class="grp">Conditions</div>
-    <dl class="kv">
-      <dt>Air</dt><dd id="air">—</dd>
-      <dt>Road</dt><dd id="road">—</dd>
-      <dt>Wind</dt><dd id="wind">—</dd>
-      <dt>Grip</dt><dd id="grip">—</dd>
-    </dl>
-  </aside>
-
-  <div class="main" id="main">
-    <div class="tabpanel" id="p-live" role="tabpanel" aria-labelledby="t-live">
-      <div class="tiles">
-        <div class="tile gear"><label>Gear</label><div class="gear-n" id="gear">N</div></div>
-        <div class="tile"><label>Speed</label>
-          <div class="speed"><span id="speed">0</span><small>km/h</small></div>
-          <div class="bar rpm"><i id="rpmBar"></i></div>
-          <div class="rpmline"><span id="rpm">0</span><span id="maxRpm"></span></div>
-        </div>
-        <div class="tile"><label>Pedals</label>
-          <div class="pedals">
-            <span>THR</span><div class="bar thr"><i id="thr"></i></div><span id="thrV">0%</span>
-            <span>BRK</span><div class="bar brk"><i id="brk"></i></div><span id="brkV">0%</span>
-            <span>CLU</span><div class="bar clu"><i id="clu"></i></div><span id="cluV">0%</span>
-          </div>
-        </div>
-        <div class="tile"><label>Lap time</label>
-          <div class="cur" id="cur">—</div>
-          <div class="sub"><span>Δ <b id="delta">—</b></span><span>Last <b id="last">—</b></span><span>Best <b id="best">—</b></span><span>Sector <b id="sector">—</b></span></div>
-        </div>
-        <div class="tile"><label>Position</label>
-          <div class="cur" id="livePos">—</div>
-          <div class="sub"><span>Ahead <b id="liveAhead">—</b></span><span>Behind <b id="liveBehind">—</b></span></div>
-        </div>
-        <div class="tile"><label>Fuel</label>
-          <div class="fuel"><span id="fuelL">—</span><small>L</small></div>
-          <div class="sub"><span><b id="fuelLapsL">—</b> laps left</span><span><b id="fplL">—</b> L/lap</span></div>
-        </div>
-      </div>
-      <div class="chips" id="badges"></div>
-
-      <div class="live-grid">
-        <section class="panel">
-          <div class="ph">Channels<span class="r"><span id="cursorInfo"></span><select id="preset" aria-label="Channel preset"></select><button id="pause" class="btn" aria-pressed="false">Pause</button></span></div>
-          <div class="picks" id="picks"></div>
-          <div id="chartRows"></div>
-        </section>
-        <div class="stack">
-          <section class="panel">
-            <div class="ph">Track<span class="r"><span id="mapInfo"></span><button class="btn" id="mapFollow" type="button" aria-pressed="false" title="Follow the car (F, or double-click the map)">Follow</button><button class="btn" id="mapFit" type="button" title="Whole track">Fit</button></span></div>
-            <div class="mapbox"><canvas id="map"></canvas></div>
-          </section>
-          <section class="panel">
-            <div class="ph">G-force<span class="r" id="ggInfo"></span></div>
-            <div class="ggbox"><canvas id="gg"></canvas></div>
-          </section>
-        </div>
-      </div>
-    </div>
-
-    <div class="tabpanel" id="p-tyres" role="tabpanel" aria-labelledby="t-tyres" hidden>
-      <div class="ph big">Tyres &amp; brakes<span class="r"><span id="compound"></span><span id="targets"></span><button class="btn" id="tyRec" type="button">Put the corrections in the pit plan</button></span></div>
-      <section class="panel tyreviz-panel"><div class="ph">Car<span class="r"><span class="lg"><i class="t-cold"></i>cold</span><span class="lg"><i class="t-ok"></i>in window</span><span class="lg"><i class="t-warn"></i>hot</span><span class="lg"><i class="t-bad"></i>too hot</span><span>tyre core temperature · brake beside each tyre</span></span></div>
-        <div class="tyreviz" id="tyreViz"><div class="empty">Waiting for the driver.</div></div></section>
-      <div class="corners" id="tyreGrid"><div class="empty">Waiting for the driver.</div></div>
-      <section class="panel" style="margin-top:10px;max-width:980px"><div class="ph">History by lap<span class="r">values at the end of each lap</span></div>
-        <table id="tyreHist"><thead><tr><th>Lap</th><th>FL psi</th><th>FR psi</th><th>RL psi</th><th>RR psi</th><th>FL °C</th><th>FR °C</th><th>RL °C</th><th>RR °C</th></tr></thead><tbody id="tyreHistRows"><tr><td colspan="9" class="empty">Filled as laps are completed.</td></tr></tbody></table>
-      </section>
-    </div>
-
-    <div class="tabpanel" id="p-strategy" role="tabpanel" aria-labelledby="t-strategy" hidden>
-      <div class="ph big">Strategy<span class="r"><button id="boardEdit" class="btn" type="button" aria-pressed="false"><i data-lucide="layout-dashboard"></i>Customize</button></span></div>
-      <div class="board-bar" id="boardBar" hidden>
-        <label>Add module<select id="boardAdd"></select></label>
-        <label>Theme<select id="themePreset"><option value="timing">Timing sheet</option><option value="broadcast">Broadcast</option><option value="endurance">Endurance</option></select></label>
-        <label>Accent<input type="color" id="themeAccent"></label>
-        <button class="btn" id="boardReset" type="button">Reset layout</button>
-        <span class="note">Drag a module by its title bar to move it and by its corner to resize it, or use the buttons on its title bar.</span>
-      </div>
-      <div class="board" id="board">
-        <section class="panel mod" data-mod="timeline"><div class="ph">Race timeline<span class="r" id="tlInfo"></span></div>
-          <div class="tl" id="timeline"><div class="empty">Waiting for the driver.</div></div>
-        </section>
-        <section class="panel mod" data-mod="fuel"><div class="ph">Fuel<span class="r" id="fuelCap"></span></div>
-          <div class="m-fuel">
-            <div class="m-big" id="fuel">—</div>
-            <div class="gauge" id="fuelGauge" aria-hidden="true"><i></i><b></b></div>
-            <dl class="mini"><dt>Per lap</dt><dd id="fpl">—</dd><dt>Last lap</dt><dd id="fuelLast">—</dd><dt>Laps left</dt><dd id="fuelLaps">—</dd><dt>Per lap to the flag</dt><dd id="fuelTarget">—</dd></dl>
-          </div>
-        </section>
-        <section class="panel mod calc" data-mod="window"><div class="ph">Pit window<span class="r">leave laps empty to use the session</span></div>
-          <div class="m-window">
-            <div class="headline"><small id="winLabel">Box by</small><b id="winLap">—</b><em id="winIn"></em></div>
-            <div class="calc-grid">
-              <label>Laps to go<input type="number" id="calcLaps" min="0" step="1" inputmode="numeric"></label>
-              <label>Reserve (laps)<input type="number" id="calcReserve" min="0" step="0.5" value="1"></label>
-              <dl class="rows">
-                <dt>Laps to go used</dt><dd id="calcUsed">—</dd>
-                <dt>Fuel needed</dt><dd id="calcNeed">—</dd>
-                <dt>In the tank</dt><dd id="calcTank">—</dd>
-                <dt>To add at the stop</dt><dd id="calcAdd">—</dd>
-                <dt>Latest pit lap</dt><dd id="calcPit">—</dd>
-              </dl>
-            </div>
-          </div>
-        </section>
-        <section class="panel mod" data-mod="gaps"><div class="ph">Gaps</div>
-          <div class="m-gaps"><div class="m-big" id="gapPos">—</div>
-            <dl class="mini"><dt>Ahead</dt><dd id="gapAhead">—</dd><dt>Behind</dt><dd id="gapBehind">—</dd><dt>Last</dt><dd id="gapLast">—</dd><dt>Best</dt><dd id="gapBest">—</dd></dl></div>
-        </section>
-        <section class="panel mod" data-mod="weather"><div class="ph">Track &amp; weather</div>
-          <div class="m-weather">
-            <div class="rain" id="rain"></div>
-            <dl class="mini"><dt>Grip</dt><dd id="wGrip">—</dd><dt>Air</dt><dd id="wAir">—</dd><dt>Track</dt><dd id="wRoad">—</dd></dl>
-          </div>
-        </section>
-        <section class="panel mod" data-mod="tyres"><div class="ph">Tyres<span class="r" id="tyInfo"></span></div>
-          <div class="m-tyres">
-            <div class="tyreviz" id="tyCar"></div>
-            <dl class="mini"><dt>Laps this stint</dt><dd id="stint">—</dd><dt>Tyre set</dt><dd id="tySet">—</dd></dl>
-            <p class="na">ACC does not publish tyre wear: Degradation shows what the tyres cost in lap time.</p>
-          </div>
-        </section>
-        <section class="panel mod" data-mod="degradation"><div class="ph">Degradation<span class="r" id="degInfo"></span></div>
-          <div class="m-chart" id="degChart"><div class="empty">Lap times of the stint appear after two laps.</div></div>
-        </section>
-        <section class="panel mod" data-mod="brakes"><div class="ph">Brake pads<span class="r" id="brInfo"></span></div>
-          <div class="m-brakes" id="brGrid"><div class="empty">Waiting for the driver.</div></div>
-        </section>
-        <section class="panel mod pit" data-mod="pitstop"><div class="ph">Next pit stop<span class="r"><span class="dot" id="pitDot"></span><span id="pitLink">no pit control</span></span></div>
-          <div class="pit-grid">
-            <table class="pit-tab">
-              <thead><tr><th></th><th>MFD now</th><th>Plan</th><th>Last sent</th></tr></thead>
-              <tbody>
-                <tr class="pg"><th colspan="3">Fuel</th><td><button class="btn send" type="button" data-only="fuel">Send fuel</button></td></tr>
-                <tr><td>Fuel to add</td><td id="mfdFuel">—</td><td><input type="number" id="pFuel" min="0" max="150" step="1" aria-label="Fuel to add, litres"> L <button class="linkbtn" id="pFuelCalc" type="button">use fuel to finish</button></td><td data-r="fuel"></td></tr>
-                <tr class="pg"><th colspan="3">Tyres</th><td><button class="btn send" type="button" data-only="tyres">Send tyres</button></td></tr>
-                <tr><td>Change tyres</td><td class="na">not published</td><td><input type="checkbox" id="pTyres" aria-label="Change tyres"></td><td data-r="tyres"></td></tr>
-                <tr><td>Compound</td><td class="na">not published</td><td><select id="pCompound" aria-label="Compound"><option value="dry">Dry</option><option value="wet">Wet</option></select></td><td data-r="compound"></td></tr>
-                <tr><td>Tyre set</td><td id="mfdSet">—</td><td><input type="number" id="pSet" min="1" max="50" step="1" aria-label="Tyre set"></td><td data-r="tyre_set"></td></tr>
-                <tr class="pg"><th colspan="3">Pressures</th><td><button class="btn send" type="button" data-only="pressures">Send pressures</button></td></tr>
-                <tr><td>Pressure FL</td><td id="mfdFL">—</td><td><input type="number" id="pFL" min="15" max="40" step="0.1" aria-label="Pressure front left, psi"> psi</td><td data-r="fl"></td></tr>
-                <tr><td>Pressure FR</td><td id="mfdFR">—</td><td><input type="number" id="pFR" min="15" max="40" step="0.1" aria-label="Pressure front right, psi"> psi</td><td data-r="fr"></td></tr>
-                <tr><td>Pressure RL</td><td id="mfdRL">—</td><td><input type="number" id="pRL" min="15" max="40" step="0.1" aria-label="Pressure rear left, psi"> psi</td><td data-r="rl"></td></tr>
-                <tr><td>Pressure RR</td><td id="mfdRR">—</td><td><input type="number" id="pRR" min="15" max="40" step="0.1" aria-label="Pressure rear right, psi"> psi</td><td data-r="rr"></td></tr>
-                <tr class="pg"><th colspan="3">Brakes</th><td><button class="btn send" type="button" data-only="brakes">Send brakes</button></td></tr>
-                <tr><td>Change brakes</td><td class="na">not published</td><td><input type="checkbox" id="pBrakes" aria-label="Change brake pads"></td><td data-r="brakes"></td></tr>
-                <tr><td>Front pads</td><td class="na">not published</td><td><select id="pFpad" aria-label="Front pad compound"><option>1</option><option>2</option><option>3</option><option>4</option></select></td><td data-r="front_pad"></td></tr>
-                <tr><td>Rear pads</td><td class="na">not published</td><td><select id="pRpad" aria-label="Rear pad compound"><option>1</option><option>2</option><option>3</option><option>4</option></select></td><td data-r="rear_pad"></td></tr>
-                <tr class="pg"><th colspan="3">Repairs</th><td><button class="btn send" type="button" data-only="repairs">Send repairs</button></td></tr>
-                <tr><td>Repair suspension</td><td class="na">not published</td><td><label class="check"><input type="checkbox" id="pFlipSusp">switch yes/no</label></td><td data-r="flip_suspension"></td></tr>
-                <tr><td>Repair bodywork</td><td class="na">not published</td><td><label class="check"><input type="checkbox" id="pFlipBody">switch yes/no</label></td><td data-r="flip_bodywork"></td></tr>
-              </tbody>
-            </table>
-            <div class="pit-side">
-              <button class="primary" id="pitApply" type="button">Send whole plan</button>
-              <button class="btn" id="pitCopy" type="button">Copy MFD into plan</button>
-              <p class="note" id="pitMsg" role="status">Send one block, or the whole plan. Only what is sent is touched on the driver's pit page. The plan is typed in with ACC's own MFD controls. Fuel, tyre set and pressures are read back from the game; the rest ACC does not publish.</p>
-              <p class="note">Current set <b id="mfdCur">—</b> · next by strategy <b id="mfdNext">—</b></p>
-            </div>
-          </div>
-        </section>
-        <section class="panel mod" data-mod="electronics"><div class="ph">Setup &amp; electronics</div>
-          <dl class="rows">
-            <dt>Brake bias</dt><dd id="bias">—</dd>
-            <dt>TC</dt><dd id="tc">—</dd>
-            <dt>TC cut</dt><dd id="tcCut">—</dd>
-            <dt>ABS</dt><dd id="abs">—</dd>
-            <dt>Engine map</dt><dd id="map_">—</dd>
-          </dl>
-        </section>
-        <section class="panel mod" data-mod="damage"><div class="ph">Forces &amp; damage</div>
-          <dl class="rows">
-            <dt>Lateral G</dt><dd id="gLat">—</dd>
-            <dt>Longitudinal G</dt><dd id="gLon">—</dd>
-            <dt>Steering</dt><dd id="steer">—</dd>
-          </dl>
-          <div class="chips" id="damage"></div>
-        </section>
-      </div>
-    </div>
-
-    <div class="tabpanel" id="p-laps" role="tabpanel" aria-labelledby="t-laps" hidden>
-      <div class="ph big">Laps<span class="r"><span class="key-best">◆ session best</span><span class="key-inv">invalid</span><span><b class="tag">OUT</b> <b class="tag">IN</b> pit laps</span></span></div>
-      <div class="tiles five">
-        <div class="tile"><label>Best</label><div class="fuel sm t-best" id="sBest">—</div></div>
-        <div class="tile"><label>Ideal, best sectors</label><div class="fuel sm" id="sTheo">—</div></div>
-        <div class="tile"><label>Last</label><div class="fuel sm" id="sLast">—</div></div>
-        <div class="tile"><label>Average, clean laps</label><div class="fuel sm" id="sAvg">—</div></div>
-        <div class="tile"><label>Laps</label><div class="fuel sm" id="sCount">—</div></div>
-      </div>
-      <div class="laps-grid">
-        <section class="panel"><div class="ph">Lap times</div>
-          <table class="laptab"><thead><tr><th>Lap</th><th>Time</th><th>Δ best</th><th>S1</th><th>S2</th><th>S3</th><th>Fuel</th><th></th></tr></thead>
-            <tbody id="lapRows"><tr><td colspan="8" class="empty">No completed laps yet.</td></tr></tbody><tfoot id="lapFoot"></tfoot></table>
-        </section>
-        <section class="panel debrief"><div class="ph">Debrief</div><div id="debrief"><div class="empty">The last laps' analysis appears here after the first lap.</div></div></section>
-      </div>
-    </div>
-
-    <div class="tabpanel" id="p-compare" role="tabpanel" aria-labelledby="t-compare" hidden>
-      <div class="ph big">Lap comparison<span class="r"><button id="expLaps" class="btn">Export laps</button><label class="btn">Import laps<input type="file" id="impLaps" accept=".json,application/json" hidden></label></span></div>
-      <div class="cmp-grid">
-        <div class="stack">
-          <section class="panel"><div class="ph">Reference lap</div><div class="lapsel" id="refList" aria-label="Reference lap"></div></section>
-          <section class="panel"><div class="ph">Comparison lap<span class="r"><button id="cmpClear" class="linkbtn">clear</button></span></div><div class="lapsel" id="cmpList" aria-label="Comparison lap"></div></section>
-          <section class="panel"><div class="ph">At cursor</div>
-            <table class="at"><thead><tr><th></th><th>Ref</th><th>Cmp</th></tr></thead><tbody>
-              <tr><td>Position</td><td colspan="2" id="at-pos">—</td></tr>
-              <tr><td>Speed</td><td id="at-speed-r">—</td><td id="at-speed-c">—</td></tr>
-              <tr><td>Throttle</td><td id="at-thr-r">—</td><td id="at-thr-c">—</td></tr>
-              <tr><td>Brake</td><td id="at-brk-r">—</td><td id="at-brk-c">—</td></tr>
-              <tr><td>Steer</td><td id="at-steer-r">—</td><td id="at-steer-c">—</td></tr>
-              <tr><td>Gear</td><td id="at-gear-r">—</td><td id="at-gear-c">—</td></tr>
-              <tr><td>RPM</td><td id="at-rpm-r">—</td><td id="at-rpm-c">—</td></tr>
-              <tr><td>Δ time</td><td colspan="2" id="at-delta">—</td></tr>
-            </tbody></table>
-          </section>
-        </div>
-        <div class="stack">
-          <section class="panel"><div class="ph">Where the time goes<span class="r" id="cmpHead"></span></div>
-            <div class="msstrip" id="msStrip" aria-label="Time gained or lost per twentieth of the lap"></div>
-            <div class="note" id="cmpNote">Pick a reference lap and a comparison lap. Laps are recorded as they are driven; only complete laps from the start line can be compared.</div>
-          </section>
-          <section class="panel"><div class="ph">Channels against track position<span class="r"><i class="key" style="background:var(--c-speed)"></i>ref <i class="key" style="background:var(--c-cmp)"></i>cmp</span></div><div id="cmpRows"></div></section>
-        </div>
-      </div>
-    </div>
-
-    <div class="tabpanel" id="p-log" role="tabpanel" aria-labelledby="t-log" hidden>
-      <div class="ph big">Log &amp; notes<span class="r"><button id="expSession" class="btn">Export session</button></span></div>
-      <div class="log-grid">
-        <section class="panel"><div class="ph">Events<span class="r" id="evCount"></span></div><div class="evlist" id="evList"><div class="empty">Events appear here as they happen.</div></div></section>
-        <section class="panel"><div class="ph">Notes<span class="r">saved in this browser</span></div><textarea id="notes" rows="16" placeholder="Session notes"></textarea></section>
-      </div>
-    </div>
-
-    <div class="tabpanel" id="p-settings" role="tabpanel" aria-labelledby="t-settings" hidden>
-      <div class="ph big">Settings<span class="r"><button id="resetSet" class="btn">Reset to defaults</button></span></div>
-      <div class="cols">
-        <section class="panel"><div class="ph">Units</div>
-          <div class="form">
-            <label>Speed<select id="set-speed"><option value="kmh">km/h</option><option value="mph">mph</option></select></label>
-            <label>Temperature<select id="set-temp"><option value="c">°C</option><option value="f">°F</option></select></label>
-            <label>Pressure<select id="set-press"><option value="psi">psi</option><option value="bar">bar</option><option value="kpa">kPa</option></select></label>
-          </div>
-        </section>
-        <section class="panel"><div class="ph">Alert thresholds<span class="r">psi, °C, mm</span></div>
-          <div class="form">
-            <label>Pressure min<input type="number" id="set-psiMin" step="0.1"></label>
-            <label>Pressure max<input type="number" id="set-psiMax" step="0.1"></label>
-            <label>Tyre temp min<input type="number" id="set-tMin" step="1"></label>
-            <label>Tyre temp max<input type="number" id="set-tMax" step="1"></label>
-            <label>Brake temp max<input type="number" id="set-brakeMax" step="10"></label>
-            <label>Brake pad min<input type="number" id="set-padMin" step="0.5"></label>
-            <label>Low fuel (laps)<input type="number" id="set-fuelLaps" step="0.5"></label>
-          </div>
-        </section>
-        <section class="panel"><div class="ph">Alerts</div>
-          <div class="form">
-            <label class="check"><input type="checkbox" id="set-sound">Beep on critical alerts</label>
-          </div>
-        </section>
-      </div>
-    </div>
-  </div>
-
-  <section class="dock" id="dock" aria-label="Engineer advice">
-    <div class="ph"><i data-lucide="message-square"></i>Engineer<span id="advN"></span><span class="r"><span id="advAge"></span><button id="dockToggle" aria-expanded="true" aria-label="Collapse engineer panel"><i data-lucide="chevron-down"></i></button></span></div>
-    <div class="msgs" id="advice"><div class="empty">Waiting for the driver's engineer.</div></div>
+<div class="app" id="app">
+  <header id="top">
+    <span class="wordmark">PIT WALL</span>
+    <button type="button" id="tplBtn" popovertarget="tplPop" aria-haspopup="menu"><span id="tplName">Race engineer</span><i data-lucide="chevron-down"></i></button>
+    <div id="tplPop" popover class="pop" role="menu" aria-label="Templates"></div>
+    <nav id="tabs" role="tablist" aria-label="Workspaces"></nav>
+    <span class="top-gap"></span>
+    <span id="clock" class="n" title="Session time left">—</span>
+    <span id="link" class="chip s-dim" role="status" data-state="off">○ OFFLINE</span>
+    <button type="button" id="btnSettings" class="btn icon" title="Settings (,)" aria-label="Settings"><i data-lucide="settings"></i></button>
+    <button type="button" id="btnKeys" class="btn icon" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts"><i data-lucide="keyboard"></i></button>
+  </header>
+  <div id="kpi" role="group" aria-label="Session figures"></div>
+  <div id="editBar" role="toolbar" aria-label="Edit layout" hidden></div>
+  <div id="banner" role="status" hidden></div>
+  <main id="ws" class="ws" data-ws=""></main>
+  <section id="engDrawer" aria-label="Engineer" hidden>
+    <div class="ed-col"><h2 class="mt">Advice</h2><div id="engAdv"></div></div>
+    <div class="ed-col"><h2 class="mt">Debrief</h2><div id="engDeb"></div></div>
+    <button type="button" class="btn icon" id="engClose" aria-label="Close the engineer drawer" title="Close (Esc)"><i data-lucide="x"></i></button>
   </section>
-
-  <footer class="status">
-    <span id="sbSession">No session</span>
-    <span class="gap"></span>
-    <span class="lnk"><span class="dot" id="link"></span><b id="linkText">no signal</b><span id="rate"></span></span>
+  <footer id="eng">
+    <button type="button" id="engMain" class="eng-main" aria-expanded="false" aria-controls="engDrawer" title="All advice and the debrief (A)"></button>
+    <span id="engInfo" class="eng-info" aria-live="polite"></span>
   </footer>
 </div>
 
+<aside id="drawer" aria-label="Add a module" hidden></aside>
+<dialog id="dlgModule" aria-label="Module options"></dialog>
+<dialog id="dlgTemplates" aria-label="Templates"></dialog>
+<dialog id="dlgKeys" aria-label="Keyboard shortcuts"></dialog>
+<dialog id="dlgConfirm" aria-label="Confirm"></dialog>
+<section id="settings" role="dialog" aria-modal="true" aria-label="Settings" hidden></section>
+
 <script src="js/util.js"></script>
+<script src="js/workspaces.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/appearance.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/manager.js"></script>
+<script src="js/settings.js"></script>
 <script src="js/recorder.js"></script>
 <script src="js/charts.js"></script>
-<script src="js/views.js"></script>
-<script src="js/board.js"></script>
+<script src="js/mod-timing.js"></script>
+<script src="js/mod-strategy.js"></script>
+<script src="js/mod-pit.js"></script>
+<script src="js/mod-car.js"></script>
+<script src="js/mod-laps.js"></script>
+<script src="js/mod-log.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
