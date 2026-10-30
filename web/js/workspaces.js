@@ -11,7 +11,7 @@ function loadPrefs(){
   const o = lsGet('pitwall.prefs', {}) || {}, p = deep(DEF_PREFS);
   if (isObj(o.units)) for (const k of ['speed', 'temp', 'press']) if (UNITS[k][o.units[k]]) p.units[k] = o.units[k];
   if (typeof o.sound === 'boolean') p.sound = o.sound;
-  if ([5, 10, 15, 30].includes(o.hz)) p.hz = o.hz;
+  if ([5, 10, 15, 30, 60].includes(o.hz)) p.hz = o.hz;
   if (Array.isArray(o.kpi)) p.kpi = o.kpi.filter((k, i, a) => KPI_IDS.includes(k) && a.indexOf(k) === i);
   if (typeof o.kpiOn === 'boolean') p.kpiOn = o.kpiOn;
   if (isObj(o.lastWs)) for (const [k, v] of Object.entries(o.lastWs)) if (!BAD_KEYS.has(k) && typeof v === 'string') p.lastWs[k] = v.slice(0, 16);

@@ -8,7 +8,7 @@
   const mapDraw = inst => { const c = Pit.ctx; if (!c || !c.r || !inst.state.cv) return null; const out = drawMap(inst.state.cv, inst.state.view, c, inst.opts); inst.state.hits = out.hits; syncFollow(inst); return out; };
   const syncFollow = inst => { const b = inst.el.querySelector('[data-tool="follow"]'); if (b) b.setAttribute('aria-pressed', !!inst.state.view.follow); };
   Pit.module({type:'track-map', title:'Track map', group:'Car', blurb:'Your car and the field on the track, zoom, pan and follow.',
-    size:{w:6, h:14, minW:3, minH:6}, linkable:true, needs:['reading', 'field', 'entries', 'focus'], requires:['reading'], rate:30,
+    size:{w:6, h:14, minW:3, minH:6}, linkable:true, needs:['reading', 'field', 'entries', 'focus'], requires:['reading'], rate:60,
     options:[
       {key:'field', label:'Show the field', type:'toggle', def:true},
       {key:'labels', label:'Car labels', type:'select', choices:[['gap', 'Gap to you'], ['none', 'None (dots only)'], ['number', 'Race number'], ['short', 'Driver code'], ['name', 'Driver surname'], ['both', 'Number and code']], def:'gap'},
@@ -45,7 +45,7 @@
   // ---------- driver inputs ----------
   const meter = (k, cls, label) => `<div class="cs-m"><span class="lbl">${label}</span><div class="bar ${cls}"><i data-${k}></i></div><span class="n" data-${k}v></span></div>`;
   Pit.module({type:'car-status', title:'Driver inputs', group:'Car', blurb:'Gear, speed, RPM, pedals, steering and the car\'s state flags, live.',
-    size:{w:3, h:7, minW:3, minH:4}, needs:['reading'], requires:['reading'], rate:30,
+    size:{w:3, h:7, minW:3, minH:4}, needs:['reading'], requires:['reading'], rate:60,
     build(el){
       el.innerHTML = `<div class="cs-top"><div><div class="lbl">Gear</div><div class="big xl" data-gear></div></div><div><div class="lbl">Speed</div><div class="big" data-speed></div></div><b class="cs-shift s-bad" hidden>SHIFT</b></div>
         ${meter('rpm', 'rpm', 'RPM')}${meter('thr', 'thr', 'Throttle')}${meter('brk', 'brk', 'Brake')}${meter('clu', 'clu', 'Clutch')}
@@ -268,7 +268,7 @@
 
   // ---------- G-G ----------
   Pit.module({type:'gg', title:'G-G', group:'Car', blurb:'Lateral against longitudinal G over the last seconds: the friction circle.',
-    size:{w:3, h:7, minW:3, minH:5}, needs:['reading'], rate:30,
+    size:{w:3, h:7, minW:3, minH:5}, needs:['reading'], rate:60,
     build(el){ el.innerHTML = '<div class="cv"><canvas aria-label="G-G plot"></canvas></div>'; },
     render(c, inst){
       drawGG(inst.body.querySelector('canvas'), {T:REC.frozen || REC.trace, trail:5 * Pit.prefs.hz});
@@ -278,7 +278,7 @@
   // ---------- live channels ----------
   const pauseNow = () => { setPaused(!REC.frozen); Pit.emit('pause', !!REC.frozen); Pit.dirty('rec'); };
   Pit.module({type:'channels', title:'Live channels', group:'Car', blurb:'Rolling traces of speed, pedals, steering, gear and more; hover to read values.',
-    size:{w:6, h:8, minW:4, minH:5}, needs:['reading', 'rec'], rate:30,
+    size:{w:6, h:8, minW:4, minH:5}, needs:['reading', 'rec'], rate:60,
     options:[{key:'rows', label:'Rows', type:'multi', choices:Object.entries(ROWDEFS).map(([k, d]) => [k, d.label]), def:['speed', 'pedals', 'steer', 'gearrpm']},
       {key:'window', label:'Window', type:'select', choices:[['20', '20 s'], ['30', '30 s'], ['60', '60 s']], def:'30'}],
     tools:[{id:'pause', icon:'pause', label:'Pause or resume (P)'}],

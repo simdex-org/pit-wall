@@ -28,7 +28,7 @@ nothing to install but Python.
   └── MFD key presses (P, arrows) <── server/acc_pit.py <────── pit plan (with key) ──────┘
 ```
 
-`server/bridge.py` runs on the driver's PC. It reads ACC's shared memory 30 times a second
+`server/bridge.py` runs on the driver's PC. It reads ACC's shared memory 30 times a second (60 while a page asks for 60 Hz)
 (`server/acc_telemetry.py`), works out the laps, sectors, stint, fuel per lap and the engineer's advice,
 and serves the dashboard to the engineer's browser.
 
@@ -189,7 +189,9 @@ holding. A virtual controller avoids that: the MFD buttons are pressed on it, an
 ## Engineer: using it
 
 1. Open the link the driver sent (`http://25.x.x.x:8765/?key=…`). The key is remembered by the browser (Settings › Connection
-   shows it, *Forget* removes it), so later the plain address works.
+   shows it, *Forget* removes it), so later the plain address works. Settings › Connection › *Live rate* sets how often the
+   live figures arrive: 5, 10, 15, 30 (default) or 60 Hz. Each page uses about 46 KB/s at 5 Hz, 136 KB/s at 30 and 220 KB/s at 60
+   (about 1.8 Mbit/s) of the driver's upload; at 60 Hz the bridge reads ACC twice as often, only while such a page is open.
 2. The page opens as soon as the driver is in a session. At the top: the **template** (a named set of workspaces) and its
    **workspace tabs**; under them the **KPI strip** (session, time left, lap, position, gaps, last and best lap, live delta, fuel,
    stint, flag, temperatures: Settings › Layout picks the cells and their order); at the bottom the **engineer bar** with the most
