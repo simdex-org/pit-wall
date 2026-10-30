@@ -96,8 +96,9 @@ const NA_MSG = {
   reading: 'Waiting for the driver.', summary: 'Waiting for the bridge summary.', pit: 'No pit control on this bridge.',
 };
 const NARROW_AUTO = new Set(['pit-plan', 'standings', 'stop-options', 'laps', 'stops', 'pit-log', 'pit-activity', 'tyre-history',
-  'race-plan', 'rejoin', 'rules', 'brakes', 'weather', 'damage', 'electronics', 'flags', 'press-fix', 'battle', 'relative']);   // not tyres: its drawing fills the module's height
-// narrow: the stacking order (flex order), what the engineer needs first on a phone; the rest 10, in reading order
+  'race-plan', 'rejoin', 'rules', 'brakes', 'weather', 'damage', 'electronics', 'flags', 'press-fix', 'battle', 'relative', 'car-status']);   // not tyres: its drawing fills the module's height
+const NARROW_MIN_ROWS = {tyres:11};   // narrow: the fewest rows a fixed-height module gets, whatever its template height
+// narrow: the stacking order (DOM order, so Tab and screen readers follow it), what the engineer needs first on a phone; the rest 10, in reading order
 const NARROW_ORDER = {'race-plan':1, 'relative':2, 'lap-timer':2, 'tyres':3, 'press-fix':4, 'rejoin':5, 'stop-options':6, 'battle':7, 'standings':8, 'stint-timeline':9, 'pit-plan':20};
 const STALE_MS = {reading:['r', 1500], summary:['s', 3000], field:['field', 2000]};
 const ALERTS = new Map();          // instance id -> [level, count], for the workspace tab badges
@@ -171,7 +172,7 @@ const WS = {
     host.dataset.ws = ws.id; host.classList.toggle('editing', this.editing);
     const fa = document.activeElement;   // re-appending blurs it: given back below (keyboard move/resize keeps its place)
     const keep = new Map(this.insts.map(i => [i.id, i])), next = [];
-    const mods = ws.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x);   // DOM order = reading order = stacking order when narrow
+    const mods = ws.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x);   // DOM order = reading order; place() restacks it when narrow
     for (const m of mods) {
       const def = Pit.registry.get(m.type) || null;
       let inst = keep.get(m.id);
@@ -226,9 +227,15 @@ const WS = {
       const m = i.m, auto = this.narrow && NARROW_AUTO.has(m.type);
       i.el.style.gridColumn = this.narrow ? '' : `${m.x + 1} / span ${m.w}`;
       i.el.style.gridRow = this.narrow ? '' : `${m.y + 1} / span ${m.h}`;
-      i.el.style.height = this.narrow && !auto ? `${Math.min(m.h, 16) * (rp + 8) - 8}px` : '';
+      i.el.style.height = this.narrow && !auto ? `${Math.max(Math.min(m.h, 16), NARROW_MIN_ROWS[m.type] || 0) * (rp + 8) - 8}px` : '';
       i.el.classList.toggle('auto-h', auto);
-      i.el.style.order = this.narrow ? NARROW_ORDER[m.type] || 10 : '';
+    }
+    // the DOM order is the order shown: narrow stacks by NARROW_ORDER, wide reads y/x (this.insts stays in reading order)
+    const want = this.narrow ? this.insts.slice().sort((a, b) => (NARROW_ORDER[a.m.type] || 10) - (NARROW_ORDER[b.m.type] || 10) || a.m.y - b.m.y || a.m.x - b.m.x) : this.insts;
+    if (want.some((x, k) => host.children[k] !== x.el)) {
+      const fa = document.activeElement;   // re-appending blurs it, as in mount()
+      want.forEach(x => host.appendChild(x.el));
+      if (fa && fa !== document.activeElement && host.contains(fa)) fa.focus({preventScroll:true});
     }
   },
   schedule(){ if (!this.raf) this.raf = requestAnimationFrame(() => this.frame()); },
@@ -270,7 +277,11 @@ function renderInst(inst, c, now){
   if (!inst._stSet) applyState(inst, 'ok');
   setStale(inst, staleness(inst, c)); moreMark(inst);
 }
-function moreMark(inst){ const b = inst.body; inst.el.classList.toggle('more', !b.hidden && b.scrollTop + b.clientHeight < b.scrollHeight - 1); }
+function moreMark(inst){
+  const b = inst.body;
+  inst.el.classList.toggle('more', !b.hidden && b.scrollTop + b.clientHeight < b.scrollHeight - 1);
+  inst.el.classList.toggle('more-x', !b.hidden && b.scrollLeft + b.clientWidth < b.scrollWidth - 1);   // a table that continues to the right
+}
 function setStale(inst, ms){
   const tag = inst.el.querySelector('.mtag'), on = ms > 0, t = on ? `◐ STALE ${Math.round(ms / 1000)} s` : '';
   inst.el.classList.toggle('stale', on);
