@@ -1,4 +1,9 @@
-# Pit Wall
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/pitwall-logo.svg">
+    <img alt="Pit Wall" src="docs/logo/pitwall-logo-light.svg" height="64">
+  </picture>
+</h1>
 
 A live race-engineer dashboard for **Assetto Corsa Competizione**, with **remote pit stop control**.
 One person drives; the engineer, on another PC anywhere over Hamachi (or ZeroTier, or Tailscale),
@@ -355,7 +360,7 @@ server/acc_telemetry.py  ACC shared memory: laps, sectors, stints, fuel, the str
 server/acc_broadcast.py  ACC broadcasting API: the field's standings, gaps, pits and lap history; --enable; self-test
 server/acc_pit.py        ACC pit page: MFD key presses (or vJoy), reading it back, the plan logic; self-test
 server/launcher.py       PitWall.exe: the start window and the update from GitHub; self-test. Build it with
-                         python -m PyInstaller --onefile --windowed --name PitWall server/launcher.py
+                         python -m PyInstaller --onefile --windowed --name PitWall --icon server/pitwall.ico --add-data "server/pitwall.ico;." server/launcher.py
                          and attach dist/PitWall.exe to a GitHub release. Rebuild only when the launcher changes, or when the
                          server starts importing a standard-library module the launcher does not list.
 web/                     index.html, css/ (app.css, modules-1.css, modules-2.css), js/ (one file per concern, below), data/tracks.js

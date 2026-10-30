@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Pit Wall: a live browser dashboard for the race engineer watching a driver in Assetto Corsa Competizione, with remote pit stop control and timing for the whole field. Everything runs from this repo: the bridge reads ACC's shared memory and broadcasting API itself. Folders `server/` (bridge.py, acc_telemetry.py, acc_broadcast.py, acc_pit.py, launcher.py = PitWall.exe, which loads bridge.py from disk and updates the folder from main), `web/` (index.html, css/, js/, fonts/, data/tracks.js), `docs/` (README screenshots); no framework, no build, no package manager. Git repo: github.com/simdex-org/pit-wall.
+Pit Wall: a live browser dashboard for the race engineer watching a driver in Assetto Corsa Competizione, with remote pit stop control and timing for the whole field. Everything runs from this repo: the bridge reads ACC's shared memory and broadcasting API itself. Folders `server/` (bridge.py, acc_telemetry.py, acc_broadcast.py, acc_pit.py, launcher.py = PitWall.exe, which loads bridge.py from disk and updates the folder from main), `web/` (index.html, css/, js/, fonts/, data/tracks.js), `docs/` (README screenshots; logo/ has the Pit Wall logo, mark and icon); no framework, no build, no package manager. Git repo: github.com/simdex-org/pit-wall.
 
 ## Run
 
@@ -15,7 +15,7 @@ python server/bridge.py --simulate-acc --sim-session quali --key demo   # the sa
 python server/bridge.py --simulate-acc --sim-track nordschleife --sim-speed 8 --key demo   # the demo on the Nordschleife 24h layout, 8x faster
 python server/acc_broadcast.py --enable               # once, ACC closed: switch on ACC's broadcasting port (field timing)
 python server/acc_telemetry.py; python server/acc_broadcast.py; python server/acc_pit.py; python server/launcher.py --selftest   # self-tests, all must pass
-python server/launcher.py                             # the start window (PitWall.exe: python -m PyInstaller --onefile --windowed --name PitWall server/launcher.py)
+python server/launcher.py                             # the start window (PitWall.exe: python -m PyInstaller --onefile --windowed --name PitWall --icon server/pitwall.ico --add-data "server/pitwall.ico;." server/launcher.py)
 python server/acc_telemetry.py --probe                # live session: print the not-yet-verified shared-memory fields
 ```
 
