@@ -286,6 +286,9 @@ def bc_loop(src, field):
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    # Windows' registry can map .js to text/plain, and browsers refuse a module (web/vendor/three.module.min.js) served so
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, ".js": "text/javascript"}
+
     def log_message(self, *_):
         pass
 
