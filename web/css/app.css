@@ -16,7 +16,7 @@
   /* surface */
   --bg:#0a0b0d;--panel:#101216;--raise:#171a1f;--line:#262a31;--line2:#1b1e24;--txt:#e6e8eb;--mut:#a1a7b0;--dim:#7a818b;
   /* identity, timing, state */
-  --acc:#2ad4c4;--acc-ink:#08090b;--me:#f2f2f2;
+  --acc:#2ad4c4;--acc-ink:#08090b;--me:#ffd400;
   --best:#c27aff;--pb:#3ddc84;--slow:#f5c518;--inv:#6b717a;
   --ok:#3ddc84;--warn:#ff9f1a;--bad:#ff5468;--cold:#5aaeff;
   /* traces */

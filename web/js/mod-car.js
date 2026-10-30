@@ -21,6 +21,9 @@
       el.innerHTML = '<div class="cv map"><canvas aria-label="Track map: your car and the field"></canvas></div>';
       const cv = el.querySelector('canvas'), view = inst.state.view = {zoom:inst.opts.follow ? 4 : 1, follow:inst.opts.follow, dx:0, dy:0};
       inst.state.cv = cv;
+      // the feed arrives in bursts, so the map paints on every animation frame: the dots glide at the screen's rate, not the feed's
+      const tick = () => { if (inst.state.dead) return; if (cv.isConnected) inst.state.out = mapDraw(inst); inst.state.raf = requestAnimationFrame(tick); };
+      inst.state.raf = requestAnimationFrame(tick);
       bindMapControls(cv, view, () => mapDraw(inst), (x, y) => {   // a click within 10 px of a car makes it the focus car
         let best = null, d = 10; for (const h of inst.state.hits || []) { const e = Math.hypot(h.x - x, h.y - y); if (e <= d) { d = e; best = h; } }
         if (best) Pit.setFocus(best.i === Pit.ctx.me ? 'self' : best.i);
@@ -32,8 +35,9 @@
       if (id === 'fit') { v.follow = false; v.zoom = 1; v.dx = v.dy = 0; }
       mapDraw(inst);
     },
+    destroy(inst){ inst.state.dead = true; cancelAnimationFrame(inst.state.raf); },
     render(c, inst){
-      const out = mapDraw(inst); if (!out) return;
+      const out = inst.state.out || mapDraw(inst); if (!out) return;
       if (out.empty) return inst.setState('empty', 'No layout for this track.');
       inst.setInfo(out.info);
     }});
