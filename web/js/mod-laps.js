@@ -117,7 +117,7 @@
     return {ref, cmp};
   }
   Pit.module({type:'traces', title:'Traces', group:'Analysis', blurb:'REF against CMP over the lap distance: Δ time, speed, pedals, steering, gear.',
-    size:{w:6, h:22, minW:4, minH:10}, needs:['rec', 'sel', 'reading'], rate:30,
+    size:{w:6, h:22, minW:4, minH:10}, needs:['rec', 'sel', 'reading'], rate:60,
     options:[{key:'lanes', label:'Lanes', type:'multi', choices:LANE_CHOICES, def:['delta', 'speed', 'pedals', 'steer', 'gear']}],
     build(el){
       el.innerHTML = '<div class="tr-lg"><span class="lg"><i class="sw" style="--c:var(--c-ref)"></i>REF solid</span><span class="lg"><i class="sw dash" style="--c:var(--c-cmp)"></i>CMP dashed</span></div><div class="cv"><canvas aria-label="Lap comparison traces"></canvas></div>';

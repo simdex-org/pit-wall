@@ -4,7 +4,8 @@
 // trace and the G peaks. No DOM here: modules read REC and redraw on the 'rec' channel (Pit.dirty('rec') on each bump).
 
 const NB = 400, LCH = ['t', 'speed', 'thr', 'brk', 'steer', 'gear', 'rpm'];   // 400 bins per lap, the bridge's /lap channels
-const TRACE_N = 1800, TRACE_KEYS = ['speed', 'thr', 'brk', 'clu', 'steer', 'rpm', 'gear', 'fuel', 'gLat', 'gLon', 'tFL', 'tFR', 'tRL', 'tRR', 'pFL', 'pFR', 'pRL', 'pRR'];
+const TRACE_N = 3600,   // 60 s at 60 Hz
+      TRACE_KEYS = ['speed', 'thr', 'brk', 'clu', 'steer', 'rpm', 'gear', 'fuel', 'gLat', 'gLon', 'tFL', 'tFR', 'tRL', 'tRR', 'pFL', 'pFR', 'pRL', 'pRR'];
 const REC = {
   ver: 0,
   trace: {i:0, n:0},              // 60 s ring at the reading rate (30 Hz), newest at i-1

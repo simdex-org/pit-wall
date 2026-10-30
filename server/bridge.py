@@ -13,7 +13,7 @@ thresholds needs the access key printed at start; watching does not.
     python server/bridge.py --simulate-acc --key demo   # a pretend session and 20-car field, no game needed
     python server/acc_broadcast.py --enable          # once: switch ACC's broadcasting port on (then restart ACC)
 
-Endpoints: GET /events[?hz=5|10|15|30] (SSE), GET /lap?n=N (a whole lap's trace and line),
+Endpoints: GET /events[?hz=5|10|15|30|60] (SSE), GET /lap?n=N (a whole lap's trace and line),
 GET /field/laps?car=N (another car's laps), POST /pit, POST /config and POST /mfd/close (all need X-Pit-Key).
 
 Standard library only.
@@ -145,11 +145,16 @@ def field_ext(sim):
     return ext, f.race_info(), me
 
 
+FAST = [0]   # pages streaming at 60 Hz: while any is, ACC is read 60 times a second, else 30 (half the CPU)
+
+
 def acc_loop(pages, tel, sim):
-    """30 times a second: read ACC, build the reading; every third time the summary too."""
-    n, said = 0, None
+    """30 times a second (60 while a page streams at 60 Hz): read ACC, build the reading; the summary 10 times a second."""
+    n, said, due = 0, None, time.monotonic()
     while True:
-        time.sleep(1 / 30)
+        rate = 60 if FAST[0] else 30
+        due = max(due + 1 / rate, time.monotonic() - .1)   # on the beat, not 1/rate after the work; no catching up after a stall
+        time.sleep(max(0.0, due - time.monotonic()))
         try:
             raw = pages.read()
         except (OSError, ValueError, struct.error):
@@ -171,7 +176,7 @@ def acc_loop(pages, tel, sim):
                 behind = next((c for c in STATE["field"]["cars"] if c["pos"] == me["pos"] + 1), None)
                 raw.update(position=me["pos"], gap_ahead=me["int"] or 0, gap_behind=(behind or {}).get("int") or 0)
         reading, n = tel.update(raw, ext), n + 1
-        summary = tel.summary(raw, race) if n % 3 == 0 else None
+        summary = tel.summary(raw, race) if n % (rate // 10) == 0 else None
         with LOCK:
             f = FIELD["f"]
             if summary and f and ext:
@@ -392,19 +397,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def events(self, q):
         hz = q.get("hz", ["30"])[0]
-        gap = 1 / (int(hz) if hz in ("5", "10", "15", "30") else 30)
+        gap = 1 / (int(hz) if hz in ("5", "10", "15", "30", "60") else 30)
+        fast = hz == "60"
+        if fast:
+            with LOCK:
+                FAST[0] += 1
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
         # what this client was last sent; -1: everything on the first message
         sent = {"ver": -1, "summary": None, "laps": -1, "field": -1, "slow": -1, "entries": -1, "log": 0, "pit_log": -1, "config": -1}
-        last_send = last_beat = 0.0
+        last_beat = due = 0.0   # due: when the next reading may go, on a fixed beat so polling never rounds the rate down
         try:
             while True:
                 now = time.time()
                 with LOCK:
                     changed = STATE["ver"] != sent["ver"]
-                    if not ((changed and now - last_send >= gap) or now - last_beat > 1.0):
+                    if not ((changed and now >= due) or now - last_beat > 1.0):
                         snap = None
                     else:
                         snap = dict(STATE)
@@ -442,9 +451,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     sent["field"] = snap["field_ver"]
                 if snap["new_log"]:
                     sent["log"] = snap["new_log"][-1]["seq"]
-                last_send = last_beat = now
+                last_beat, due = now, max(due + gap, now - gap)
         except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
             return
+        finally:
+            if fast:
+                with LOCK:
+                    FAST[0] -= 1
 
 
 def start_field(args, pages):

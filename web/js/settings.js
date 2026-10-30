@@ -32,7 +32,7 @@ const Settings = {
         const bc = ctx.bc;
         return `<h3 class="mt">Connection</h3><dl class="kv">
           <dt>Bridge</dt><dd class="n">${esc(location.host)}</dd><dt>Link</dt><dd id="setLink">${esc($('link').textContent)} · ${ctx.live ? Math.round(D.rx.length / 2) : 0} Hz</dd></dl>
-          <label class="fld"><span>Live rate</span><select data-pref="hz">${[5, 10, 15, 30].map(v => `<option value="${v}"${Pit.prefs.hz === v ? ' selected' : ''}>${v} Hz</option>`).join('')}</select></label>
+          <label class="fld"><span>Live rate</span><select data-pref="hz">${[5, 10, 15, 30, 60].map(v => `<option value="${v}"${Pit.prefs.hz === v ? ' selected' : ''}>${v} Hz${v === 60 ? ' (about 2 Mbit/s from the driver\'s PC)' : ''}</option>`).join('')}</select></label>
           <p class="note">Lower rates use less of the VPN. Laps, strategy and timing are unaffected.</p>
           <h3 class="mt">Access key</h3><p>${key ? '<b class="tag">SET</b>' : '<b class="tag low">MISSING</b>'} The key printed by bridge.py on the driver's PC. Needed to send pit plans and change shared thresholds.</p>
           <div class="split"><input type="password" id="setKey" autocomplete="off" spellcheck="false" placeholder="Paste the key" aria-label="Access key"><button type="button" class="btn" data-set="key">Save</button>${key ? '<button type="button" class="btn" data-set="forget">Forget</button>' : ''}</div>
