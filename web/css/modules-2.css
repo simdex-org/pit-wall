@@ -53,7 +53,9 @@
 .tt.ty-t td:first-child,.tt.br td:first-child,.tt.pf td:first-child{color:var(--mut)}
 
 /* ---------- brakes ---------- */
-.tt.br .gauge{min-width:40px}
+.tt.br td.pad{position:relative}
+.tt.br td.pad .gauge{position:absolute;left:8px;right:8px;bottom:3px;height:3px;min-width:0}   /* the pad bar underlines its figure */
+.tt.br td.pad .gauge>b{top:-2px;bottom:-2px}
 
 /* ---------- damage ---------- */
 .dm-ok>span{display:inline-flex;align-items:center;gap:4px;margin-bottom:8px}
