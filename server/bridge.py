@@ -493,8 +493,9 @@ def main():
                                                        "(default: updListenerPort in broadcasting.json; 0 turns field timing off, also with --simulate-acc)")
     ap.add_argument("--broadcast-password", help="connectionPassword for ACC's broadcasting (default: the one in broadcasting.json)")
     ap.add_argument("--sim-session", choices=("race", "quali"), default="race", help="with --simulate-acc: a race (default) or qualifying, ordered by best lap")
-    ap.add_argument("--sim-track", choices=("demo", "nordschleife"), default="demo", help="with --simulate-acc: the made-up circuit (default, 1:00 laps) "
-                                                                                     "or the Nordschleife 24h layout (8:17 laps)")
+    ap.add_argument("--sim-track", choices=("demo", *acc_telemetry.SIM_TRACKS), default="demo", metavar="TRACK",
+                    help="with --simulate-acc: the made-up circuit (default, 1:00 laps) or a real layout at a GT3's pace: "
+                         + ", ".join(acc_telemetry.SIM_TRACKS))
     ap.add_argument("--sim-speed", type=float, default=1.0, help="with --simulate-acc: run the pretend session N times faster (e.g. 8)")
     args = ap.parse_args()
     hh, _, hp = args.http.rpartition(":")

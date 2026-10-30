@@ -13,6 +13,7 @@ Offsets follow Kunos' "ACC Shared Memory Documentation" 1.8.12.
     python server/acc_telemetry.py          # self-test: simulated laps and a stop through the whole pipeline
     python server/acc_telemetry.py --probe  # print the not-yet-verified fields once a second from a live session
 """
+import bisect
 import copy
 import json
 import math
@@ -650,10 +651,22 @@ def _track_loop(name, metres):
     """A track's loop from web/data/tracks.js, in metres (x, z), its length scaled to the real one."""
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web", "data", "tracks.js"), encoding="utf-8") as f:
         src = f.read()
-    pts = json.loads(re.search(name + r': *\{.*?"loop":(\[\[.*?\]\])', src, re.S).group(1))
+    pts = json.loads(re.search(r"\b" + name + r': *\{.*?"loop":(\[\[.*?\]\])', src, re.S).group(1))
     n = len(pts)
     sc = metres / sum(math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) for i in range(n))
     return [(x * sc, z * sc) for x, z in pts]
+
+
+# --sim-track: ACC's track id, the name the broadcast gives, metres, a GT3's lap (ms), litres a lap, laps between stops
+SIM_TRACKS = {
+    "nordschleife": ("nurburgring_24h", "Nurburgring 24h", 25378.0, 497000, 25.0, 4),
+    "monza": ("monza", "Monza", 5793.0, 107500, 3.2, 18), "spa": ("spa", "Spa-Francorchamps", 7004.0, 137500, 3.9, 16),
+    "silverstone": ("silverstone", "Silverstone", 5891.0, 118500, 3.2, 18), "nurburgring": ("nurburgring", "Nurburgring", 5137.0, 114000, 2.8, 18),
+    "brands_hatch": ("brands_hatch", "Brands Hatch", 3908.0, 83500, 2.2, 22), "suzuka": ("suzuka", "Suzuka", 5807.0, 120000, 3.2, 18),
+    "laguna_seca": ("laguna_seca", "Laguna Seca", 3602.0, 82500, 2.0, 22), "mount_panorama": ("mount_panorama", "Mount Panorama", 6213.0, 121500, 3.4, 18),
+    "imola": ("imola", "Imola", 4909.0, 101000, 2.7, 20), "barcelona": ("barcelona", "Barcelona", 4657.0, 103500, 2.6, 20),
+    "zandvoort": ("zandvoort", "Zandvoort", 4259.0, 95500, 2.3, 20), "paul_ricard": ("paul_ricard", "Paul Ricard", 5770.0, 114000, 3.2, 18),
+}
 
 
 class FakePages:
@@ -662,10 +675,38 @@ class FakePages:
     def __init__(self, lap_ms=60000, clock=time.monotonic, session=2, track=None):
         self.lap, self.clock, self.t0, self.session = lap_ms, clock, clock(), session   # session: ACC's kind, 2 race, 1 qualifying
         self.track, self.track_len, self.loop, self.every, self.lpl = "demo_circuit", 5000.0, None, 18, 3.1   # a stop every 18 laps, 3.1 L a lap
-        if track == "nordschleife":   # tracks.js' 24h layout at its real 25.378 km, a GT3's 8:17 and 25 L a lap
-            self.lap, self.track, self.track_len, self.every, self.lpl = 497000, "nurburgring_24h", 25378.0, 4, 25.0
+        self.name = "Demo circuit"
+        if track in SIM_TRACKS:   # a tracks.js layout at its real length, with a GT3's lap and fuel
+            self.track, self.name, self.track_len, self.lap, self.lpl, self.every = SIM_TRACKS[track]
             self.loop = _track_loop(self.track, self.track_len)
+            self._profile()
         self.k = self.lap / 60000   # the session's times scale with the lap
+
+    def _profile(self):
+        """A GT3's speed along the loop from its bends (1.7 g in corners, 14 m/s² braking, 5.5 m/s² pulling), scaled to the
+        lap time: per point the speed (m/s), the signed curvature, the longitudinal acceleration, and the time at it."""
+        pts, n = self.loop, len(self.loop)
+        ds = self.track_len / n
+        k = max(2, round(25 / ds))   # bends measured over ~50 m, so a kink in the drawing is not a hairpin
+        curv = []
+        for i in range(n):
+            (ax, az), (bx, bz), (cx, cz) = pts[i - k], pts[i], pts[(i + k) % n]
+            cr = (bx - ax) * (cz - bz) - (bz - az) * (cx - bx)
+            curv.append(2 * cr / ((math.dist((ax, az), (bx, bz)) * math.dist((bx, bz), (cx, cz)) * math.dist((ax, az), (cx, cz))) or 1))
+        curv = [sum(curv[(i + j) % n] for j in range(-2, 3)) / 5 for i in range(n)]
+        v = [min(78.0, math.sqrt(1.7 * 9.81 / max(abs(c), 1e-4))) for c in curv]
+        for _ in range(2):   # round the lap twice: braking backwards, pulling forwards
+            for i in range(n - 1, -1, -1):
+                v[i - 1] = min(v[i - 1], math.sqrt(v[i] ** 2 + 2 * 14 * ds))
+            for i in range(n):
+                v[(i + 1) % n] = min(v[(i + 1) % n], math.sqrt(v[i] ** 2 + 2 * 5.5 * ds))
+        t = [0.0]
+        for i in range(n):
+            t.append(t[-1] + 2 * ds / (v[i] + v[(i + 1) % n]))
+        s = t[-1] / (self.lap / 1000)   # ponytail: speeds scaled to the GT3 lap, not a car model
+        self.v, self.curv, self.tcum = [x * s for x in v], curv, [x / t[-1] for x in t]
+        acc = [(self.v[(i + 1) % n] ** 2 - self.v[i - 1] ** 2) / (4 * ds) for i in range(n)]
+        self.acc = [sum(acc[(i + j) % n] for j in range(-3, 4)) / 7 for i in range(n)]   # smoothed, so the pedals do not flicker
 
     def _where(self, w, lap):
         """World position (metres) on the circuit, a little off the ideal line, differently every lap."""
@@ -691,19 +732,34 @@ class FakePages:
         lane, box = u > e - 0.05 or u < 0.08, 0.01 <= u < 0.06   # stood in the box for 3 s of a 60 s lap, taking the fuel
         burn = self.lpl * (u + e * (1 - max(0.0, min(1.0, (u - 0.01) / 0.05))))   # the last stint's burn until the box, refilled in it
         sp = 0.0 if box else 60.0 if lane else 175 + 70 * math.sin(w * 6)
+        gas = 0.0 if box else 0.3 if lane else max(0.0, min(1.0, 0.6 + 0.5 * math.sin(w * 6 + 0.4)))
+        brake, steer, acc_g = 0.0 if lane else max(0.0, -math.sin(w * 6 + 0.4) - 0.5), 0.3 * math.sin(w * 5), [1.2 * math.sin(w * 5), 0.0, 0.8 * math.cos(w * 5)]
+        rpm, d = int(5200 + 2200 * math.sin(w * 25) ** 2), pos
+        if self.loop:   # a real layout: where the car is by the speed profile, and the pedals from it
+            n = len(self.loop)
+            i = min(n - 1, bisect.bisect_right(self.tcum, pos) - 1)
+            d = (i + (pos - self.tcum[i]) / (self.tcum[i + 1] - self.tcum[i])) / n
+            v, a, c = self.v[i], self.acc[i], self.curv[i]
+            if not lane:
+                sp, steer = v * 3.6, max(-1.0, min(1.0, c * 25))
+                gas, brake = (0.0, min(1.0, -a / 10)) if a < -1.5 else (1.0 if abs(c) < 0.003 else max(0.2, min(1.0, 0.45 + a / 4)), 0.0)
+                acc_g = [max(-2.2, min(2.2, v * v * c / 9.81)), 0.0, a / 9.81]
+            g = max(0, min(5, int(sp / 45)))
+            rpm = int(4800 + 3000 * (sp / 45 - g) if g < 5 else min(7900, 4800 + 3000 * (sp - 225) / 60))
+        w = d * 2 * math.pi
         yellow = laps % 7 == 3 and 0.33 < pos < 0.66
         return {
-            "status": 2, "session": self.session, "gas": 0.0 if box else 0.3 if lane else max(0.0, min(1.0, 0.6 + 0.5 * math.sin(w * 6 + 0.4))),
-            "brake": 0.0 if lane else max(0.0, -math.sin(w * 6 + 0.4) - 0.5), "fuel": e * self.lpl + 4.2 - burn, "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": int(5200 + 2200 * math.sin(w * 25) ** 2),
-            "steer": 0.3 * math.sin(w * 5), "speed": sp, "acc_g": [1.2 * math.sin(w * 5), 0.0, 0.8 * math.cos(w * 5)],
+            "status": 2, "session": self.session, "gas": gas,
+            "brake": brake, "fuel": e * self.lpl + 4.2 - burn, "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": rpm,
+            "steer": steer, "speed": sp, "acc_g": acc_g,
             "pressure": [27.6, 27.8, 26.6, 26.8], "core_temp": [84.0, 86.0, 79.0, 81.0], "damage": [0.0] * 5, "tyres_out": 0, "limiter": int(lane),
             "air": 22.4, "road": 29.1, "brake_temp": [412.0, 405.0, 330.0, 338.0], "clutch": 0.0, "bias": 0.565, "tc_on": 0, "abs_on": 0,
             "susp_damage": [0.0] * 4, "water": 92.0, "brake_press": [0.0] * 4, "front_pad_compound": 0, "rear_pad_compound": 0,
             "pad": [round(x - t / self.lap * k, 2) for x, k in zip([24.1, 24.0, 25.2, 25.3], [0.21, 0.2, 0.12, 0.12])], "disc": [31.8, 31.8, 31.9, 31.9],
             "laps": laps, "position": 7, "cur_ms": int(t % self.lap), "last_ms": self.lap - 500 + 110 * laps + laps * 7919 % 400 if laps else 0,
-            "best_ms": self.lap - 120 if laps > 1 else 2147483647, "time_left": 3.2e6 * k - t, "in_box": int(box), "sector": int(pos * 3),
+            "best_ms": self.lap - 120 if laps > 1 else 2147483647, "time_left": 3.2e6 * k - t, "in_box": int(box), "sector": int(d * 3),
             "last_sector_ms": self.lap // 3,
-            "compound": "dry_compound", "track_pos": pos, "xyz": self._where(w, laps), "me": 7, "penalty_time": 0.0,
+            "compound": "dry_compound", "track_pos": d, "xyz": self._where(w, laps), "me": 7, "penalty_time": 0.0,
             "flag": 2 if yellow else 0, "penalty": 0, "pit_lane": int(lane), "mandatory_done": int(laps >= 20), "wind": 2.3, "wind_dir": 3.73,
             "tc": 3, "tc_cut": 2, "map": 0, "abs": 2, "fuel_per_lap": self.lpl - 0.1, "rain_lights": 0, "lights_stage": 0, "exhaust": 610.0, "wiper": 0,
             "stint_total_left": int(3600000 * k - el), "stint_left": int(3600000 * k - el), "rain_tyres": 0, "session_index": 0,
@@ -730,6 +786,8 @@ def probe():
 def selftest():
     now = [0.0]
     pages, tel = FakePages(lap_ms=60000, clock=lambda: now[0]), Telemetry(clock=lambda: now[0])
+    mz = FakePages(track="monza")   # a real layout: braking into the chicanes, flat out on the straights, the GT3's lap
+    assert 50 < min(mz.v) * 3.6 < 100 and 250 < max(mz.v) * 3.6 < 320 and abs(mz.tcum[-1] - 1) < 1e-9, (min(mz.v), max(mz.v))
     for _ in range(int(3.2 * 60 * 30)):   # a bit over three laps at 30 Hz
         now[0] += 1 / 30
         raw = pages.read()

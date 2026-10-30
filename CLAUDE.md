@@ -19,7 +19,7 @@ python server/launcher.py                             # the start window (needs 
 python server/acc_telemetry.py --probe                # live session: print the not-yet-verified shared-memory fields
 ```
 
-Python 3.8+, stdlib only (except the launcher window: customtkinter, pillow), Windows for the game side. Edit anything under `web/` and reload the page; only `server/` changes need a restart. Bridge flags: `--key`, `--pit-key`, `--key-ms`, `--vjoy [N]`, `--broadcast-port` (0 = field timing off), `--broadcast-password`, `--sim-session race|quali`, `--sim-track demo|nordschleife`, `--sim-speed N`, `--no-browser`.
+Python 3.8+, stdlib only (except the launcher window: customtkinter, pillow), Windows for the game side. Edit anything under `web/` and reload the page; only `server/` changes need a restart. Bridge flags: `--key`, `--pit-key`, `--key-ms`, `--vjoy [N]`, `--broadcast-port` (0 = field timing off), `--broadcast-password`, `--sim-session race|quali`, `--sim-track demo|nordschleife|monza|spa|…` (`SIM_TRACKS` in acc_telemetry.py), `--sim-speed N`, `--no-browser`.
 
 ## Architecture
 
@@ -49,6 +49,6 @@ Data flow: ACC shared memory --> `acc_telemetry.py` (30 Hz) and ACC broadcasting
 - `ALERT`/threshold defaults (`DEF_TH` in util.js) match `acc_telemetry.py`; keep them in step. The bridge's `config.thresholds` overrides them per class.
 - Fonts are self-hosted in `web/fonts` (Barlow Semi Condensed for the UI, JetBrains Mono via `--num` for numbers; SIL OFL). Timing colours: `--best` with ◆ for session best, `--pb` with ● for a personal best, struck-through `--inv` with INV for invalid, `.tag` for OUT/IN/PIT. Colour is never the only cue. No gradients, no glow.
 - Gaps between cars use `fmtRel` (unsigned; the row and the label carry the direction); lap/sector deltas use `fmtDelta`/`deltaHtml` (▼ gain, ▲ loss, U+2212 minus).
-- The track map draws the racing line of each recorded lap from `session.car_position_m`; the Nürburgring layout in tracks.js is only a fallback before the first whole lap. Field cars are placed by spline on the best line; labels are laid out so they never overlap.
+- The track map draws the racing line of each recorded lap from `session.car_position_m`; tracks.js (by ACC track id: the Nordschleife traced from an image, 12 GP layouts from OpenStreetMap raceway ways) is only a fallback before the first whole lap, and the demo's layouts (`FakePages._profile` drives them by a speed profile from their bends). Field cars are placed by spline on the best line; labels are laid out so they never overlap.
 - Icons come from Lucide via unpkg (SRI-pinned), the only network dependency. Dynamically added icons need `refreshIcons(root)`.
 - `web/data/tracks.js` is large generated data; don't read it whole.
