@@ -19,7 +19,7 @@ on the first row; Up from the first row wraps to the last):
     [Driver], Repair suspension, Repair bodywork
 
     python server/acc_pit.py                # self-test: every layout, against a simulated MFD
-    python server/acc_pit.py --bind-vjoy    # bind ACC's MFD actions to vJoy buttons 1-5 (with bridge.py --vjoy)
+    python server/acc_pit.py --bind-vjoy    # bind ACC's MFD actions to vJoy buttons 1-6 (with bridge.py --vjoy)
 """
 import ctypes
 import ctypes.wintypes
@@ -256,8 +256,8 @@ def vjoy_device(dev):
     except OSError:
         raise OSError(f"vJoy is not installed ({AccMfd.VJOY_DLL} not found)")
     status = vj.GetVJDStatus(dev)   # 0 owned by us, 1 free, 2 taken by another program, 3 missing
-    if not vj.vJoyEnabled() or status in (2, 3) or vj.GetVJDButtonNumber(dev) < 5:
-        raise OSError(f"vJoy device {dev} is not usable: it must exist, have at least 5 buttons and not be used by another program "
+    if not vj.vJoyEnabled() or status in (2, 3) or vj.GetVJDButtonNumber(dev) < max(AccMfd.VJOY_BUTTONS.values()):
+        raise OSError(f"vJoy device {dev} is not usable: it must exist, have at least 6 buttons and not be used by another program "
                       "(Configure vJoy, device 1, 8 buttons)")
     if status == 1 and not vj.AcquireVJD(dev):
         raise OSError(f"could not take vJoy device {dev}")
@@ -266,7 +266,8 @@ def vjoy_device(dev):
 
 
 def vjoy_press(vj, dev, button, hold):
-    vj.SetBtn(1, dev, button)
+    if not vj.SetBtn(1, dev, button):
+        raise OSError(f"vJoy device {dev} has no button {button}: give it at least 6 buttons in Configure vJoy")
     time.sleep(hold)
     vj.SetBtn(0, dev, button)
     time.sleep(hold)

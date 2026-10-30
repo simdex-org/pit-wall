@@ -334,11 +334,13 @@ class Telemetry:
 
     # ---------- laps ----------
     def _sample(self, r):
-        p, c = r["track_pos"], self.cur
+        p, x, z = r["track_pos"], r["xyz"][0], r["xyz"][2]
+        if self.line and math.hypot(self.line[-1][0] - x, self.line[-1][1] - z) > 60:   # a jump (garage, reset): the lap is no longer whole
+            self.cur, self.line = [], []
+        c = self.cur
         if not c or p > c[-1]["p"]:   # position must advance; drops jitter and the wrap after the line
             c.append({"p": p, "t": r["cur_ms"], "speed": r["speed"], "thr": r["gas"], "brk": r["brake"], "steer": r["steer"],
                       "gear": r["gear"] - 1, "rpm": r["rpm"]})
-        x, z = r["xyz"][0], r["xyz"][2]
         if (x or z) and (not self.line or math.hypot(self.line[-1][0] - x, self.line[-1][1] - z) > 1.5):
             self.line.append([x, z, p])   # p: ACC's lap fraction here; the map places the field by it, not by metres
 
@@ -650,7 +652,7 @@ class FakePages:
         yellow = laps % 7 == 3 and 0.33 < pos < 0.66
         return {
             "status": 2, "session": self.session, "gas": max(0.0, min(1.0, 0.6 + 0.5 * math.sin(w * 6 + 0.4))), "brake": max(0.0, -math.sin(w * 6 + 0.4) - 0.5),
-            "fuel": max(0.0, 60 - t / self.lap * 3.1), "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": int(5200 + 2200 * math.sin(w * 25) ** 2),
+            "fuel": 60 - (t / self.lap % 18) * 3.1, "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": int(5200 + 2200 * math.sin(w * 25) ** 2),
             "steer": 0.3 * math.sin(w * 5), "speed": sp, "acc_g": [1.2 * math.sin(w * 5), 0.0, 0.8 * math.cos(w * 5)],
             "pressure": [27.6, 27.8, 26.6, 26.8], "core_temp": [84.0, 86.0, 79.0, 81.0], "damage": [0.0] * 5, "tyres_out": 0, "limiter": 0,
             "air": 22.4, "road": 29.1, "brake_temp": [412.0, 405.0, 330.0, 338.0], "clutch": 0.0, "bias": 0.565, "tc_on": 0, "abs_on": 0,
@@ -662,7 +664,7 @@ class FakePages:
             "flag": 2 if yellow else 0, "penalty": 0, "pit_lane": 0, "mandatory_done": int(laps >= 20), "wind": 2.3, "wind_dir": 3.73,
             "tc": 3, "tc_cut": 2, "map": 0, "abs": 2, "fuel_per_lap": 3.0, "rain_lights": 0, "lights_stage": 0, "exhaust": 610.0, "wiper": 0,
             "stint_total_left": int(3600000 - el), "stint_left": int(3600000 - el), "rain_tyres": 0, "session_index": 0,
-            "used_fuel": t / self.lap * 3.1, "delta_ms": int(-214 + 100 * math.sin(w)), "est_lap_ms": self.lap, "valid": int(laps % 5 != 2),
+            "used_fuel": (t / self.lap % 18) * 3.1, "delta_ms": int(-214 + 100 * math.sin(w)), "est_lap_ms": self.lap, "valid": int(laps % 5 != 2),
             "fuel_laps": 12.0, "track_status": "", "missing_pits": int(laps < 20) if self.session == 2 else 255, "clock": 14 * 3600 + el / 1000,
             "g_flags": [0, 0, int(yellow), 0, 0, 0, 0, 0], "grip": 2, "rain": [0, 1, 2], "tyre_set": 3,
             "gap_ahead": int(1840 - 90 * (t / self.lap)), "gap_behind": int(950 + 60 * (t / self.lap)),
@@ -738,6 +740,17 @@ def selftest():
     assert len(s["stops"]) == 1 and abs(stop["box_ms"] - 10000) < 100 and abs(stop["fuel_added_l"] - 40) < 2 and stop["tyres"], stop
     assert stop["loss_ms"] is not None and s["strategy"]["drive_loss_src"] == "measured" and [x["n"] for x in s["stints"]] == [1, 2], s["stints"]
     assert any(t.startswith("Stop L") and "cost" in t for _, _, t in tel.events), tel.events
+
+    tp, tt = FakePages(lap_ms=60000, clock=lambda: now[0]), Telemetry(clock=lambda: now[0])   # a reset mid-lap: that lap gets no trace
+    n0 = now[0]
+    while now[0] < n0 + 3 * 60:
+        now[0] += 1 / 30
+        raw = tp.read()
+        if raw["laps"] % 2 and 0.5 < raw["track_pos"] < 0.52:
+            raw["xyz"] = (raw["xyz"][0] + 500, raw["xyz"][1], raw["xyz"][2])
+        tt.update(raw)
+    jumped = [l["n"] for l in tt.laps if l["n"] % 2 == 0]   # lap n is driven while raw["laps"] is n - 1
+    assert jumped and all(tt.lap_trace(n) is None for n in jumped) and any(l["trace"] for l in tt.laps), tt.laps
 
     c = clean_config({"thresholds": {"GT4": {"dry_psi": [25, 26.5]}}, "strategy": {"mandatory_stops": 1}})
     assert c["thresholds"]["GT4"]["dry_psi"] == [25.0, 26.5] and c["thresholds"]["GT3"]["dry_psi"] == [26.0, 27.0] and c["strategy"]["mandatory_stops"] == 1
