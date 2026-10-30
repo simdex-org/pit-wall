@@ -83,6 +83,19 @@ def set_job(**job):
         STATE["ver"] += 1
 
 
+def close_page():
+    try:
+        PIT["mfd"].press("close")
+        sev, text = 0, "Pit page closed on the driver's screen"
+    except Exception as e:   # not focused, vJoy gone: said in the log rather than lost
+        sev, text = 2, f"Could not close the pit page: {e}"
+    finally:
+        PIT["busy"].release()
+    print(text)
+    with LOCK:
+        log(sev, "PLAN", text)
+
+
 def run_plan(plan, by):
     set_job(state="running", plan=plan, by=by, only=plan["only"])
     end = {}
@@ -258,10 +271,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if not self.host_ok():
             return self.reply(403, "use the PC's IP address")
-        if self.path not in ("/pit", "/config"):
+        if self.path not in ("/pit", "/config", "/mfd/close"):
             return self.reply(404, "not found")
         if not hmac.compare_digest(self.headers.get("X-Pit-Key", "").encode(), PIT["key"].encode()):
             return self.reply(403, "wrong or missing access key")
+        if self.path == "/mfd/close":   # take the pit page off the driver's screen (ACC's Cycle MFD)
+            if not PIT["mfd"]:
+                return self.reply(503, "pit control is not available on this PC")
+            if not PIT["busy"].acquire(blocking=False):
+                return self.reply(409, "a plan is still being applied")
+            threading.Thread(target=close_page, daemon=True).start()
+            return self.reply(202, "closing")
         if self.path == "/config":
             try:
                 raw = self.body()

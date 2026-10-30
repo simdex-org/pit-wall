@@ -139,7 +139,8 @@ holding. A virtual controller avoids that: the MFD buttons are pressed on it, an
 
    Switch to ACC, *Options → Controls*, and find the MFD actions. After 10 seconds the program presses each vJoy button for 10 seconds,
    announced by beeps: 1 beep **MFD pitstop page** (button 1), 2 beeps **MFD up** (2), 3 **MFD down** (3), 4 **MFD left** (4),
-   5 **MFD right** (5). When you hear the beeps, click that action's binding in ACC; the button binds itself. Save the controls.
+   5 **MFD right** (5), 6 **Cycle MFD** (6, used by *Close pit page*). When you hear the beeps, click that action's binding in
+   ACC; the button binds itself. Save the controls.
 3. Start the bridge with `--vjoy`:
 
    ```bash

@@ -121,7 +121,7 @@
         `<tr class="tt-group"><td colspan="4">${g}</td><td><button type="button" class="btn send" data-only="${only}">Send ${g.toLowerCase()}</button></td></tr>${rows.map(rowHtml).join('')}`).join('')}</tbody></table>
         <div class="split-v pp-side"><p class="pp-state" data-state role="status">Draft</p><dl class="kv pp-sets"></dl>
           <div class="pp-confirm" hidden><p></p><div class="pp-acts"><button type="button" class="btn primary" data-go>Send</button><button type="button" class="btn" data-cancel>Cancel</button></div></div>
-          <button type="button" class="btn primary" data-whole>Send whole plan</button><button type="button" class="btn" data-copy>Copy MFD into plan</button>
+          <button type="button" class="btn primary" data-whole>Send whole plan</button><button type="button" class="btn" data-copy>Copy MFD into plan</button><button type="button" class="btn" data-close title="Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)">Close pit page</button>
           <label class="check"><input type="checkbox" data-confirm${inst.state.confirm ? ' checked' : ''}> Confirm before sending</label>
           <p class="note">Send one block, or the whole plan. Only what is sent is touched on the driver's pit page, typed in with ACC's own MFD controls. Fuel, tyre set and pressures are read back from the game; the rest ACC does not publish.</p></div></div>`;
       fill(el, plan());
@@ -145,6 +145,11 @@
           lsSet('pitwall.plan', q); fill(el, q); inst.state.flash = new Set(); inst.state.msg = 'MFD copied into the plan.'; Pit.dirty('pit'); return;
         }
         if (b.hasAttribute('data-whole')) return send(inst);
+        if (b.hasAttribute('data-close')) {
+          inst.state.msg = 'Closing the pit page…'; Pit.dirty('pit');
+          return Pit.post('/mfd/close', {}).then(r => { inst.state.msg = r.status === 202 ? "Closing the pit page on the driver's screen; the log says when it is done."
+            : r.status === 409 ? 'Busy (409): a plan is still being typed.' : r.status === 403 ? 'Wrong or missing access key: Settings › Connection.' : 'Refused: ' + r.text; Pit.dirty('pit'); });
+        }
         if (b.dataset.only) return send(inst, b.dataset.only);
       });
     },
