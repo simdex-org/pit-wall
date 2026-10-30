@@ -134,6 +134,8 @@ const trail = [];                  // recent map positions
 function drawMap(r){
   const cv = $('map'), [g, w, h] = fitCanvas(cv);
   const t = r && trackFor(r.fixed.track), font = getComputedStyle(document.body).fontFamily;
+  const wp = r && r.session.car_position_m;
+  if (wp && (wp[0] || wp[2]) && (lines.length || curLine.length > 50)) return drawLines(r, g, w, h);   // the car's own coordinates beat a drawn layout
   if (t) {
     const pad = 22, sc = Math.min((w - 2*pad)/t.box[0], (h - 2*pad)/t.box[1]), ox = (w - t.box[0]*sc)/2, oy = (h - t.box[1]*sc)/2;
     const P = p => [ox + p[0]*sc, oy + p[1]*sc];
@@ -152,15 +154,49 @@ function drawMap(r){
     return;
   }
   // No layout for this track: draw the line the car has driven, from its world coordinates.
-  if (r && learned.length > 2) {
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; for (const [x, y] of learned) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-    const pad = 20, sc = Math.min((w - 2*pad)/Math.max(1, x1 - x0), (h - 2*pad)/Math.max(1, y1 - y0)), ox = (w - (x1 - x0)*sc)/2 - x0*sc, oy = (h - (y1 - y0)*sc)/2 - y0*sc;
-    g.beginPath(); learned.forEach(([x, y], i) => i ? g.lineTo(ox + x*sc, oy + y*sc) : g.moveTo(ox + x*sc, oy + y*sc)); g.strokeStyle = '#6b7383'; g.lineWidth = 3; g.lineJoin = 'round'; g.stroke();
-    const p = r.session.car_position_m; g.beginPath(); g.arc(ox + p[0]*sc, oy + p[2]*sc, 6, 0, 7); g.fillStyle = '#4da3ff'; g.fill();
-    $('mapInfo').textContent = `${(r.session.track_position*100).toFixed(1)} % · learnt from the driving`;
-  } else {
-    g.fillStyle = '#8b919c'; g.font = '13px ' + font; g.textAlign = 'center';
-    g.fillText(r ? 'No layout for this track. The map is drawn as the car laps it.' : 'Waiting for the driver.', w/2, h/2);
-    $('mapInfo').textContent = '';
-  }
+  if (r && lines.length + curLine.length > 2) return drawLines(r, g, w, h);
+  g.fillStyle = '#8b919c'; g.font = '13px ' + font; g.textAlign = 'center';
+  g.fillText(r ? 'No layout for this track. The map is drawn as the car laps it.' : 'Waiting for the driver.', w/2, h/2);
+  $('mapInfo').textContent = '';
 }
+
+// ---------- the racing line: every recorded lap over each other, zoom, pan, follow the car ----------
+const mapView = {zoom:1, follow:false, dx:0, dy:0};   // dx, dy: pan in metres
+function drawLines(r, g, w, h){
+  const all = [curLine, ...lines.map(l => l.pts)];
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const pts of all) for (const [x, z] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+  const p = r.session.car_position_m, pad = 20;
+  const base = Math.min((w - 2*pad) / Math.max(1, x1 - x0), (h - 2*pad) / Math.max(1, z1 - z0)), sc = base * mapView.zoom;
+  const cx = mapView.follow ? p[0] : (x0 + x1) / 2 + mapView.dx, cz = mapView.follow ? p[2] : (z0 + z1) / 2 + mapView.dy;
+  const X = x => w / 2 + (x - cx) * sc, Y = z => h / 2 + (z - cz) * sc;
+  mapView.sc = sc; mapView.mid = [(x0 + x1) / 2, (z0 + z1) / 2]; mapView.c = [cx, cz];   // for panning
+  const path = (pts, color, width, alpha) => { if (pts.length < 2) return; g.globalAlpha = alpha; g.strokeStyle = color; g.lineWidth = width; g.beginPath(); pts.forEach(([x, z], i) => i ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z))); g.stroke(); };
+  g.lineJoin = g.lineCap = 'round';
+  const ok = lines.filter(l => l.valid), best = ok.length ? ok.reduce((a, b) => b.ms < a.ms ? b : a) : null;
+  lines.forEach(l => path(l.pts, css('--line'), 14, 1));                     // the width of road this driver uses
+  lines.slice().reverse().forEach((l, i, arr) => path(l.pts, css('--mut'), 1.5, 0.15 + 0.5 * (i + 1) / arr.length));   // older laps fainter
+  if (best) path(best.pts, css('--best'), 2.5, 1);
+  path(curLine, css('--acc'), 2.5, 1);
+  g.globalAlpha = 1;
+  if (lines.length) { const [sx, sz] = lines[0].pts[0]; g.fillStyle = css('--txt'); g.fillRect(X(sx) - 5, Y(sz) - 1.5, 10, 3); }   // start/finish
+  g.beginPath(); g.arc(X(p[0]), Y(p[2]), 6, 0, 7); g.fillStyle = r.session.in_pit_lane ? css('--cold') : css('--acc'); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke();
+  $('mapInfo').textContent = [lines.length ? `${lines.length} lap${lines.length > 1 ? 's' : ''}` : 'first lap', best ? `◆ best L${best.n}` : '',
+    spread ? `L${spread.last} ${spread.m.toFixed(1)} m off the best line` : '', mapView.zoom > 1.01 ? `×${mapView.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · ');
+}
+// Wheel to zoom where the pointer is, drag to pan, double-click or F to follow the car.
+(() => {
+  const cv = $('map'); let drag = null;
+  cv.addEventListener('wheel', e => { e.preventDefault(); mapView.zoom = Math.max(1, Math.min(40, mapView.zoom * (e.deltaY < 0 ? 1.25 : 0.8))); if (mapView.zoom === 1) mapView.dx = mapView.dy = 0; render(); }, {passive:false});
+  cv.addEventListener('pointerdown', e => { drag = {x:e.clientX, y:e.clientY}; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const sc = mapView.sc || 1;
+    if (mapView.follow) { mapView.follow = false; mapView.dx = mapView.c[0] - mapView.mid[0]; mapView.dy = mapView.c[1] - mapView.mid[1]; }
+    mapView.dx -= (e.clientX - drag.x) / sc; mapView.dy -= (e.clientY - drag.y) / sc; mapView.follow = false; drag = {x:e.clientX, y:e.clientY}; syncMapButtons(); render();
+  });
+  cv.addEventListener('pointerup', () => { drag = null; });
+  cv.addEventListener('dblclick', () => setFollow(!mapView.follow));
+})();
+function setFollow(on){ mapView.follow = on; if (on && mapView.zoom < 4) mapView.zoom = 4; syncMapButtons(); render(); }
+function syncMapButtons(){ $('mapFollow').setAttribute('aria-pressed', mapView.follow); }

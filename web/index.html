@@ -82,6 +82,10 @@
           <div class="cur" id="cur">—</div>
           <div class="sub"><span>Δ <b id="delta">—</b></span><span>Last <b id="last">—</b></span><span>Best <b id="best">—</b></span><span>Sector <b id="sector">—</b></span></div>
         </div>
+        <div class="tile"><label>Position</label>
+          <div class="cur" id="livePos">—</div>
+          <div class="sub"><span>Ahead <b id="liveAhead">—</b></span><span>Behind <b id="liveBehind">—</b></span></div>
+        </div>
         <div class="tile"><label>Fuel</label>
           <div class="fuel"><span id="fuelL">—</span><small>L</small></div>
           <div class="sub"><span><b id="fuelLapsL">—</b> laps left</span><span><b id="fplL">—</b> L/lap</span></div>
@@ -97,7 +101,7 @@
         </section>
         <div class="stack">
           <section class="panel">
-            <div class="ph">Track<span class="r" id="mapInfo"></span></div>
+            <div class="ph">Track<span class="r"><span id="mapInfo"></span><button class="btn" id="mapFollow" type="button" aria-pressed="false" title="Follow the car (F, or double-click the map)">Follow</button><button class="btn" id="mapFit" type="button" title="Whole track">Fit</button></span></div>
             <div class="mapbox"><canvas id="map"></canvas></div>
           </section>
           <section class="panel">
@@ -109,7 +113,9 @@
     </div>
 
     <div class="tabpanel" id="p-tyres" role="tabpanel" aria-labelledby="t-tyres" hidden>
-      <div class="ph big">Tyres &amp; brakes<span class="r"><span id="compound"></span><span id="targets"></span></span></div>
+      <div class="ph big">Tyres &amp; brakes<span class="r"><span id="compound"></span><span id="targets"></span><button class="btn" id="tyRec" type="button">Put the corrections in the pit plan</button></span></div>
+      <section class="panel tyreviz-panel"><div class="ph">Car<span class="r"><span class="lg"><i class="t-cold"></i>cold</span><span class="lg"><i class="t-ok"></i>in window</span><span class="lg"><i class="t-warn"></i>hot</span><span class="lg"><i class="t-bad"></i>too hot</span><span>tyre core temperature · brake beside each tyre</span></span></div>
+        <div class="tyreviz" id="tyreViz"><div class="empty">Waiting for the driver.</div></div></section>
       <div class="corners" id="tyreGrid"><div class="empty">Waiting for the driver.</div></div>
       <section class="panel" style="margin-top:10px;max-width:980px"><div class="ph">History by lap<span class="r">values at the end of each lap</span></div>
         <table id="tyreHist"><thead><tr><th>Lap</th><th>FL psi</th><th>FR psi</th><th>RL psi</th><th>RR psi</th><th>FL °C</th><th>FR °C</th><th>RL °C</th><th>RR °C</th></tr></thead><tbody id="tyreHistRows"><tr><td colspan="9" class="empty">Filled as laps are completed.</td></tr></tbody></table>
@@ -164,7 +170,7 @@
         </section>
         <section class="panel mod" data-mod="tyres"><div class="ph">Tyres<span class="r" id="tyInfo"></span></div>
           <div class="m-tyres">
-            <div class="car" id="tyCar"></div>
+            <div class="tyreviz" id="tyCar"></div>
             <dl class="mini"><dt>Laps this stint</dt><dd id="stint">—</dd><dt>Tyre set</dt><dd id="tySet">—</dd></dl>
             <p class="na">ACC does not publish tyre wear: Degradation shows what the tyres cost in lap time.</p>
           </div>
@@ -229,16 +235,18 @@
     </div>
 
     <div class="tabpanel" id="p-laps" role="tabpanel" aria-labelledby="t-laps" hidden>
-      <div class="ph big">Laps</div>
-      <div class="tiles four">
-        <div class="tile"><label>Best valid</label><div class="fuel sm" id="sBest">—</div></div>
+      <div class="ph big">Laps<span class="r"><span class="key-best">◆ session best</span><span class="key-inv">invalid</span><span><b class="tag">OUT</b> <b class="tag">IN</b> pit laps</span></span></div>
+      <div class="tiles five">
+        <div class="tile"><label>Best</label><div class="fuel sm t-best" id="sBest">—</div></div>
+        <div class="tile"><label>Ideal, best sectors</label><div class="fuel sm" id="sTheo">—</div></div>
         <div class="tile"><label>Last</label><div class="fuel sm" id="sLast">—</div></div>
-        <div class="tile"><label>Average, valid laps</label><div class="fuel sm" id="sAvg">—</div></div>
-        <div class="tile"><label>Completed</label><div class="fuel sm" id="sCount">—</div></div>
+        <div class="tile"><label>Average, clean laps</label><div class="fuel sm" id="sAvg">—</div></div>
+        <div class="tile"><label>Laps</label><div class="fuel sm" id="sCount">—</div></div>
       </div>
       <div class="laps-grid">
         <section class="panel"><div class="ph">Lap times</div>
-          <table><thead><tr><th>Lap</th><th>Time</th><th>Δ best</th><th>S1</th><th>S2</th><th>S3</th><th></th></tr></thead><tbody id="lapRows"><tr><td colspan="7" class="empty">No completed laps yet.</td></tr></tbody></table>
+          <table class="laptab"><thead><tr><th>Lap</th><th>Time</th><th>Δ best</th><th>S1</th><th>S2</th><th>S3</th><th>Fuel</th><th></th></tr></thead>
+            <tbody id="lapRows"><tr><td colspan="8" class="empty">No completed laps yet.</td></tr></tbody><tfoot id="lapFoot"></tfoot></table>
         </section>
         <section class="panel debrief"><div class="ph">Debrief</div><div id="debrief"><div class="empty">The last laps' analysis appears here after the first lap.</div></div></section>
       </div>

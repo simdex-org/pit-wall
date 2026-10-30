@@ -10,7 +10,10 @@ function renderLive(r, c, s, f, cap, fpl, fuelLaps){
   $('rpmBar').style.background = maxRpm && c.rpm / maxRpm > .92 ? 'var(--bad)' : maxRpm && c.rpm / maxRpm > .8 ? 'var(--warn)' : 'var(--c-speed)';
   $('rpm').textContent = c.rpm + ' rpm'; $('maxRpm').textContent = maxRpm ? maxRpm + ' max' : '';
   for (const [k, v] of [['thr', c.throttle], ['brk', c.brake], ['clu', c.clutch]]) { $(k).style.width = (100*v) + '%'; $(k+'V').textContent = Math.round(100*v) + '%'; }
-  const d = c.reference_delta_s; $('delta').textContent = (d > 0 ? '+' : '−') + Math.abs(d).toFixed(3); $('delta').className = d < -0.005 ? 'neg' : d > 0.005 ? 'pos' : '';
+  const d = c.reference_delta_s; $('delta').textContent = (d < -0.005 ? '▼ ' : d > 0.005 ? '▲ ' : '') + (d > 0 ? '+' : '−') + Math.abs(d).toFixed(3); $('delta').className = d < -0.005 ? 'neg' : d > 0.005 ? 'pos' : '';
+  const gap = ms => ms > 0 && ms < 600000 ? (ms / 1000).toFixed(ms < 10000 ? 2 : 1) : '—';
+  $('livePos').textContent = s.position ? 'P' + s.position : '—'; $('liveAhead').textContent = gap(s.gap_ahead_ms); $('liveBehind').textContent = gap(s.gap_behind_ms);
+  document.querySelector('#p-live .tiles').dataset.state = s.in_pit_lane ? 'pit' : !s.lap_is_valid ? 'invalid' : 'track';   // the coloured edge, as on a timing screen
   $('cur').textContent = fmtLap(s.current_lap_ms); $('cur').className = 'cur' + (s.lap_is_valid ? '' : ' bad');
   $('last').textContent = fmtLap(s.last_lap_ms); $('best').textContent = fmtLap(s.best_lap_ms);
   $('sector').textContent = cap.sectors === false ? '—' : `${s.current_sector + 1}/${f.sector_count || 3}`;
@@ -35,6 +38,7 @@ function setBadges(el, items){
 // ---------- tyres ----------
 let shownHist = -1;
 function renderTyres(c, s, cap){
+  $('tyreViz').innerHTML = tyreWidget(c, s, cap);
   $('compound').textContent = (s.compound || '').replace(/_/g, ' ');
   $('targets').textContent = `target ${fv('press', ALERT.psiMin)}–${fv('press', ALERT.psiMax)} ${un('press').u} · ${fv('temp', ALERT.tMin)}–${fv('temp', ALERT.tMax)} ${un('temp').u}`;
   const edge = cap.tyre_edge_temps;
@@ -45,12 +49,48 @@ function renderTyres(c, s, cap){
     if (cap.tyre_wear) rows.push(['Wear', unit(c.tyre_wear[i].toFixed(1), '%'), '']);
     rows.push(['Brake temp', fvu('temp', c.brake_temp_c[i]), c.brake_temp_c[i] > ALERT.brakeMax ? 'bad mark' : '']);
     if (c.brake_pad_mm[i] > 0) rows.push(['Pad', unit(c.brake_pad_mm[i].toFixed(1), 'mm'), c.brake_pad_mm[i] < ALERT.padMin ? 'warn mark' : ''], ['Disc', unit(c.brake_disc_mm[i].toFixed(1), 'mm'), '']);
+    const p = c.tyre_pressure_psi[i], lo = ALERT.psiMin - 1.5, hi = ALERT.psiMax + 1.5, x = v => Math.max(0, Math.min(100, 100 * (v - lo) / (hi - lo)));
+    const fix = pressFix(p);
     return `<section class="corner"><header>${CORNERS[i]}<span>core ${fv('temp', core)} ${un('temp').u}</span></header>
-      <div class="psi ${pk}${pk ? ' mark ' + pk : ''}">${fv('press', c.tyre_pressure_psi[i])}<span class="u">${un('press').u}</span></div>
+      <div class="psi ${pk}${pk ? ' mark ' + pk : ''}">${fv('press', p)}<span class="u">${un('press').u}</span></div>
+      <div class="band" aria-hidden="true"><i style="left:${x(ALERT.psiMin)}%;width:${x(ALERT.psiMax) - x(ALERT.psiMin)}%"></i><b style="left:${x(p)}%"></b></div>
+      <div class="rec">${!pk ? 'in the window' : `next stop <b>${fix > 0 ? '+' : '−'}${Math.abs(fix).toFixed(1)} psi</b> to the middle`}</div>
       <div class="temps">${edge ? temp('Inner', c.tyre_temp_inner_c[i]) + temp('Middle', c.tyre_temp_middle_c[i]) + temp('Outer', c.tyre_temp_outer_c[i]) : temp('Core', core)}</div>
       <dl class="rows">${rows.map(([k, v, x]) => `<dt>${k}</dt><dd class="${x}">${v}</dd>`).join('')}</dl></section>`;
   }).join('');
   if (shownHist !== histVer) { shownHist = histVer; renderTyreHist(); }
+}
+// Hot pressure off the middle of the target window: the same change, cold, at the next stop (about 1 psi cold for 1 psi hot).
+const pressFix = p => Math.round(((ALERT.psiMin + ALERT.psiMax) / 2 - p) * 10) / 10;
+function pressFixToPlan(){
+  if (!lastC) return;
+  const base = pit && pit.status === 'live' ? pit.pressures : CORNERS.map(c => +$('p' + c).value);
+  fillPit({pressures:base.map((v, i) => (v + pressFix(lastC.tyre_pressure_psi[i])).toFixed(1))}); savePit();
+  $('tyRec').textContent = 'In the pit plan: Strategy, Pressures';
+  logEvent(0, 'Pressure corrections put in the pit plan');
+}
+// Temperature to a state class: cold blue, in the window green, hot amber, too hot red (the class names also carry a letter).
+const tyreState = t => t <= 0 ? 'none' : t < ALERT.tMin ? 'cold' : t > ALERT.tMax + 10 ? 'bad' : t > ALERT.tMax ? 'warn' : 'ok';
+const brakeState = t => t <= 0 ? 'none' : t < 250 ? 'cold' : t > ALERT.brakeMax ? 'bad' : t > ALERT.brakeMax - 100 ? 'warn' : 'ok';
+function tyreWidget(c, s, cap){
+  const W = 320, H = 214, tw = 92, th = 66, bw = 14, gap = 6;
+  const pos = [[18, 30], [W - 18 - tw, 30], [18, 118], [W - 18 - tw, 118]];
+  const one = i => {
+    const [x, y] = pos[i], left = i % 2 === 0, front = i < 2, p = c.tyre_pressure_psi[i], pk = cls(p, ALERT.psiMin, ALERT.psiMax);
+    const temps = cap.tyre_edge_temps ? [c.tyre_temp_inner_c[i], c.tyre_temp_middle_c[i], c.tyre_temp_outer_c[i]] : [0, 0, 0].map(() => coreT(c, i, cap));
+    const bands = (left ? temps.slice().reverse() : temps).map((t, k) => `<rect class="t-${tyreState(t)}" x="${x + k * tw / 3}" y="${y}" width="${tw / 3}" height="${th}"/>`).join('');   // outer edge outside
+    const grooves = [0.25, 0.5, 0.75].map(f => `<line class="groove" x1="${x + 4}" x2="${x + tw - 4}" y1="${y + th * f}" y2="${y + th * f}"/>`).join('');
+    const bx = left ? x + tw + gap : x - gap - bw, ty = front ? y - 9 : y + th + 18, tx = left ? x : x + tw;
+    return `<g>${bands}${grooves}<rect class="tyre-edge" x="${x}" y="${y}" width="${tw}" height="${th}" rx="5"/>
+      <text class="ty-temp" x="${x + tw / 2}" y="${y + th / 2 + 6}" text-anchor="middle">${fv('temp', coreT(c, i, cap))}°</text>
+      <rect class="b-${brakeState(c.brake_temp_c[i])}" x="${bx}" y="${y + 9}" width="${bw}" height="${th - 18}" rx="2"><title>${CORNERS[i]} brake ${fv('temp', c.brake_temp_c[i])} ${un('temp').u}</title></rect>
+      <text class="ty-psi ${pk}" x="${tx}" y="${ty}" text-anchor="${left ? 'start' : 'end'}">${fv('press', p)}${pk ? ' !' : ''} <tspan class="u">${un('press').u}</tspan></text></g>`;
+  };
+  const comp = (s.compound || '').replace(/_?compound/i, '').replace(/_/g, ' ').trim().toUpperCase() || (s.rain_tyres ? 'WET' : 'DRY');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tyres: pressure, core temperature and brake temperature at each corner">
+    <rect class="chassis" x="${W / 2 - 34}" y="22" width="68" height="${H - 44}" rx="16"/>
+    ${[0, 1, 2, 3].map(one).join('')}
+    <text class="ty-comp" x="${W / 2}" y="${H / 2 + 6}" text-anchor="middle">${esc(comp)} ${s.tyre_set || ''}</text></svg>`;
 }
 function renderTyreHist(){
   const B = $('tyreHistRows');
@@ -151,9 +191,7 @@ function renderWeather(c, s){
   $('wAir').innerHTML = fvu('temp', c.air_temp_c); $('wRoad').innerHTML = fvu('temp', c.road_temp_c);
 }
 function renderTyreCar(c, s){
-  const corner = i => { const p = c.tyre_pressure_psi[i], t = c.tyre_core_temp_c[i], pk = cls(p, ALERT.psiMin, ALERT.psiMax), tk = tcls(t);
-    return `<div class="ty c${i} ${pk || tk}"><small>${CORNERS[i]}</small><b class="${pk}${pk ? ' mark ' + pk : ''}">${fv('press', p)}<span class="u">${un('press').u}</span></b><span class="${tk}">${fv('temp', t)} ${un('temp').u}</span></div>`; };
-  $('tyCar').innerHTML = `${corner(0)}<div class="body" aria-hidden="true"></div>${corner(1)}${corner(2)}${corner(3)}`;
+  $('tyCar').innerHTML = tyreWidget(c, s, reading.reading.capabilities || {});
   $('tyInfo').textContent = (s.compound || '').replace(/_/g, ' ') + (s.rain_tyres ? ' · wets' : '');
   $('stint').innerHTML = summary ? unit(summary.stint_laps, 'laps') : '—'; $('tySet').textContent = s.tyre_set || '—';
 }
@@ -276,18 +314,25 @@ function renderAdvice(){
 
 // ---------- laps ----------
 let shownLaps = -1;
+// The session's laps as the bridge keeps them (every lap, whenever this page was opened), timing-screen style:
+// purple and a diamond for the session best lap and sectors, struck-through grey for invalid laps, OUT/IN for pit laps.
+let sessionLaps = [];
 function renderLaps(){
   if (shownLaps === lapsVer) return; shownLaps = lapsVer;
-  const live = laps.filter(l => l.src === 'live'), B = $('lapRows');
-  const sectors = {}; if (summary) for (const d of summary.debrief) sectors[d.lap_number] = d.sectors_ms;
-  const valid = live.filter(l => l.valid), best = Math.min(...valid.map(l => l.ms), Infinity);
-  $('sBest').textContent = isFinite(best) ? fmtLap(best) : '—';
-  $('sLast').textContent = live.length ? fmtLap(live[0].ms) : '—';
-  $('sAvg').textContent = valid.length ? fmtLap(Math.round(valid.reduce((a, l) => a + l.ms, 0) / valid.length)) : '—';
-  $('sCount').textContent = live.length || '—';
-  if (!live.length) { B.innerHTML = '<tr><td colspan="7" class="empty">No completed laps yet.</td></tr>'; return; }
-  B.innerHTML = live.map(l => { const sec = sectors[l.n] || [];
-    return `<tr${l.ms === best && l.valid ? ' class="best"' : ''}><td>${l.n}</td><td>${fmtLap(l.ms)}</td><td>${l.ms === best ? '' : fmtDelta(l.ms - best)}</td><td>${fmtLap(sec[0])}</td><td>${fmtLap(sec[1])}</td><td>${fmtLap(sec[2])}</td><td class="${l.valid ? '' : 'bad'}">${l.valid ? '' : 'invalid'}</td></tr>`; }).join('');
+  const L = sessionLaps, B = $('lapRows'), clean = L.filter(l => l.valid && !l.out && !l.in);
+  const best = Math.min(...clean.map(l => l.ms), Infinity);
+  const bestS = [0, 1, 2].map(i => Math.min(...clean.filter(l => l.s.length === 3).map(l => l.s[i]), Infinity));
+  const ideal = bestS.every(isFinite) ? bestS.reduce((a, v) => a + v, 0) : null;
+  $('sBest').textContent = isFinite(best) ? fmtLap(best) : '—'; $('sTheo').textContent = ideal ? fmtLap(ideal) : '—';
+  $('sLast').textContent = L.length ? fmtLap(L[L.length - 1].ms) : '—';
+  $('sAvg').textContent = clean.length ? fmtLap(Math.round(clean.reduce((a, l) => a + l.ms, 0) / clean.length)) : '—';
+  $('sCount').textContent = L.length || '—';
+  if (!L.length) { B.innerHTML = '<tr><td colspan="8" class="empty">No completed laps yet.</td></tr>'; $('lapFoot').innerHTML = ''; return; }
+  const cell = (v, isBest, inv) => `<td class="${inv ? 'inv' : isBest ? 'best' : ''}">${fmtLap(v)}</td>`;
+  B.innerHTML = L.slice().reverse().map(l => { const inv = !l.valid, top = !inv && l.ms === best;
+    const tags = [l.out && 'OUT', l.in && 'IN', inv && 'INVALID'].filter(Boolean).map(t => `<b class="tag${t === 'INVALID' ? ' bad' : ''}">${t}</b>`).join(' ');
+    return `<tr><td>${l.n}</td>${cell(l.ms, top, inv)}<td>${top || inv ? '' : fmtDelta(l.ms - best)}</td>${[0, 1, 2].map(i => cell(l.s[i], !inv && l.s[i] === bestS[i], inv)).join('')}<td>${l.fuel != null ? l.fuel.toFixed(2) : '—'}</td><td>${tags}</td></tr>`; }).join('');
+  $('lapFoot').innerHTML = ideal ? `<tr><td>Ideal</td><td>${fmtLap(ideal)}</td><td>${isFinite(best) ? fmtDelta(ideal - best) : ''}</td>${bestS.map(v => `<td class="best">${fmtLap(v)}</td>`).join('')}<td></td><td class="note-cell">best sectors added up</td></tr>` : '';
 }
 
 // ---------- compare ----------
@@ -328,7 +373,8 @@ let shownLog = -1;
 function renderLog(){
   if (shownLog === logVer) return; shownLog = logVer;
   $('evCount').textContent = events.length ? `${events.length} events` : '';
-  $('evList').innerHTML = events.length ? events.map(e => `<div class="ev s${e.sev}"><time>${hms(e.t)}</time><span class="lp">L${e.lap}</span><span>${esc(e.text)}</span></div>`).join('') : '<div class="empty">Events appear here as they happen.</div>';
+  const cat = t => /^Pit plan|^Pressure corrections/.test(t) ? 'PLAN' : /^Lap \d/.test(t) ? 'LAP' : /pit lane/i.test(t) ? 'PIT' : /^Engineer:/.test(t) ? 'ENG' : 'CAR';
+  $('evList').innerHTML = events.length ? events.map(e => `<div class="ev s${e.sev}"><time>${hms(e.t)}</time><span class="lp">L${e.lap}</span><b class="tag c-${cat(e.text)}">${cat(e.text)}</b><span>${esc(e.text)}</span></div>`).join('') : '<div class="empty">Events appear here as they happen.</div>';
 }
 
 // ---------- settings ----------
