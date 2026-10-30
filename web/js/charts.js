@@ -225,11 +225,12 @@ function drawMap(cv, view, c, o){
   const world = own && (B || (!t && L)) && (!F || F.xz_ok);   // a track with a drawing is always that drawing: the saved layout only stands in where there is none
   const D = world ? (B ? {loop:B.loop, pit:B.pit, labels:B.labels} : {loop:L.pts, pit:[], labels:[]}) : t ? {loop:[...t.loop, t.loop[0]], pit:t.pit, labels:t.labels} : null;
   if (!D) { out.empty = true; return out; }
-  const now = performance.now(), cars = [];
+  const now = performance.now(), cars = [], xz = new Map();
+  for (let k = 0; k + 2 < (r.xz || []).length; k += 3) xz.set(r.xz[k], [r.xz[k + 1], r.xz[k + 2]]);   // 30 Hz positions beat the field's 4 Hz ones
   const me = world ? glide('me', [p[0], p[2]], now) : atFrac(t.loop, r.session.track_position);
   if (F) for (const car of c.cars.values()) {
     if (car.i === c.me) continue;
-    const q = world ? (Array.isArray(car.xz) ? car.xz : null) : car.spl != null ? atFrac(t.loop, car.spl) : null;
+    const q = world ? xz.get(car.i) || (Array.isArray(car.xz) ? car.xz : null) : car.spl != null ? atFrac(t.loop, car.spl) : null;
     if (q) cars.push([car, glide(car.i, !world && PIT_LOCS.includes(car.loc) ? onPitLane(D.pit, q) : q, now)]);
   }
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
@@ -256,16 +257,22 @@ function drawMap(cv, view, c, o){
 // the field's dots (and your own disc) with their labels, over a map already drawn; dots: [{car, sx, sy}] and avoid: [[x, y, w, h]]
 // (boxes no label may cover) in canvas pixels
 function drawField(g, tk, c, o, dots, mx, my, foc, inPit, w, h, out, avoid = []){
-  const k = mapScale(o);
-  // other cars: circles for GT3, squares for every other class; hollow in the pit lane; ring on the focus car
+  const k = mapScale(o), blink = Math.floor(performance.now() / 600) % 2 === 0;   // blue flags blink slowly: 0.6 s on, 0.6 s off
+  const meCar0 = c.cars && c.cars.get(c.me), race = c.mode === 'race';
+  // ACC publishes no flag for other cars: a car is marked blue when it is a lap or more down and just ahead of you in a race (about to be lapped)
+  const lapped = car => race && meCar0 && car.laps != null && meCar0.laps != null && car.laps < meCar0.laps && car.rel != null && car.rel > 0 && car.rel < 6000;
+  const blueRing = (x, y, r) => { if (!blink) return; g.beginPath(); g.arc(x, y, r, 0, 7); g.strokeStyle = tk.cold; g.lineWidth = 3; g.stroke(); };
+  // other cars: one circle each; hollow in the pit lane; ring on the focus car
   for (const {car, sx, sy} of dots) {
-    const pit = PIT_LOCS.includes(car.loc), sq = car.class && car.class !== 'GT3';
-    g.beginPath(); sq ? g.rect(sx - 4.5 * k, sy - 4.5 * k, 9 * k, 9 * k) : g.arc(sx, sy, 5 * k, 0, 7);
+    const pit = PIT_LOCS.includes(car.loc);
+    g.beginPath(); g.arc(sx, sy, 5 * k, 0, 7);
     if (pit) { g.strokeStyle = tk.text; g.lineWidth = 1.5; g.stroke(); } else { g.fillStyle = tk.text; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1.5; g.stroke(); }   // light fill, --bg outline: readable on the road
+    if (lapped(car)) blueRing(sx, sy, 10 * k);
     if (car === foc) { g.beginPath(); g.arc(sx, sy, 10 * k, 0, 7); g.strokeStyle = tk.accent; g.lineWidth = 2; g.stroke(); }
     out.hits.push({i:car.i, x:sx, y:sy});
   }
   meDisc(g, mx, my, tk, inPit, k);
+  const meBlue = c.r && c.r.session.flag === 1; if (meBlue) blueRing(mx, my, 12 * k);   // your own blue flag, from the game
   if (o.labels !== 'none') {
     // labels in priority order (focus car, then the nearest on track, then by position), each at the first of four spots
     // whose box overlaps nothing placed yet (your disc counts); a label with no free spot is skipped, the dot stays
@@ -279,11 +286,10 @@ function drawField(g, tk, c, o, dots, mx, my, foc, inPit, w, h, out, avoid = [])
       const lb = o.labels === 'gap' ? (d.car.rel != null && isFinite(d.car.rel) ? fmtRel(d.car.rel) : '') : o.labels === 'short' ? Pit.carName(d.car, 'code')
         : o.labels === 'name' ? Pit.carName(d.car, 'last') : o.labels === 'both' ? `${d.car.num != null ? d.car.num : ''} ${Pit.carName(d.car, 'code')}`.trim()
         : d.car.num != null ? String(d.car.num) : ''; if (!lb) continue;
-      const tw = g.measureText(lb).width, th = fs + 1;
-      const o8 = 8 * k, spot = [[d.sx + o8, d.sy - th / 2], [d.sx - o8 - tw, d.sy - th / 2], [d.sx - tw / 2, d.sy - o8 - th], [d.sx - tw / 2, d.sy + o8]].map(([x, y]) => [x, y, tw, th])
-        .find(b => b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= w && b[1] + b[3] <= h && !taken.some(t => hit(b, t)));
-      if (!spot) continue;
-      taken.push(spot); halo(lb, spot[0], spot[1] + th / 2); g.fillStyle = d.car === foc ? tk.accent : tk.text; g.fillText(lb, spot[0], spot[1] + th / 2);
+      // always to the right of its dot; cars closer than 12 px stack their labels downwards in car-number order (yours first), so none is hidden
+      const near = (ax, ay) => Math.hypot(d.sx - ax, d.sy - ay) < 12 * k, rank = (near(mx, my) ? 1 : 0) + dots.filter(e => e !== d && e.car.i < d.car.i && near(e.sx, e.sy)).length;
+      const x = d.sx + 8 * k, y = d.sy + rank * (fs + 1);
+      halo(lb, x, y); g.fillStyle = d.car === foc ? tk.accent : tk.text; g.fillText(lb, x, y);
     }
   }
 }

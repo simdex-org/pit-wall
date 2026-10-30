@@ -22,7 +22,7 @@ const AP_TOKENS = [   // [json key, css var, role, group]
 // 'invalid' is left out: an invalid time is always struck through and tagged INV, so it may be dimmer than text
 const AP_CONTRAST = new Set(['text', 'muted', 'dim', 'ok', 'warn', 'bad', 'cold', 'best', 'pb', 'slow', 'me', 'accent']);
 const AP_BASE_TOKENS = {bg:'#0a0b0d', panel:'#101216', raise:'#171a1f', line:'#262a31', line2:'#1b1e24', text:'#e6e8eb', muted:'#a1a7b0', dim:'#7a818b',
-  accent:'#2ad4c4', me:'#f2f2f2', best:'#c27aff', pb:'#3ddc84', slow:'#f5c518', invalid:'#6b717a', ok:'#3ddc84', warn:'#ff9f1a', bad:'#ff5468', cold:'#5aaeff',
+  accent:'#2ad4c4', me:'#ffd400', best:'#c27aff', pb:'#3ddc84', slow:'#f5c518', invalid:'#6b717a', ok:'#3ddc84', warn:'#ff9f1a', bad:'#ff5468', cold:'#5aaeff',
   chSpeed:'#e6e8eb', chThr:'#3ecf7a', chBrk:'#ff5e57', chSteer:'#f2c230', chGear:'#a98bff', chRpm:'#8a929c', chRef:'#e6e8eb', chCmp:'#ff9f1a', chLap:'#5aaeff',
   chFL:'#35b9d6', chFR:'#3ecf7a', chRL:'#f2c230', chRR:'#f06ab8'};
 const AP_LAYOUT = {density:['compact', 'comfortable'], fontScale:[0.9, 1, 1.1, 1.25], radius:[0, 2, 4, 8], panel:['ruled', 'boxed', 'flat'], numFont:['mono', 'sans'], labels:['upper', 'sentence']};
