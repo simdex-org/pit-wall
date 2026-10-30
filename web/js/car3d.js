@@ -107,10 +107,10 @@ const CAR3D = {
     // ---- wheel arches: a lip round each opening and a dark well inside ----
     for (const ax of AX) both(s => {
       const lip = [];
-      for (let k = 0; k <= 24; k++) { const a = -.25 + (Math.PI + .5) * k / 24, x = ax + (AR + .005) * Math.cos(a), z = .34 + (AR + .005) * Math.sin(a); const zc = Math.min(z, secAt(x)[3] - .05); lip.push([x, s * (sideY(x, zc) - .004), zc]); }   // never above the fender
+      for (let k = 0; k <= 24; k++) { const a = -.25 + (Math.PI + .5) * k / 24, x = ax + (AR + .005) * Math.cos(a), z = .34 + (AR + .005) * Math.sin(a); const zc = Math.min(z, secAt(x)[3] - .09); lip.push([x, s * (sideY(x, zc) - .004), zc]); }   // the opening's edge: round below, flat under the fender's shoulder
       tube('shell', lip, .022, false, ax > 0 ? 'front' : 'rear', 'carbon');
-      geo('inner', new T.CylinderGeometry(.395, .395, .36, 24, 1, true, Math.PI * .95, Math.PI * 1.1), M(ax, s * .82, .34), 'well', 'well');   // the drum over the wheel, inside the fender
-      geo('inner', new T.CircleGeometry(.395, 24), M(ax, s * .64, .34, Math.PI / 2), 'well', 'well');
+      geo('inner', new T.CylinderGeometry(.355, .355, .32, 28, 1, true, -Math.PI * .6, Math.PI * 1.2), M(ax, s * .83, .34), 'well', 'well');   // the drum over the wheel's top, just clear of the tyre and under the fender
+      geo('inner', new T.CircleGeometry(.355, 28), M(ax, s * .67, .34, Math.PI / 2), 'well', 'well');
     });
     // ---- the cabin: a teardrop canopy; windscreen, side windows and rear window are glass in black frames ----
     const CK = smooth([[0.98, .74, .76, .68, .78], [0.62, .79, .78, .62, 1.05], [0.20, .81, .81, .57, 1.17], [-0.50, .83, .86, .56, 1.19], [-1.00, .82, .90, .62, 1.07],
@@ -157,9 +157,9 @@ const CAR3D = {
       for (let j = 0; j < N; j++) { const ya = y0 + (y1 - y0) * j / N, yb = y0 + (y1 - y0) * (j + 1) / N, P = (x, y) => [x, y, topZ(x, y) + .006];
         quad('shell', P(x0, ya), P(x1, ya), P(x1, yb), P(x0, yb), part, kind); }
     };
-    const onSide = (s, x0, x1, zlo, zhi, part, kind, N = 8) => {   // a patch on the side surface: x0..x1, from zlo(t) to zhi(t) along it
+    const onSide = (s, x0, x1, zlo, zhi, part, kind, N = 16) => {   // a patch on the side surface: x0..x1, from zlo(t) to zhi(t) along it
       for (let j = 0; j < N; j++) for (let i = 0; i < 4; i++) {
-        const P = (tj, ti) => { const x = x0 + (x1 - x0) * tj, z = zlo(tj) + (zhi(tj) - zlo(tj)) * ti; return [x, s * (sideY(x, z) + .006), z]; };
+        const P = (tj, ti) => { const x = x0 + (x1 - x0) * tj, z = zlo(tj) + (zhi(tj) - zlo(tj)) * ti; return [x, s * (sideY(x, z) + .012), z]; };   // clear of the body, so the two never fight over a pixel
         const q = [P(j / N, i / 4), P((j + 1) / N, i / 4), P((j + 1) / N, (i + 1) / 4), P(j / N, (i + 1) / 4)];
         quad('shell', ...(s > 0 ? q : q.reverse()), part, kind);
       }
@@ -167,7 +167,7 @@ const CAR3D = {
     for (let k = 0; k < 5; k++) both(s => { const x = 1.48 + k * .07; onTop(x, x + .035, s * .14, s * .46, 'front', 'vent'); });   // hood louvres
     for (let k = 0; k < 4; k++) both(s => { const x = 1.62 + k * .06; onTop(x, x + .03, s * .64, s * .84, 'front', 'vent'); });   // fender louvres
     both(s => {   // the intake behind the door (a scoop narrowing forward), and the side skirt
-      onSide(s, -.40, -1.02, t => .44 + .10 * (1 - t), t => .72, sideOf(s), 'vent');
+      onSide(s, -.40, -1.02, t => .44 + .10 * (1 - t), t => .72, sideOf(s), 'well');   // black, like a real intake: it is a hole, not paint
       plate('shell', [[-.95, .07], [.95, .07], [.98, .14], [-.98, .14]], s > 0 ? .90 : -.98, .08, sideOf(s), 'carbon');
     });
     both(s => {   // mirrors: a pod on a stalk from the door top
