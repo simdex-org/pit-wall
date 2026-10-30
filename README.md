@@ -206,7 +206,7 @@ Four built-in templates, read-only:
 
 | Template | Workspaces |
 |---|---|
-| **Race engineer** | Live, Timing, Strategy, Car, Laps, Analysis, Log |
+| **Race engineer** | Live, Timing, Strategy, Car, Damage, Laps, Analysis, Log |
 | **Strategist** | Overview (standings, pit lane, map, stop options, battle, rejoin), Timing, Strategy, Laps, Log |
 | **Driver coach** | Live (map, live channels, lap timer, inputs, tyres, G-G), Laps, Analysis, Car, Log |
 | **Minimal** | Pit wall (map, relative, fuel to the flag, tyres), Pit (pit plan, fuel to the flag, pressure correction) |
@@ -254,7 +254,7 @@ ACC shares no rival inputs, fuel or tyres; the page never pretends it does.
 | Timing | Standings, Relative, Battle, Pit lane, You vs focus car, Session, Flags & penalties, Stint rules, Big number |
 | Strategy | Fuel, Fuel to the flag, Stint timeline, Stop options, Rejoin, Pit stops, Track & weather, Pace |
 | Pit | Pit stop (the plan), Pit sends (every send and its result), Pressure correction |
-| Car | Track map, Driver inputs, Lap, Tyres, Tyre history, Brakes, Electronics, Damage & engine, G-G, Live channels |
+| Car | Track map, Driver inputs, Lap, Tyres, Tyre history, Brakes, Electronics, Damage & engine, Car damage 3D, G-G, Live channels |
 | Laps / Analysis | Laps, Debrief, Lap picker, Traces, Where the time goes |
 | Log | Event log, Notes |
 
@@ -263,6 +263,32 @@ screen shows the same numbers. *Fuel to the flag* and *Stop options* agree on th
 and the ranking puts the fewest stops to the flag first, then the rejoin position, then the time lost. In practice and qualifying the
 page plans no fuel to a flag; it says how far the fuel goes. **ACC does not publish tyre wear**, so *Pace* shows what the tyres cost
 in lap time instead.
+
+### Car damage in 3D
+
+The **Damage** workspace (Race engineer) shows a generic GT3 (splitter, canards, hood vents, mirrors, side skirts, swan-neck wing,
+diffuser, wheels with their brakes, and under the bodywork the wishbones, track rods, steering and seat) painted by what ACC reports,
+from green (none) through yellow to red. Drag it to turn it any way, or jump to **3D, Top, Front, Rear, Left, Right**;
+**See-through** shows the suspension and steering through the bodywork. Each part's figure sits next to it.
+
+![Car damage 3D: a GT3 painted green to red by zone, with each zone's figure and every corner's suspension and pads](docs/damage-3d.png)
+
+![The same car from above, the front, the rear, the left, the right, and see-through](docs/damage-3d-views.png)
+
+What is painted, and from which of ACC's figures:
+
+| Part | ACC figure | Red at |
+|---|---|---|
+| Nose, splitter, canards, headlights, front fenders | bodywork damage, front zone | 100 (option: 50, 100, 200) |
+| Tail, wing, diffuser, tail lights | bodywork damage, rear zone | the same |
+| Left doors, sill, mirror, skirt / the same on the right | bodywork damage, left / right zone | the same |
+| Roof, pillars | bodywork damage, centre zone | the same |
+| Each wheel, its wishbones and (front) track rod | suspension damage of that corner | 0.30 (option: 0.10, 0.30, 1.00) |
+| Each brake (the ring inside the wheel) | pad thickness of that corner | the pads-low line (12 mm GT3); green 6 mm above it |
+
+ACC publishes bodywork damage only as those five numbers, without a unit or a maximum, which is why *red at* is an option. It does not
+publish broken glass, steering damage, engine damage, the wing on its own or tyre wear, so the glass, steering wheel and seat stay
+neutral and the wing takes the rear zone's colour; the page never invents those.
 
 ### Pit stop
 
@@ -385,7 +411,7 @@ docs/                    screenshots
 
 `web/js`, loaded in this order: `util.js` (helpers, units, formatters), `workspaces.js` (the `Pit` API, the module registry, the
 workspace grid and render scheduler), `templates.js` (built-in templates, `Tpl`), `appearance.js`, `editor.js` (edit mode, module
-options), `manager.js` (template manager, import and export, migration), `settings.js`, `recorder.js`, `charts.js`, the modules
+options), `manager.js` (template manager, import and export, migration), `settings.js`, `recorder.js`, `charts.js`, `car3d.js` (the GT3 mesh and its renderer), the modules
 (`mod-timing.js`, `mod-strategy.js`, `mod-pit.js`, `mod-car.js`, `mod-laps.js`, `mod-log.js`), and `main.js` (the feed, the chrome, keys, boot).
 
 The browser keeps its own things in `localStorage` under `pitwall.*`: templates, appearances, the active template, preferences,
