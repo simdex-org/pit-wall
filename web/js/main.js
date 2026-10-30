@@ -235,7 +235,7 @@ function kpiCell(id){   // -> [label, html]; every string from the feed escaped
     case 'stint': return ['Stint', s && ss ? `${s.stint_laps}<span class="u"> lap${s.stint_laps === 1 ? '' : 's'} · set </span>${ss.tyre_set || D_}` : D_];
     case 'flag': {
       const f = ss ? flagNow() : null;
-      return ['Flag', !ss ? D_ : f ? `<b>${f.toUpperCase()}</b>` : '<span class="s-dim">none</span>'];
+      return ['Flag', !ss ? D_ : f ? '&nbsp;' : '<span class="s-dim">none</span>'];
     }
     case 'temps': return ['Track / air', c ? `${fv('temp', c.road_temp_c)}°<span class="u"> / </span>${fv('temp', c.air_temp_c)}°` : D_];
     case 'grip': return ['Grip', ss && GRIP[ss.track_grip] ? GRIP[ss.track_grip] : D_];
