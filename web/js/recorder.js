@@ -107,8 +107,8 @@ function onReading(r){
   const p = s.car_position_m;
   if (p && (p[0] || p[2])) {
     const l = REC.curLine[REC.curLine.length - 1], d = l ? Math.hypot(l[0] - p[0], l[1] - p[2]) : 0;
-    if (d > 60) REC.curLine = [[p[0], p[2]]];   // a jump (out of the garage, a reset): start the line again rather than draw a straight across
-    else if (!l || d > 1.5) REC.curLine.push([p[0], p[2]]);
+    if (d > 60) REC.curLine = [[p[0], p[2], s.track_position]];   // a jump (out of the garage, a reset): start the line again rather than draw a straight across
+    else if (!l || d > 1.5) REC.curLine.push([p[0], p[2], s.track_position]);
   }
 }
 
@@ -121,7 +121,7 @@ async function ensureLap(n){
   REC.pending.delete(n);
   if (!j || !isObj(j.ch) || !LCH.every(k => Array.isArray(j.ch[k]) && j.ch[k].length === NB)) { REC.failed.add(n); bumpRec(); return; }
   putLap({id:'lap-' + n, n, ms:+j.ms, valid:j.valid !== false, src:'bridge', label:'', data:Object.fromEntries(LCH.map(k => [k, Float32Array.from(j.ch[k], v => isFinite(v) ? v : 0)]))});
-  if (Array.isArray(j.line) && j.line.length > 50) putLine({n, valid:j.valid !== false, ms:+j.ms, pts:j.line.filter(q => Array.isArray(q) && isFinite(q[0]) && isFinite(q[1]))});
+  if (Array.isArray(j.line) && j.line.length > 50) putLine({n, valid:j.valid !== false, ms:+j.ms, pts:j.line.filter(q => Array.isArray(q) && isFinite(q[0]) && isFinite(q[1])).map(q => isFinite(q[2]) ? [q[0], q[1], q[2]] : [q[0], q[1]])});
   bumpRec();
 }
 const lapNo = id => { const m = /^lap-(\d+)$/.exec(id || ''); return m ? +m[1] : 0; };

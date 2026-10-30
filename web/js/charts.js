@@ -161,7 +161,17 @@ function atFrac(pts, f){            // the point a fraction f of the way along t
   const a = pts[lo], b = pts[hi], t = c[hi] > c[lo] ? (d - c[lo]) / (c[hi] - c[lo]) : 0;
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
-const PIT_LOCS = ['pit', 'entry', 'exit'];
+function atSpl(pts, s){             // the point at ACC's lap fraction s (each point carries it); lines without it fall back to distance
+  const n = pts.length - 1;
+  if (n < 1 || pts[0].length < 3 || pts[n].length < 3) return atFrac(pts, s);
+  s = ((s % 1) + 1) % 1; let lo = 0, hi = n;
+  if (s <= pts[0][2]) return [pts[0][0], pts[0][1]];
+  if (s >= pts[n][2]) return [pts[n][0], pts[n][1]];
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m][2] < s) lo = m; else hi = m; }
+  const a = pts[lo], b = pts[hi], t = b[2] > a[2] ? (s - a[2]) / (b[2] - a[2]) : 0;
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+const PIT_LOCS =['pit', 'entry', 'exit'];
 // view: {zoom, follow, dx, dy} (pan in metres); o: {field, labels, lines, colourBy}. Returns {hits:[{i,x,y}], info, empty, noField}.
 function drawMap(cv, view, c, o){
   const [g, w, h] = fitCanvas(cv), tk = Pit.tokens(), r = c.r, out = {hits:[], info:'', empty:false, noField:false};
@@ -189,7 +199,7 @@ function drawMap(cv, view, c, o){
   if (o.field && F && c.bc && c.bc.state === 'live') {
     for (const car of c.cars.values()) {
       if (car.i === c.me) continue;
-      const q = geo ? atFrac(geo.pts, car.spl) : F.xz_ok && Array.isArray(car.xz) ? car.xz : null;
+      const q = geo ? atSpl(geo.pts, car.spl) : F.xz_ok && Array.isArray(car.xz) ? car.xz : null;
       if (q) cars.push([car, q]);
     }
     out.noField = !geo && !F.xz_ok;
