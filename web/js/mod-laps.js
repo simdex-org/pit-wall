@@ -162,15 +162,16 @@
       }
       const where = x => len > 0 ? `${Math.round(x.a * binM)}–${Math.round(x.b * binM)} m` : `${(x.a / (NB - 1) * 100).toFixed(0)}–${(x.b / (NB - 1) * 100).toFixed(0)} %`;
       const cur = c.sel.cursor;
-      // every part, ranked by time lost; under 10 ms is noise between two laps of the same driver, so dim and not explained
-      const shown = segs.slice().sort((x, y) => y.d - x.d);
-      setHtml(inst.body.querySelector('.sg-none'), '');
-      setHtml(inst.body.querySelector('tbody'), shown.map((x, i) => { const q = Math.abs(x.d) < 10;
-        return `<tr data-f="${((x.a + x.b) / 2 / (NB - 1)).toFixed(4)}" class="${[cur != null && cur * (NB - 1) >= x.a && cur * (NB - 1) <= x.b && 'sg-on', q && 's-dim'].filter(Boolean).join(' ')}" title="Show this part on the traces and the map"><td class="n">${i + 1}</td><td class="n">${where(x)}</td><td class="n">${q ? fmtDelta(x.d) : deltaHtml(x.d)}</td><td class="sg-why">${q ? '' : esc(x.why)}</td></tr>`; }).join(''));
+      // the parts that differ by 10 ms or more, biggest change first (gain or loss); under 10 ms is noise between two laps of one driver
+      const shown = segs.filter(x => Math.abs(x.d) >= 10).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)), why = shown.some(x => x.why && x.why !== '—');
+      setHtml(inst.body.querySelector('.sg-none'), shown.length ? '' : '<div class="empty">No part differs by 0.01 s or more.</div>');
+      inst.body.querySelector('thead').hidden = !shown.length;
+      setHtml(inst.body.querySelector('thead tr'), `<th class="n">#</th><th class="n">Distance</th><th class="n">Δ</th>${why ? '<th>Cause</th>' : ''}`);
+      setHtml(inst.body.querySelector('tbody'), shown.map((x, i) => `<tr data-f="${((x.a + x.b) / 2 / (NB - 1)).toFixed(4)}" class="${cur != null && cur * (NB - 1) >= x.a && cur * (NB - 1) <= x.b ? 'sg-on' : ''}" title="Show this part on the traces and the map"><td class="n">${i + 1}</td><td class="n">${where(x)}</td><td class="n">${deltaHtml(x.d)}</td>${why ? `<td class="sg-why">${esc(x.why)}</td>` : ''}</tr>`).join(''));
       // net = the sum of every part = the lap delta of the traces; it differs from the lap times only by the traces' offset
       const gain = segs.filter(x => x.d < 0).reduce((a, x) => a + x.d, 0), loss = segs.filter(x => x.d > 0).reduce((a, x) => a + x.d, 0), net = gain + loss;
       const lapD = s.cmp.ms - s.ref.ms, off = Math.abs(net - lapD) > 5 ? ` <span class="note">(trace offset ${nf(Math.abs(net - lapD) / 1000, 3)} s)</span>` : '';
-      setHtml(inst.body.querySelector('tfoot'), `<tr><td colspan="4">Gains <span class="s-ok">▼ ${fmtDelta(gain)}</span> · losses <span class="s-bad">▲ ${fmtDelta(loss)}</span> · net ${deltaHtml(net)} = CMP ${MINUS} REF lap${off}</td></tr>`);
+      setHtml(inst.body.querySelector('tfoot'), `<tr><td colspan="${why ? 4 : 3}">Gains <span class="s-ok">▼ ${fmtDelta(gain)}</span> · losses <span class="s-bad">▲ ${fmtDelta(loss)}</span> · net ${deltaHtml(net)} = CMP ${MINUS} REF lap${off}</td></tr>`);
       inst.setInfo(`CMP ${lapName(s.cmp)} vs REF ${lapName(s.ref)}`);
     }});
 })();
