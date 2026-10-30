@@ -171,7 +171,9 @@ class AccPages:
         p, g, s = (self.m[k][:] for k in ("physics", "graphics", "static"))
         ids, me = _i(g, 976, 60), _i(g, 1216)
         car = ids.index(me) if me in ids else 0
-        return {
+        xyz = _f(g, 256, 3 * 60)   # every active car's world position, the same frame as your own: where the cars really are, off track or not
+        coords = {ids[k]: [xyz[3 * k], xyz[3 * k + 2]] for k in range(min(_i(g, 252), 60)) if xyz[3 * k] or xyz[3 * k + 2]}
+        return {"coords": coords,
             "status": _i(g, 4), "session": _i(g, 8),
             "gas": _f(p, 4), "brake": _f(p, 8), "fuel": _f(p, 12), "gear": _i(p, 16), "rpm": _i(p, 20), "steer": _f(p, 24),
             "speed": _f(p, 28), "acc_g": _f(p, 44, 3), "pressure": _f(p, 88, 4), "core_temp": _f(p, 152, 4),
@@ -758,9 +760,9 @@ class FakePages:
             "status": 2, "session": self.session, "gas": gas,
             "brake": brake, "fuel": e * self.lpl + 4.2 - burn, "gear": 2 + max(0, min(5, int(sp / 45))), "rpm": rpm,
             "steer": steer, "speed": sp, "acc_g": acc_g,
-            "pressure": [27.6, 27.8, 26.6, 26.8], "core_temp": [84.0, 86.0, 79.0, 81.0], "damage": [0.0] * 5, "tyres_out": 0, "limiter": int(lane),
+            "pressure": [27.6, 27.8, 26.6, 26.8], "core_temp": [84.0, 86.0, 79.0, 81.0], "damage": [27.6, 7.6, 70.3, 0.6, 106.2] if laps >= 2 else [0.0] * 5, "tyres_out": 0, "limiter": int(lane),
             "air": 22.4, "road": 29.1, "brake_temp": [412.0, 405.0, 330.0, 338.0], "clutch": 0.0, "bias": 0.565, "tc_on": 0, "abs_on": 0,
-            "susp_damage": [0.0] * 4, "water": 92.0, "brake_press": [0.0] * 4, "front_pad_compound": 0, "rear_pad_compound": 0,
+            "susp_damage": [0.07, 0.0, 0.0, 0.0] if laps >= 2 else [0.0] * 4, "water": 92.0, "brake_press": [0.0] * 4, "front_pad_compound": 0, "rear_pad_compound": 0,
             "pad": [round(x - t / self.lap * k, 2) for x, k in zip([24.1, 24.0, 25.2, 25.3], [0.21, 0.2, 0.12, 0.12])], "disc": [31.8, 31.8, 31.9, 31.9],
             "laps": laps, "position": 7, "cur_ms": int(t % self.lap), "last_ms": self.lap - 500 + 110 * laps + laps * 7919 % 400 if laps else 0,
             "best_ms": self.lap - 120 if laps > 1 else 2147483647, "time_left": 3.2e6 * k - t, "in_box": int(box), "sector": int(d * 3),

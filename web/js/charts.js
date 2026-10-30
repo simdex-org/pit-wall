@@ -148,7 +148,7 @@ function drawGG(cv, o){
   g.beginPath(); g.arc(px(at(T.gLat, n - 1)), py(at(T.gLon, n - 1)), 5, 0, 7); g.fillStyle = tk.accent; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1.5; g.stroke();
 }
 
-// ---------- the track map: recorded racing lines, the field, zoom, pan, follow ----------
+// ---------- the track map: the track, your car and the field; zoom, pan, follow ----------
 function trackFor(name){ if (!name || typeof TRACKS === 'undefined') return null; name = name.toLowerCase(); return Object.hasOwn(TRACKS, name) ? TRACKS[name] : /nurburgring_24h|nordschleife/.test(name) ? TRACKS.nurburgring_24h : null; }
 function cumOf(pts){                // cumulative distance along a line, cached on the array
   if (pts._cum) return pts._cum;
@@ -159,16 +159,6 @@ function atFrac(pts, f){            // the point a fraction f of the way along t
   const c = cumOf(pts), d = ((f % 1) + 1) % 1 * c[c.length - 1]; let lo = 0, hi = c.length - 1;
   while (hi - lo > 1) { const m = (lo + hi) >> 1; if (c[m] < d) lo = m; else hi = m; }
   const a = pts[lo], b = pts[hi], t = c[hi] > c[lo] ? (d - c[lo]) / (c[hi] - c[lo]) : 0;
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-}
-function atSpl(pts, s){             // the point at ACC's lap fraction s (each point carries it); lines without it fall back to distance
-  const n = pts.length - 1;
-  if (n < 1 || pts[0].length < 3 || pts[n].length < 3) return atFrac(pts, s);
-  s = ((s % 1) + 1) % 1; let lo = 0, hi = n;
-  if (s <= pts[0][2]) return [pts[0][0], pts[0][1]];
-  if (s >= pts[n][2]) return [pts[n][0], pts[n][1]];
-  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m][2] < s) lo = m; else hi = m; }
-  const a = pts[lo], b = pts[hi], t = b[2] > a[2] ? (s - a[2]) / (b[2] - a[2]) : 0;
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 const PIT_LOCS =['pit', 'entry', 'exit'];
@@ -183,33 +173,27 @@ function onPitLane(pit, q){
   }
   return best || q;
 }
-// The field comes every 250 ms or so: between updates each car carries on at its own pace, and the step a new update makes
-// is blended away over ~150 ms, so the dots glide instead of jumping. SMOOTH: car index -> {s, t, v, e, te, last}.
-const SMOOTH = new Map();
-function smoothSpl(car, now){
-  const wrap = d => d - Math.round(d), m = SMOOTH.get(car.i);
-  const shown = m => m.s + m.v * Math.min(now - m.t, 1000) + m.e * Math.exp(-(now - m.te) / 150);   // ponytail: 1 s at most on a stalled feed
-  if (!m) { SMOOTH.set(car.i, {s:car.spl, t:now, v:0, e:0, te:now, last:car.spl}); return car.spl; }
-  if (car.spl !== m.s) {
-    const d = wrap(car.spl - m.s), dt = now - m.t, was = shown(m), jump = Math.abs(d) > 0.05 || dt > 2000;   // a reset or a pit teleport: no glide
-    m.v = jump || dt < 30 ? (jump ? 0 : m.v) : m.v ? (m.v + d / dt) / 2 : d / dt;
-    m.e = jump ? 0 : Math.abs(wrap(was - car.spl)) < 0.02 ? wrap(was - car.spl) : 0;
-    m.s = car.spl; m.t = m.te = now;
-    if (jump) m.last = car.spl;
-  }
-  const p = shown(m), back = wrap(p - m.last);
-  if (back >= 0 || back <= -0.01) m.last = p;   // a correction never slides a car backwards: it holds until the car catches up
-  return ((m.last % 1) + 1) % 1;
+// The field comes every 250 ms or so: each dot travels in a straight line from where it is drawn to its newest position, taking as
+// long as the last update took to arrive, so it moves steadily and is one update behind (a jump of 100 m or more, a reset or a pit
+// teleport, snaps). GLIDE: key -> {a (drawn at the last update), b (newest), t (when b came), dt}.
+const GLIDE = new Map();
+function glide(key, q, now){
+  let m = GLIDE.get(key);
+  if (!m || Math.hypot(q[0] - m.b[0], q[1] - m.b[1]) > 100 || now - m.t > 2000) { GLIDE.set(key, m = {a:q, b:q, t:now, dt:250}); return q; }
+  const f = () => { const u = Math.min(1, (now - m.t) / m.dt); return [m.a[0] + (m.b[0] - m.a[0]) * u, m.a[1] + (m.b[1] - m.a[1]) * u]; };
+  if (q[0] !== m.b[0] || q[1] !== m.b[1]) { const at = f(); m.dt = Math.min(600, Math.max(30, now - m.t)); m.a = at; m.b = q; m.t = now; }
+  return f();
 }
 // tracks.js layouts have their own frame and ACC's x/z another. A line whose points carry the lap fraction (a third of a lap
 // is enough) fixes the similarity between them: rotation, scale, shift, mirrored or not, and a start line up to 5 % off.
 // ALIGN: track -> {key, B} where B is the layout in ACC's frame ({loop (closed), pit, labels}), or B null when nothing fits.
 const ALIGN = new Map();
 function alignLayout(name, t, pts){
-  if (!pts || pts.length < 30 || pts[0].length < 3) return null;
+  const had = ALIGN.get(name);
+  if (!pts || pts.length < 30 || pts[0].length < 3) return had ? had.B : null;
   let q0 = 1, q1 = 0; for (const q of pts) { if (q[2] < q0) q0 = q[2]; if (q[2] > q1) q1 = q[2]; }
-  if (q1 - q0 < 0.3) return null;
-  const key = `${Math.floor(pts.length / 50)}:${pts[0][0]}`, had = ALIGN.get(name);   // ponytail: a growing line refits every 50 points
+  if (q1 - q0 < 0.3) return had ? had.B : null;
+  const key = `${Math.floor(pts.length / 50)}:${pts[0][0]}`;   // ponytail: a growing line refits every 50 points
   if (had && had.key === key) return had.B;
   const N = Math.min(200, pts.length), S = []; for (let k = 0; k < N; k++) S.push(pts[Math.floor(k * pts.length / N)]);
   let fit = null;
@@ -222,93 +206,51 @@ function alignLayout(name, t, pts){
     let e = 0; a.forEach(([x, y], i) => { const u = x - ax, v = y - ay; e += (bx + co * u - si * v - S[i][0]) ** 2 + (bz + si * u + co * v - S[i][1]) ** 2; });
     if (!fit || e < fit.e) fit = {e, sc, map:([x, y]) => { const u = x - ax, v = f * y - ay; return [bx + co * u - si * v, bz + si * u + co * v]; }};
   }
-  const len = fit.sc * cumOf(t.loop)[t.loop.length - 1], ok = Math.sqrt(fit.e / N) < Math.max(30, 0.012 * len);   // a wrong layout or config: no drawing under the line
+  const len = fit.sc * cumOf(t.loop)[t.loop.length - 1], ok = Math.sqrt(fit.e / N) < Math.max(40, 0.03 * len);   // a wrong layout or config: no drawing under the line
   const B = ok ? {loop:[...t.loop, t.loop[0]].map(fit.map), pit:t.pit.map(fit.map), labels:t.labels.map(([x, y, n]) => [...fit.map([x, y]), n])} : null;
-  ALIGN.set(name, {key, B});
-  return B;
+  if (B || !had || !had.B) ALIGN.set(name, {key, B}); else had.key = key;   // a later bad fit never throws away a good one
+  return B || (had && had.B);
 }
-// view: {zoom, follow, dx, dy} (pan in metres); o: {field, labels (none|number|short|gap), corners, size (s|m|l), lines, colourBy}. Returns {hits:[{i,x,y}], info, empty, noField}.
+// view: {zoom, follow, dx, dy} (pan in metres); o: {field, labels, corners, size}. Returns {hits:[{i,x,y}], info, empty}.
+// Only positions: the track drawing (tracks.js) or the layout the bridge saved, your car and the field. With the drawing fitted to the
+// car's own coordinates (alignLayout) every car sits where the game says it is, off track included; until then, or without field
+// coordinates (the demo), cars sit by lap fraction on the drawing.
 function drawMap(cv, view, c, o){
-  const [g, w, h] = fitCanvas(cv), tk = Pit.tokens(), r = c.r, out = {hits:[], info:'', empty:false, noField:false};
+  const [g, w, h] = fitCanvas(cv), tk = Pit.tokens(), r = c.r, out = {hits:[], info:'', empty:false};
   if (!r) return out;
-  const lines = REC.lines, curLine = REC.curLine, p = r.session.car_position_m, own = p && (p[0] || p[2]);
-  const shown = o.lines === 'all' || o.lines == null ? lines : [], best = bestLine();
-  const t = trackFor(r.fixed.track), L = layoutFor(r.fixed.track);   // L: the layout saved by the bridge, there from the start of the session
-  if (!t && !(own && (L || lines.length || curLine.length > 2))) { out.empty = true; return out; }
-  // the drawn layout (tracks.js) under your lines, once a line has fixed where it lies; until then it is the map, in its own frame
-  const B = null, onDrawing = !!t;   // a track with a drawn layout is only ever that layout: your laps are never drawn over it
-  const D = onDrawing ? {loop:[...t.loop, t.loop[0]], pit:t.pit, labels:t.labels} : B;
-  const me = onDrawing ? atFrac(t.loop, r.session.track_position) : [p[0], p[2]];
-  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-  for (const pts of onDrawing ? [D.loop, D.pit] : [curLine, ...lines.map(l => l.pts), ...(L ? [L.pts] : []), ...(D ? [D.loop] : [])]) for (const [x, z] of pts) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
-  // the field: placed by spline on the best recorded line (no coordinate frame needed), else by broadcast x/z once checked
-  const F = c.field, geo = onDrawing ? {pts:t.loop} : best || lines[0] || L && {pts:L.pts} || D && {pts:D.loop}, cars = [];
-  if (o.field && F && c.bc && c.bc.state === 'live') {
-    const now = performance.now();
-    for (const car of c.cars.values()) {
-      if (car.i === c.me) continue;
-      const q = geo && car.spl != null ? atSpl(geo.pts, smoothSpl(car, now)) : F.xz_ok && Array.isArray(car.xz) ? car.xz : null;
-      if (q) cars.push([car, PIT_LOCS.includes(car.loc) && D ? onPitLane(D.pit, q) : q]);
-    }
-    out.noField = !geo && !F.xz_ok;
+  const p = r.session.car_position_m, own = !!(p && (p[0] || p[2])), t = trackFor(r.fixed.track), L = layoutFor(r.fixed.track);
+  const F = o.field && fieldOn(c) ? c.field : null;
+  const src = L ? L.pts : [REC.curLine, ...REC.lines.map(l => l.pts)].reduce((a, b) => b.length > a.length ? b : a, []);
+  const B = t && own ? alignLayout(r.fixed.track, t, src) : null;
+  const world = own && (B || (!t && L)) && (!F || F.xz_ok);   // a track with a drawing is always that drawing: the saved layout only stands in where there is none
+  const D = world ? (B ? {loop:B.loop, pit:B.pit, labels:B.labels} : {loop:L.pts, pit:[], labels:[]}) : t ? {loop:[...t.loop, t.loop[0]], pit:t.pit, labels:t.labels} : null;
+  if (!D) { out.empty = true; return out; }
+  const now = performance.now(), cars = [];
+  const me = world ? glide('me', [p[0], p[2]], now) : atFrac(t.loop, r.session.track_position);
+  if (F) for (const car of c.cars.values()) {
+    if (car.i === c.me) continue;
+    const q = world ? (Array.isArray(car.xz) ? car.xz : null) : car.spl != null ? atFrac(t.loop, car.spl) : null;
+    if (q) cars.push([car, glide(car.i, !world && PIT_LOCS.includes(car.loc) ? onPitLane(D.pit, q) : q, now)]);
   }
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const pts of [D.loop, D.pit]) for (const [x, z] of pts) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
   const foc = c.focus !== 'self' ? cars.find(([car]) => car.i === c.focus) : null;
   const pad = 20, base = Math.min((w - 2 * pad) / Math.max(400, x1 - x0), (h - 2 * pad) / Math.max(400, z1 - z0)), sc = base * view.zoom;
-  const tgt = foc ? foc[1] : me;
-  const cx = view.follow ? tgt[0] : (x0 + x1) / 2 + view.dx, cz = view.follow ? tgt[1] : (z0 + z1) / 2 + view.dy;
+  const tgt = foc ? foc[1] : me, cx = view.follow ? tgt[0] : (x0 + x1) / 2 + view.dx, cz = view.follow ? tgt[1] : (z0 + z1) / 2 + view.dy;
   const X = x => w / 2 + (x - cx) * sc, Y = z => h / 2 + (z - cz) * sc;
   view.sc = sc; view.mid = [(x0 + x1) / 2, (z0 + z1) / 2]; view.c = [cx, cz];   // for panning out of follow
-  const path = (pts, color, width, alpha) => { if (pts.length < 2) return; g.globalAlpha = alpha; g.strokeStyle = color; g.lineWidth = width; g.beginPath(); pts.forEach(([x, z], i) => i && Math.hypot(x - pts[i - 1][0], z - pts[i - 1][1]) < 60 ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z))); g.stroke(); };   // a jump over 60 m (garage, reset) breaks the line, never a straight across
-  g.lineJoin = g.lineCap = 'round';
-  const keepL = onDrawing || o.lines === 'saved' && !!L;   // the saved layout alone: finished laps are not drawn again
+  const path = (pts, width, color) => { if (pts.length < 2) return; g.strokeStyle = color; g.lineWidth = width; g.beginPath(); pts.forEach(([x, z], i) => i && Math.hypot(x - pts[i - 1][0], z - pts[i - 1][1]) < 60 ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z))); g.stroke(); };
+  g.lineJoin = g.lineCap = 'round'; g.setLineDash([4, 3]); path(D.pit, 2, tk.line); g.setLineDash([]); path(D.loop, 16, tk.line); path(D.loop, 2, tk.muted);   // the road and its centre line
   const avoid = [];
-  if (D) {   // the drawn layout: road and pit lane dashed; your lines go on top
-    g.setLineDash([4, 3]); path(D.pit, tk.line, 2, 1); g.setLineDash([]);
-    path(D.loop, tk.line, 16, 1); if (!lines.length && !L) path(D.loop, tk.muted, 2, 1);
-  }
-  if (L && !onDrawing) path(L.pts, tk.line, 14, 1);
-  if (!keepL) lines.forEach(l => path(l.pts, tk.line, 14, 1));                       // the width of road this driver uses
-  if (!onDrawing) shown.slice().reverse().forEach((l, i, arr) => path(l.pts, tk.muted, 1.5, 0.15 + 0.5 * (i + 1) / arr.length));   // older laps fainter
-  if (best && !keepL) path(best.pts, o.colourBy === 'delta' ? tk.muted : tk.pb, 2.5, 1);   // your best: ● --pb (◆ --best is the field's session best)
-  if (!onDrawing && L && L.sec.length && o.sectors !== false && o.colourBy !== 'delta') {   // sector colours, as on a timing screen: S1 blue, S2 red, S3 green
-    const SC = [tk.chLap, tk.chBrk, tk.chThr], b = [0, ...L.sec, 1];
-    for (let k = 0; k < b.length - 1; k++) {
-      const seg = L.pts.filter(q => q[2] >= b[k] && q[2] <= b[k + 1]); path(seg, SC[k % 3], 3.5, .9);
-      if (seg.length > 1) { const [mx, mz] = seg[seg.length >> 1]; g.globalAlpha = 1; chTag(g, X(mx), Y(mz), 'S' + (k + 1), SC[k % 3], tk, w); }
-    }
-    g.globalAlpha = 1;
-  }
-  if (!onDrawing && !keepL) path(curLine, tk.chLap, 2.5, 1);
-  g.globalAlpha = 1;
-  if (D && o.corners !== false) {   // corner names over the lines; car labels keep clear of them
+  if (o.corners !== false) {   // corner names; car labels keep clear of them
     const fz = Math.round(10 * mapScale(o)); g.font = `500 ${fz}px ${tk.font}`; g.fillStyle = tk.dim; g.textBaseline = 'middle'; g.textAlign = 'left';
     for (const [x, z, n] of D.labels) { g.fillText(n, X(x), Y(z)); avoid.push([X(x), Y(z) - fz / 2, g.measureText(n).width, fz]); }
   }
-  // Analysis: the comparison lap coloured by where it gains (--ok) and loses (--bad); the labels are the 20 parts of Where the time goes
-  const ref = lapById(c.sel.ref), cmp = lapById(c.sel.cmp), dGeo = cmp && lines.find(l => l.n === cmp.n && cmp.src !== 'import') || geo;
-  if (o.colourBy === 'delta' && ref && cmp && ref.data && cmp.data && dGeo) {
-    const S = 40;
-    for (let k = 0; k < S; k++) {
-      const a = Math.round(k / S * (NB - 1)), b = Math.round((k + 1) / S * (NB - 1)), d = (cmp.data.t[b] - cmp.data.t[a]) - (ref.data.t[b] - ref.data.t[a]);
-      const seg = []; for (let j = 0; j <= 6; j++) seg.push(atFrac(dGeo.pts, (k + j / 6) / S));
-      const col = Math.abs(d) < 10 ? tk.muted : d < 0 ? tk.ok : tk.bad;   // under 10 ms: neither gain nor loss
-      path(seg, col, 4, 1);
-    }
-    for (let k = 0; k < 20; k++) {
-      const a = Math.round(k / 20 * (NB - 1)), b = Math.round((k + 1) / 20 * (NB - 1)), d = (cmp.data.t[b] - cmp.data.t[a]) - (ref.data.t[b] - ref.data.t[a]);
-      if (Math.abs(d) < 10) continue;
-      const [mx, mz] = atFrac(dGeo.pts, (k + .5) / 20); g.globalAlpha = 1; chTag(g, X(mx), Y(mz), fmtDelta(d), d < 0 ? tk.ok : tk.bad, tk, w);
-    }
-    g.globalAlpha = 1;
-    if (c.sel.cursor != null) { const [qx, qz] = atFrac(dGeo.pts, c.sel.cursor); g.strokeStyle = tk.text; g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(qx) - 6, Y(qz)); g.lineTo(X(qx) + 6, Y(qz)); g.moveTo(X(qx), Y(qz) - 6); g.lineTo(X(qx), Y(qz) + 6); g.stroke(); }
-  }
-  const sf = lines.length ? (best || lines[0]).pts[0] : D && D.loop[0]; if (sf) { g.fillStyle = tk.text; g.fillRect(X(sf[0]) - 5, Y(sf[1]) - 1.5, 10, 3); }   // start/finish
-  const dots = cars.map(([car, [x, z]]) => ({car, sx:X(x), sy:Y(z)})), mx = X(me[0]), my = Y(me[1]);
-  drawField(g, tk, c, o, dots, mx, my, foc && foc[0], r.session.in_pit_lane, w, h, out, avoid);
+  const sf = D.loop[0]; g.fillStyle = tk.text; g.fillRect(X(sf[0]) - 5, Y(sf[1]) - 1.5, 10, 3);   // start/finish
+  const mx = X(me[0]), my = Y(me[1]);
+  drawField(g, tk, c, o, cars.map(([car, [x, z]]) => ({car, sx:X(x), sy:Y(z)})), mx, my, foc && foc[0], r.session.in_pit_lane, w, h, out, avoid);
   if (c.me != null) out.hits.push({i:c.me, x:mx, y:my});
-  if (onDrawing) { out.info = [`${(r.session.track_position * 100).toFixed(1)} % of lap`, cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · '); return out; }
-  out.info = [lines.length ? `${lines.length} lap${lines.length > 1 ? 's' : ''}` : L ? 'saved layout' : 'first lap', best ? `● fastest traced L${best.n}` : '',
-    REC.spread ? `line spread ${REC.spread.m.toFixed(1)} m` : '', cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · ');
+  out.info = [`${(r.session.track_position * 100).toFixed(1)} % of lap`, cars.length ? `${cars.length + 1} cars` : '', view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ''].filter(Boolean).join(' · ');
   return out;
 }
 // the field's dots (and your own disc) with their labels, over a map already drawn; dots: [{car, sx, sy}] and avoid: [[x, y, w, h]]
@@ -319,7 +261,7 @@ function drawField(g, tk, c, o, dots, mx, my, foc, inPit, w, h, out, avoid = [])
   for (const {car, sx, sy} of dots) {
     const pit = PIT_LOCS.includes(car.loc), sq = car.class && car.class !== 'GT3';
     g.beginPath(); sq ? g.rect(sx - 4.5 * k, sy - 4.5 * k, 9 * k, 9 * k) : g.arc(sx, sy, 5 * k, 0, 7);
-    if (pit) { g.strokeStyle = tk.muted; g.lineWidth = 1.5; g.stroke(); } else { g.fillStyle = tk.muted; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1; g.stroke(); }
+    if (pit) { g.strokeStyle = tk.text; g.lineWidth = 1.5; g.stroke(); } else { g.fillStyle = tk.text; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1.5; g.stroke(); }   // light fill, --bg outline: readable on the road
     if (car === foc) { g.beginPath(); g.arc(sx, sy, 10 * k, 0, 7); g.strokeStyle = tk.accent; g.lineWidth = 2; g.stroke(); }
     out.hits.push({i:car.i, x:sx, y:sy});
   }
@@ -331,7 +273,7 @@ function drawField(g, tk, c, o, dots, mx, my, foc, inPit, w, h, out, avoid = [])
     g.font = `600 ${fs}px ${tk.num}`; g.textBaseline = 'middle'; g.textAlign = 'left';
     const taken = [...avoid, [mx - 9 * k, my - 9 * k, 18 * k, 18 * k], ...dots.map(d => [d.sx - 6 * k, d.sy - 6 * k, 12 * k, 12 * k])], hit = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
     const meCar = c.cars && c.cars.get(c.me), meLb = (o.labels === 'short' && meCar && Pit.carName(meCar, 'code')) || 'YOU';   // your own car is named too
-    g.fillStyle = tk.me; g.fillText(meLb, mx + 10 * k, my); taken.push([mx + 10 * k, my - fs / 2, g.measureText(meLb).width, fs + 1]);
+    g.lineJoin = 'round'; g.strokeStyle = tk.bg; g.lineWidth = 3.5; const halo = (t, x, y) => { g.strokeText(t, x, y); }; halo(meLb, mx + 10 * k, my); g.fillStyle = tk.me; g.fillText(meLb, mx + 10 * k, my); taken.push([mx + 10 * k, my - fs / 2, g.measureText(meLb).width, fs + 1]);
     const pri = d => d.car === foc ? -1e9 : d.car.rel != null && isFinite(d.car.rel) ? Math.abs(d.car.rel) : 1e6 + (d.car.pos || 99);
     for (const d of dots.slice().sort((a, b) => pri(a) - pri(b))) {
       const lb = o.labels === 'gap' ? (d.car.rel != null && isFinite(d.car.rel) ? fmtRel(d.car.rel) : '') : o.labels === 'short' ? Pit.carName(d.car, 'code')
@@ -341,7 +283,7 @@ function drawField(g, tk, c, o, dots, mx, my, foc, inPit, w, h, out, avoid = [])
       const o8 = 8 * k, spot = [[d.sx + o8, d.sy - th / 2], [d.sx - o8 - tw, d.sy - th / 2], [d.sx - tw / 2, d.sy - o8 - th], [d.sx - tw / 2, d.sy + o8]].map(([x, y]) => [x, y, tw, th])
         .find(b => b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= w && b[1] + b[3] <= h && !taken.some(t => hit(b, t)));
       if (!spot) continue;
-      taken.push(spot); g.fillStyle = d.car === foc ? tk.accent : tk.muted; g.fillText(lb, spot[0], spot[1] + th / 2);
+      taken.push(spot); halo(lb, spot[0], spot[1] + th / 2); g.fillStyle = d.car === foc ? tk.accent : tk.text; g.fillText(lb, spot[0], spot[1] + th / 2);
     }
   }
 }

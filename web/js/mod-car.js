@@ -7,21 +7,18 @@
   // ---------- track map ----------
   const mapDraw = inst => { const c = Pit.ctx; if (!c || !c.r || !inst.state.cv) return null; const out = drawMap(inst.state.cv, inst.state.view, c, inst.opts); inst.state.hits = out.hits; syncFollow(inst); return out; };
   const syncFollow = inst => { const b = inst.el.querySelector('[data-tool="follow"]'); if (b) b.setAttribute('aria-pressed', !!inst.state.view.follow); };
-  Pit.module({type:'track-map', title:'Track map', group:'Car', blurb:'Your racing lines lap over lap, the field on track, zoom, pan and follow.',
-    size:{w:6, h:14, minW:3, minH:6}, linkable:true, needs:['reading', 'rec', 'field', 'entries', 'focus', 'sel'], requires:['reading'], rate:30,
+  Pit.module({type:'track-map', title:'Track map', group:'Car', blurb:'Your car and the field on the track, zoom, pan and follow.',
+    size:{w:6, h:14, minW:3, minH:6}, linkable:true, needs:['reading', 'field', 'entries', 'focus'], requires:['reading'], rate:30,
     options:[
       {key:'field', label:'Show the field', type:'toggle', def:true},
       {key:'labels', label:'Car labels', type:'select', choices:[['gap', 'Gap to you'], ['none', 'None (dots only)'], ['number', 'Race number'], ['short', 'Driver code'], ['name', 'Driver surname'], ['both', 'Number and code']], def:'gap'},
       {key:'size', label:'Size of cars and labels', type:'select', choices:[['s', 'Small'], ['m', 'Medium'], ['l', 'Large']], def:'m'},
       {key:'corners', label:'Turn names (on the drawn layout)', type:'toggle', def:true},
-      {key:'sectors', label:'Colour the sectors', type:'toggle', def:true},
-      {key:'lines', label:'Lap lines', type:'select', choices:[['saved', 'Saved layout only'], ['best', 'Best and current only'], ['all', 'Every recorded lap']], def:'saved'},
-      {key:'colourBy', label:'Colour the line by', type:'select', choices:[['none', 'Nothing'], ['delta', 'Δ CMP vs REF (Analysis)']], def:'none'},
       {key:'follow', label:'Start following the car', type:'toggle', def:false},
     ],
     tools:[{id:'follow', icon:'crosshair', label:'Follow the car (F)'}, {id:'fit', icon:'maximize', label:'Whole track (Shift+F)'}],
     build(el, inst){
-      el.innerHTML = '<div class="cv map"><canvas aria-label="Track map: racing lines and cars"></canvas></div>';
+      el.innerHTML = '<div class="cv map"><canvas aria-label="Track map: your car and the field"></canvas></div>';
       const cv = el.querySelector('canvas'), view = inst.state.view = {zoom:inst.opts.follow ? 4 : 1, follow:inst.opts.follow, dx:0, dy:0};
       inst.state.cv = cv;
       bindMapControls(cv, view, () => mapDraw(inst), (x, y) => {   // a click within 10 px of a car makes it the focus car
@@ -37,9 +34,8 @@
     },
     render(c, inst){
       const out = mapDraw(inst); if (!out) return;
-      if (out.empty) return inst.setState('empty', 'No layout for this track yet: it is drawn as the car laps it, then saved for every later session.');
-      const fld = inst.opts.field && fieldOn(c);
-      inst.setInfo(out.info + (fld && out.noField ? ' · Field positions appear after your first whole lap' : ''));   // the rival-data note lives in Standings
+      if (out.empty) return inst.setState('empty', 'No layout for this track.');
+      inst.setInfo(out.info);
     }});
 
   // ---------- driver inputs ----------
@@ -161,12 +157,38 @@
 
   // ---------- damage & engine ----------
   const ZONES = ['Front', 'Rear', 'Left', 'Right', 'Centre'];
+  // GT3 from above, nose up. Zones are rects clipped to the silhouette; corners are the tyres (suspension damage).
+  const BODY = 'M120 22C142 22 152 28 158 44C164 58 168 74 168 96C168 118 160 130 158 150C158 170 168 190 170 220C172 250 168 280 160 300C154 312 142 316 120 316C98 316 86 312 80 300C72 280 68 250 70 220C72 190 82 170 82 150C80 130 72 118 72 96C72 74 76 58 82 44C88 28 98 22 120 22Z';
+  const SPLIT = 'M72 16Q120 6 168 16L164 26Q120 20 76 26Z', WING = 'M60 316H180V332H60Z';
+  const zone = (i, x, y, w, h, tx, ty, an) => `<g data-z="${i}"><rect class="dz" x="${x}" y="${y}" width="${w}" height="${h}" clip-path="url(#dm-clip)"/><text x="${tx}" y="${ty}" text-anchor="${an}">0</text><text class="cn" x="${tx}" y="${ty + 12}" text-anchor="${an}">${ZONES[i].toUpperCase()}</text></g>`;
+  const wheel = (i, x, y, h, tx, an) => `<g data-s="${i}"><rect class="dm-t" x="${x}" y="${y}" width="22" height="${h}" rx="6"/><rect class="dz" x="${x}" y="${y}" width="22" height="${h}" rx="6"/><text x="${tx}" y="${y + h / 2 - 2}" text-anchor="${an}">0</text><text class="cn" x="${tx}" y="${y + h / 2 + 10}" text-anchor="${an}">${CORNERS[i]}</text></g>`;
+  const DM_CAR = `<div class="dm-car" hidden><svg viewBox="0 0 240 340" role="img" aria-label="Car damage by zone">
+    <defs><clipPath id="dm-clip"><path d="${BODY}"/><path d="${SPLIT}"/><path d="${WING}"/></clipPath></defs>
+    ${wheel(0, 56, 62, 46, 50, 'end')}${wheel(1, 162, 62, 46, 190, 'start')}${wheel(2, 56, 222, 52, 50, 'end')}${wheel(3, 162, 222, 52, 190, 'start')}
+    <path class="dm-b" d="${BODY}"/><path class="dm-b" d="${SPLIT}"/><path class="dm-b" d="${WING}"/>
+    ${zone(0, 0, 0, 240, 125, 120, 98, 'middle')}${zone(1, 0, 214, 240, 126, 120, 262, 'middle')}${zone(2, 0, 125, 98, 89, 74, 170, 'end')}${zone(3, 142, 125, 98, 89, 166, 170, 'start')}${zone(4, 98, 125, 44, 89, 120, 174, 'middle')}
+    <g class="dm-d"><path d="M102 130H138L144 156H96ZM98 156H142V196H98ZM98 196H142L137 214H103Z"/>
+      <path d="M98 54L114 62M142 54L126 62M120 30V70"/><path d="M92 37L106 32M148 37L134 32"/><path d="M90 306L106 308M150 306L134 308"/>
+      <path d="M78 56C74 70 74 90 78 106M162 56C166 70 166 90 162 106M74 226C76 250 74 272 80 292M166 226C164 250 166 272 160 292"/>
+      <ellipse cx="78" cy="134" rx="6" ry="3.5"/><ellipse cx="162" cy="134" rx="6" ry="3.5"/><path d="M60 316V332M180 316V332"/></g>
+  </svg><div class="dm-chips"><span><i data-lucide="droplets"></i>Water <b class="dm-w n"></b></span><span><i data-lucide="flame"></i>Exhaust <b class="dm-x n"></b></span></div></div>`;
   Pit.module({type:'damage', title:'Damage & engine', group:'Car', blurb:'Bodywork and suspension damage, water and exhaust temperature.',
     size:{w:4, h:6, minW:3, minH:5}, needs:['reading', 'config'], requires:['reading'],
-    build(el){ el.innerHTML = '<div class="dm-ok"></div><div class="dm-cols"><dl class="kv dm-body"></dl><dl class="kv dm-sus"></dl></div>'; },
+    options:[{key:'view', label:'View', type:'select', choices:[['table', 'Table'], ['car', 'Car drawing']], def:'table'}],
+    build(el){ el.innerHTML = '<div class="dm-ok"></div><div class="dm-cols"><dl class="kv dm-body"></dl><dl class="kv dm-sus"></dl></div>' + DM_CAR; refreshIcons(el); },
     render(c, inst){
       const a = c.r.car, dmg = (a.damage || []).slice(0, 5), sus = a.suspension_damage || [], any = dmg.some(v => v > 0) || sus.some(v => v > 0), ws = waterState(a.water_temp_c, c);
-      const ok = inst.body.querySelector('.dm-ok');
+      const carView = inst.opts.view === 'car', ok = inst.body.querySelector('.dm-ok'), cols = inst.body.querySelector('.dm-cols'), dc = inst.body.querySelector('.dm-car');
+      cols.hidden = carView; dc.hidden = !carView;
+      if (carView) {
+        const paint = (sel, v, d) => { const e = dc.querySelector(sel); e.querySelector('text').textContent = nf(v, d); e.classList.toggle('s-bad', v > 0);
+          const f = e.querySelector('.dz'); if (f) f.style.fillOpacity = v > 0 ? (.3 + .5 * Math.min(v / 100, 1)).toFixed(2) : 0; };
+        ZONES.forEach((z, i) => paint(`[data-z="${i}"]`, dmg[i] || 0, 1));
+        CORNERS.forEach((z, i) => paint(`[data-s="${i}"]`, sus[i] || 0, 2));
+        setHtml(dc.querySelector('.dm-w'), `<span class="${stCls(ws)}">${fv('temp', a.water_temp_c)}${stateGlyph(ws)}</span><span class="u"> ${un('temp').u}</span>`);
+        setHtml(dc.querySelector('.dm-x'), `${fv('temp', a.exhaust_temp_c)}<span class="u"> ${un('temp').u}</span>`);
+      }
+      ok.hidden = carView && !any;
       if (ok.dataset.any !== String(any)) { ok.dataset.any = String(any); ok.innerHTML = any ? '<span class="s-bad"><i data-lucide="octagon-alert"></i><b>Damage</b> <span class="note">level (0 = none)</span></span>' : '<span class="s-ok"><i data-lucide="circle-check"></i><b>No damage</b></span>'; refreshIcons(ok); }
       // no damage: only the engine rows, not nine zeros repeating the headline
       setHtml(inst.body.querySelector('.dm-body'), kvHtml([...(any ? ZONES.map((z, i) => [z, nf(dmg[i], 1), dmg[i] > 0 ? 's-bad' : '']) : []), ['Water', `${fv('temp', a.water_temp_c)}<span class="u"> ${un('temp').u}</span>${stateGlyph(ws)}`, stCls(ws)]]));

@@ -530,15 +530,16 @@ class Field:
                 net = {i: k + 1 for k, i in enumerate(sorted(tot, key=lambda i: (tot[i], i)))}
         rt = self.rt or {}
         best = rt.get("best") or {}
+        coords = (me_hint or {}).get("coords") or {}   # shared memory's positions for every car, ahead of broadcast's own x/y
         return {
             "t": self.t, "type": rt.get("type"), "phase": rt.get("phase"), "idx": self.sidx, "mode": self.mode(), "me": self.me,
             "best": {"ms": best["ms"], "car": best["car"]} if best.get("ms") else None,
             "weather": {k: rt[k] for k in ("air", "track", "clouds", "rain", "wet")} if rt else None,
-            "track_m": (self.track or {}).get("length_m"), "xz_ok": self.xz_map is not None,
+            "track_m": (self.track or {}).get("length_m"), "xz_ok": bool(coords) or self.xz_map is not None,
             "cars": [{"i": i, "pos": c["pos"], "cpos": c["cpos"], "laps": c["laps"], "spl": c["spl"], "kmh": c["kmh"], "gear": c["gear"],
                       "loc": LOCS[c["loc"]] if 0 <= c["loc"] < len(LOCS) else "none", "cur": c["cur"], "delta": c["delta"],
                       "gap": c["gap"], "gap_laps": c["gap_laps"], "int": c["int"], "int_laps": c["int_laps"], "rel": c["rel"],
-                      "net": net.get(i), "drv": c["drv"], "xz": list(self.xz_map(c["x"], c["y"])) if self.xz_map else None}
+                      "net": net.get(i), "drv": c["drv"], "xz": coords.get(i) or (list(self.xz_map(c["x"], c["y"])) if self.xz_map else None)}
                      for i, c in order],
         }
 

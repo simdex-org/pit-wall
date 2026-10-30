@@ -192,7 +192,7 @@ def acc_loop(pages, tel, sim):
                 ml = ses["missing_mandatory_pits"]
                 cfg_m = STATE["config"]["strategy"]["mandatory_stops"]
                 CTX["mandatory"] = cfg_m if cfg_m is not None else (ml + len(tel.stops) if ml is not None else None)
-            CTX["hint"] = {"id": raw["me"], "laps": raw["laps"], "spl": raw["track_pos"], "name": raw["name"], "xyz": raw["xyz"], "kmh": raw["speed"]}
+            CTX["hint"] = {"id": raw["me"], "laps": raw["laps"], "spl": raw["track_pos"], "name": raw["name"], "xyz": raw["xyz"], "kmh": raw["speed"], "coords": raw.get("coords")}
             STATE["reading"], STATE["t_reading"], STATE["lap"] = _rnd(reading), time.time(), raw["laps"] + 1
             if summary:
                 STATE["summary"], STATE["t_summary"] = _rnd(summary), time.time()
