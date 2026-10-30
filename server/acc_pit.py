@@ -148,7 +148,8 @@ class AccMfd:
         """{virtual key: scan code} of ACC's keyboard gas, brake and steering, from its controls.json, plus W A S D."""
         names = {"W", "A", "S", "D"}
         try:
-            with open(os.path.expanduser(r"~\Documents\Assetto Corsa Competizione\Config\controls.json"), encoding="utf-8-sig") as f:
+            from acc_broadcast import acc_config_dir   # the real Documents folder, OneDrive or not
+            with open(os.path.join(acc_config_dir(), "controls.json"), encoding="utf-8-sig") as f:
                 names |= {b["key"]["key"] for b in json.load(f)["keyboardSettings"]["raceCommandButtonList"]
                           if b.get("actionType") in ("KeyboardGas", "KeyboardBrake", "KeyboardSteerLeft", "KeyboardSteerRight")}
         except (OSError, ValueError, KeyError, TypeError):
