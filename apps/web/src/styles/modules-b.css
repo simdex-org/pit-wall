@@ -1,0 +1,28 @@
+/* Geometry for the car, laps, analysis and log modules. Tokens only; the shared classes are in base.css. */
+
+/* ---------- track map ---------- */
+.cv.map>canvas{cursor:grab;touch-action:none}
+.cv.map>canvas:active{cursor:grabbing}
+.mtools [aria-pressed=true]{color:var(--acc)}
+
+/* ---------- traces ---------- */
+.tr-lg{display:flex;gap:12px;margin-bottom:4px}
+
+/* ---------- track map: the Labels panel ---------- */
+.map-body{flex:1;min-height:0;display:flex;margin:calc(var(--pad) * -1)}
+.map-body>.cv{flex:1;min-width:0}
+.ml{width:280px;flex:none;border-left:1px solid var(--line);background:var(--panel);overflow:auto}
+.ml-sec{padding:10px 14px 8px;border-top:1px solid var(--line2);display:flex;flex-direction:column;gap:2px}
+.ml-sec:first-child{border-top:0}
+.ml-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:30px}
+.ml-row select{width:150px}
+.ml-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px 0 6px}
+.ml .chip{display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--raise);color:var(--mut);font:600 var(--t-sm)/1 var(--font);letter-spacing:.04em;white-space:nowrap}
+.ml .chip[aria-pressed=true]{border-color:var(--acc);color:var(--acc)}
+.ml .chip>i{width:8px;height:8px;flex:none;border:1px solid var(--dim)}
+.ml .chip[aria-pressed=true]>i{background:var(--acc);border-color:var(--acc)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;flex:none}
+.seg button{height:24px;padding:0 10px;font:600 var(--t-sm)/1 var(--font);color:var(--mut);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--line2);color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
+
