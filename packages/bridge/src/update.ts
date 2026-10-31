@@ -6,11 +6,11 @@ import { UPDATE_DIR } from "./paths.js";
 
 const BASE = "https://github.com/simdex-org/pit-wall/releases/download/edge";
 
-export interface Stamp { sha: string; time: string }
+export interface Stamp { version?: string; sha: string; time: string }
 
 export function parseStamp(raw: unknown): Stamp | null {
   const s = raw as Partial<Stamp> | null;
-  return typeof s?.sha === "string" && typeof s.time === "string" && !Number.isNaN(Date.parse(s.time)) ? { sha: s.sha, time: s.time } : null;
+  return typeof s?.sha === "string" && typeof s.time === "string" && !Number.isNaN(Date.parse(s.time)) ? { version: typeof s.version === "string" ? s.version : undefined, sha: s.sha, time: s.time } : null;
 }
 
 /** The build this bridge belongs to; null when run from source, where there is nothing to update. */
@@ -29,14 +29,14 @@ async function get(name: string): Promise<Response> {
   return res;
 }
 
-export async function check(): Promise<{ available: boolean; installed: string | null; latest: string | null }> {
+export async function check(): Promise<{ available: boolean; installed: string | null; latest: string | null; installedVersion: string | null; latestVersion: string | null }> {
   const have = installed();
   try {
     const latest = parseStamp(await (await get("app.json")).json());
     if (!latest) throw new Error("app.json is not a build stamp");
-    return { available: isNewer(have, latest), installed: have?.time ?? null, latest: latest.time };
+    return { available: isNewer(have, latest), installed: have?.time ?? null, latest: latest.time, installedVersion: have?.version ?? null, latestVersion: latest.version ?? null };
   } catch (e) {
-    if (e instanceof NotPublished) return { available: false, installed: have?.time ?? null, latest: null };
+    if (e instanceof NotPublished) return { available: false, installed: have?.time ?? null, latest: null, installedVersion: have?.version ?? null, latestVersion: null };
     throw e;
   }
 }

@@ -16,5 +16,5 @@ run("pnpm", ["tauri", "build", "--no-bundle", "--", "--features", "portable"]);
 
 const out = join(app, "dist-portable");
 mkdirSync(out, { recursive: true });
-cpSync(join(tauri, "release", "pitwall-launcher.exe"), join(out, "PitWall.exe"));
+cpSync(join(tauri, "target", "release", "pitwall-launcher.exe"), join(out, "PitWall.exe"));
 console.log(`built ${join(out, "PitWall.exe")}`);

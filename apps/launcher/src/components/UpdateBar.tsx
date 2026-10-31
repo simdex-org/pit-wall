@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { checkForUpdate, installUpdate } from "../lib/updates";
+import { checkForUpdate, installUpdate, type UpdateCheck } from "../lib/updates";
 import { Button } from "./ui";
 
 type State = "checking" | "none" | "current" | "available" | "installing" | "done" | "failed";
 
 export function UpdateBar({ running }: { running: boolean }) {
   const [state, setState] = useState<State>("checking");
+  const [found, setFound] = useState<UpdateCheck | null>(null);
+  const [error, setError] = useState("");
 
   const check = useCallback(async () => {
     setState("checking");
     try {
-      const found = await checkForUpdate();
-      setState(found.latest === null ? "none" : found.available ? "available" : "current");
-    } catch {
+      const c = await checkForUpdate();
+      setFound(c);
+      setState(c.latest === null ? "none" : c.available ? "available" : "current");
+    } catch (e) {
+      setError(String(e));
       setState("failed");
     }
   }, []);
@@ -24,7 +28,8 @@ export function UpdateBar({ running }: { running: boolean }) {
     try {
       await installUpdate();
       setState("done");
-    } catch {
+    } catch (e) {
+      setError(String(e));
       setState("failed");
     }
   };
@@ -33,10 +38,10 @@ export function UpdateBar({ running }: { running: boolean }) {
     checking: "Checking for updates.",
     none: "No update has been published yet.",
     current: "Pit Wall is up to date.",
-    available: running ? "A newer version is available. Stop Pit Wall to update." : "A newer version is available.",
+    available: `${found?.latestVersion ? `Version ${found.latestVersion} is` : "A newer version is"} available.${running ? " Stop Pit Wall to update." : ""}`,
     installing: "Downloading the update.",
     done: "Updated. Start Pit Wall to use it.",
-    failed: "Could not reach the update server.",
+    failed: `Update failed: ${error}`,
   }[state];
 
   return (

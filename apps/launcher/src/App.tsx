@@ -73,7 +73,7 @@ export function App() {
       <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-7">
         <header className="flex items-center justify-between">
           <img src="/logo.svg" alt="Pit Wall" className="h-11" />
-          <p className="text-right text-xs leading-snug text-dim">Race engineer bridge<br />Assetto Corsa Competizione</p>
+          <p className="text-right text-xs leading-snug text-dim">Race engineer bridge v{__VERSION__}<br />Assetto Corsa Competizione</p>
         </header>
 
         {confirmClose && (

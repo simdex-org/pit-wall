@@ -9,8 +9,8 @@ import { useNav } from "../state/nav";
 
 const pairs = (op: OptionDef): [string, string][] => (op.choices ?? []).map((c) => (Array.isArray(c) ? c : [c, String(c)]));
 
-function Field({ op, value }: { op: OptionDef; value: unknown }) {
-  const set = (v: unknown) => editor.setOpt((m, def) => { m.options = sanitizeOptions(def!, { ...m.options, [op.key]: v }, () => {}); });
+export function Field({ op, value, mid }: { op: OptionDef; value: unknown; mid?: string }) {
+  const set = (v: unknown) => editor.setOpt((m, def) => { m.options = sanitizeOptions(def!, { ...m.options, [op.key]: v }, () => {}); }, mid);
   const id = `mo-${op.key}`;
   if (op.type === "select") {
     return <label className="fld"><span>{op.label}</span><select id={id} value={String(value)} onChange={(e) => set(e.target.value)}>{pairs(op).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>;

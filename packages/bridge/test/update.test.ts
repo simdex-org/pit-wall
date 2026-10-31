@@ -6,7 +6,8 @@ const fresh = { sha: "b", time: "2026-10-30T11:00:00.000Z" };
 
 describe("update", () => {
   test("a stamp needs a sha and a real time", () => {
-    expect(parseStamp(old)).toEqual(old);
+    expect(parseStamp(old)).toEqual({ ...old, version: undefined });
+    expect(parseStamp({ ...old, version: "0.1.1" })?.version).toBe("0.1.1");
     expect(parseStamp({ sha: "a", time: "later" })).toBeNull();
     expect(parseStamp({ sha: 1, time: old.time })).toBeNull();
     expect(parseStamp(null)).toBeNull();
