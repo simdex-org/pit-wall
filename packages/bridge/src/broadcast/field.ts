@@ -36,6 +36,9 @@ export class Field {
   me: number | null = null;
   slowSeq = 0;
   events: FieldEvent[] = [];
+  /** The last session that ended and which one it is (counts up), for the bridge to file with the telemetry's own. */
+  ended: Rec | null = null;
+  endedSeq = 0;
   private xzS: number[][] = [];
   private xzMap: Axis | null = null;
   private xzDone = false;
@@ -43,7 +46,10 @@ export class Field {
   // --- input ---
   on(kind: number, d: Rec): void {
     if (kind === 2) {
-      if (this.sidx !== null && d.session_idx !== this.sidx) this.cars = new Map(); // new session: pits, marks and laps start over
+      if (this.sidx !== null && d.session_idx !== this.sidx) { // new session: pits, marks and laps start over
+        if (this.cars.size) { this.ended = this.freeze(); this.endedSeq++; }
+        this.cars = new Map();
+      }
       if (this.phase !== null && d.phase !== this.phase && d.phase >= 0 && d.phase < PHASES.length) this.events.push([0, "RC", `Session phase: ${PHASES[d.phase]}`]);
       this.sidx = d.session_idx; this.phase = d.phase; this.rt = d; this.t = d.time_ms;
     } else if (kind === 3) {
@@ -272,6 +278,11 @@ export class Field {
   entries(): Rec {
     return { track: this.track ? { ...this.track } : null,
       cars: Object.fromEntries([...this.ent].map(([i, e]) => [String(i), { ...e, drivers: e.drivers.map((d: Rec) => ({ ...d })) }])) };
+  }
+
+  /** The session as it ended: standings, slow fields, entries and every car's laps, as the page merges them. */
+  private freeze(): Rec {
+    return { field: this.snapshot(null, null, null), slow: this.slowSince(-1)[0], entries: this.entries(), laps: Object.fromEntries([...this.cars.keys()].map((i) => [String(i), this.carLaps(i)])) };
   }
 
   carLaps(idx: number): Rec[] {

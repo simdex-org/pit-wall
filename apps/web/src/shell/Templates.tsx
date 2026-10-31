@@ -63,23 +63,27 @@ function Row({ t, curId, renaming, setRenaming, act, rename }: {
   const bi = isBuiltin(t.id), isCur = t.id === curId;
   const [name, setName] = useState(t.name);
   return (
-    <tr className={isCur ? "focus" : undefined} aria-selected={isCur || undefined}>
-      <td className="tm-name">
+    <li className={"tm-row" + (isCur ? " cur" : "")} aria-current={isCur || undefined}>
+      <div className="tm-main">
         {renaming === t.id
           ? <input type="text" className="tm-ren" maxLength={40} value={name} aria-label="New name" autoFocus onFocus={(e) => e.target.select()} onChange={(e) => setName(e.target.value)}
               onBlur={() => rename(t.id, name)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); rename(t.id, name); } if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setRenaming(null); } }} />
-          : <b>{t.name}</b>}
-        {bi ? <span className="note"> <Icon name="lock" /> built-in</span> : null}{isCur ? <> <b className="tag">ACTIVE</b></> : null}
-      </td>
-      <td className="n">{t.workspaces.length}</td><td className="n">{t.workspaces.reduce((a, w) => a + w.modules.length, 0)}</td><td>{bi ? "" : date(t.updated)}</td>
-      <td className="tm-acts">
+          : <b className="tm-title">{t.name}</b>}
+        <span className="tm-sub">
+          <span className={"tag fx " + (isCur ? "ac" : "n")} style={{ "--tw": "78px" } as React.CSSProperties}>{isCur ? "IN USE" : bi ? "BUILT IN" : "YOURS"}</span>
+          <span>{t.workspaces.length} tabs</span>
+          <span>{bi ? "Read-only" : date(t.updated)}</span>
+        </span>
+      </div>
+      <div className="tm-acts">
         <button type="button" className="btn" disabled={isCur} onClick={() => act("use", t)}>Use</button>
-        <button type="button" className="btn" onClick={() => act("dup", t)}>Duplicate</button>
-        {bi ? null : <><button type="button" className="btn" onClick={() => { setName(t.name); setRenaming(t.id); }}>Rename</button><button type="button" className="btn" onClick={() => act("del", t)}>Delete</button></>}
-        <button type="button" className="btn" onClick={() => act("exp", t)}>Export</button>
-      </td>
-    </tr>
+        <button type="button" className="btn gh" onClick={() => act("dup", t)}>Duplicate</button>
+        {bi ? null : <button type="button" className="btn gh" onClick={() => { setName(t.name); setRenaming(t.id); }}>Rename</button>}
+        <button type="button" className="btn gh" onClick={() => act("exp", t)}>Export</button>
+        {bi ? null : <button type="button" className="btn gh" onClick={() => act("del", t)}>Delete</button>}
+      </div>
+    </li>
   );
 }
 
@@ -138,13 +142,10 @@ export function Templates() {
   return (
     <dialog id="dlgTemplates" ref={dlg} aria-label="Templates" onClose={() => ui.closeTemplates()} onCancel={(e) => { if (renaming) e.preventDefault(); }}>
       <form method="dialog" className="dlg-body wide">
-        <header className="dlg-h"><h2>Templates</h2><button className="btn icon" value="" aria-label="Close"><Icon name="x" /></button></header>
+        <header className="dlg-h"><h2>TEMPLATES</h2><button className="btn icon" value="" aria-label="Close"><Icon name="x" /></button></header>
         <p className="note">A template is a set of workspaces (the tabs). Built-in templates are read-only: editing one makes your own copy. Templates move between PCs by export and import.</p>
         <div className="dlg-scroll">
-          <table className="tt">
-            <thead><tr><th>Name</th><th className="n">Workspaces</th><th className="n">Modules</th><th>Updated</th><th /></tr></thead>
-            <tbody>{[...templates.builtins, ...templates.items].map((t) => <Row key={t.id} t={t} curId={tpl.id} renaming={renaming} setRenaming={setRenaming} act={(a, x) => void act(a, x)} rename={rename} />)}</tbody>
-          </table>
+          <ul className="tm-list">{[...templates.builtins, ...templates.items].map((t) => <Row key={t.id} t={t} curId={tpl.id} renaming={renaming} setRenaming={setRenaming} act={(a, x) => void act(a, x)} rename={rename} />)}</ul>
         </div>
         <p className="note tm-status" role="status">{status}</p>
         <div className="dlg-foot">

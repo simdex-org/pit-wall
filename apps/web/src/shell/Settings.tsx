@@ -8,7 +8,7 @@ import { fv, UNITS, unit } from "../lib/units";
 import { lsDel, lsRaw, lsSet } from "../lib/storage";
 import { isObj } from "../lib/text";
 import { accessKey, post, say } from "../state/bridge";
-import { HZ, KPI_IDS, KpiId, prefs, usePrefs } from "../state/prefs";
+import { DEFAULT_PREFS, HZ, KPI_IDS, KpiId, prefs, usePrefs } from "../state/prefs";
 import { recorder } from "../state/recorder";
 import { Section, ui, useUi } from "../state/ui";
 import { oldThresholds, resolveOldThresholds } from "../state/migrate";
@@ -223,6 +223,13 @@ function Data() {
       </div>
       <p className="note">The session file holds the laps, traces, log and notes this page has. Imported laps appear in the lap picker.</p>
       <h3 className="mt">This browser</h3>
+      <button type="button" className="btn" onClick={() => {
+        const { lastWs } = prefs.get();
+        prefs.update({ ...structuredClone(DEFAULT_PREFS), lastWs });
+        link.connect(DEFAULT_PREFS.hz);
+        setMsg("Units, live rate and layout are back to their defaults.");
+      }}>Reset settings to default</button>
+      <p className="note">Units, live rate, KPI strip and beep only. Shared thresholds and strategy inputs live on the bridge and stay as they are.</p>
       <button type="button" className="btn" onClick={async () => {
         if ((await ask("Reset everything Pit Wall keeps in this browser? Your templates, appearances and notes will be gone.", [["r", "Reset", true], ["", "Cancel"]])) !== "r") return;
         try { for (const k of Object.keys(localStorage)) if (k.startsWith("pitwall.") || k === "engineer.pitkey") localStorage.removeItem(k); localStorage.setItem("pitwall.migrated", "1"); } catch { /* storage blocked */ }
@@ -238,7 +245,7 @@ const About = () => (
   <>
     <h3 className="mt">About</h3>
     <p><b>Pit Wall</b>: race engineering for Assetto Corsa Competizione.</p>
-    <ul className="note"><li>Barlow Semi Condensed and JetBrains Mono: SIL Open Font License 1.1.</li><li>Lucide icons: ISC License.</li><li>three.js: MIT License.</li></ul>
+    <ul className="note"><li>IBM Plex Sans Condensed and IBM Plex Mono: SIL Open Font License 1.1.</li><li>Lucide icons: ISC License.</li><li>three.js: MIT License.</li><li>Track outlines: © OpenStreetMap contributors, ODbL 1.0 (openstreetmap.org/copyright). The Nürburgring 24h layout is traced from Wikimedia Commons, CC BY-SA 3.0.</li></ul>
   </>
 );
 

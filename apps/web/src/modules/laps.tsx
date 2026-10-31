@@ -4,25 +4,25 @@ import type { Ctx } from "../feed/store";
 import type { Json } from "../feed/types";
 import { carName } from "../lib/cars";
 import { Debrief } from "../lib/advice";
-import { fmtDelta, fmtGap, fmtLap, fmtSector, MINUS, nf, NONE, okMs, plural } from "../lib/format";
-import { unit } from "../lib/units";
+import { fmtDelta, fmtGap, fmtLap, fmtSector, nf, NONE, okMs, plural } from "../lib/format";
 import { get } from "../state/bridge";
-import { usePrefs } from "../state/prefs";
-import { NB, recorder, RecLap } from "../state/recorder";
+import { recorder, RecLap } from "../state/recorder";
 import { selection, Sel, useSelection } from "../state/selection";
-import { fieldOn } from "./cars";
+import { carNum, fieldOn } from "./cars";
+import { editor } from "../state/editor";
 import { Delta } from "./delta";
-import { autoSel, lapName, pick, selState } from "./lapsel";
+import { autoSel, lapName, pick } from "./lapsel";
 
 const hasTrace = (c: Ctx, n: number) => c.laps.some((l) => l.n === n && l.trace) || !!recorder.lapById("lap-" + n);
 
 function SelButtons({ sel, id }: { sel: Sel; id: string }) {
   return (
-    <>
+    <span style={{ display: "inline-flex", gap: 4, verticalAlign: "middle" }}>
       {(["ref", "cmp"] as const).map((w) => (
-        <button key={w} type="button" className={`btn sel-${w}`} aria-pressed={sel[w] === id} title={w === "ref" ? "Reference lap (solid)" : "Comparison lap (dashed)"} onClick={() => pick(w, id)}>{w.toUpperCase()}</button>
+        <button key={w} type="button" className="btn sm" aria-pressed={sel[w] === id} style={{ width: 26, padding: 0, ...(sel[w] === id ? { borderColor: w === "ref" ? "var(--tx)" : "var(--warn)", color: w === "ref" ? "var(--tx)" : "var(--warn)" } : {}) }}
+          title={w === "ref" ? "Reference lap (solid)" : "Comparison lap (dashed)"} onClick={() => pick(w, id)}>{w === "ref" ? "R" : "C"}</button>
       ))}
-    </>
+    </span>
   );
 }
 
@@ -46,23 +46,67 @@ function useFieldLaps(car: number | null, key: string): { laps: Json[]; car: num
   return state;
 }
 
+function WhoSeg({ who, id }: { who: string; id: string }) {
+  const set = (w: string) => editor.setOpt((m) => { m.options = { ...m.options, who: w }; }, id);
+  return (
+    <div className="seg">
+      {([["self", "MINE"], ["focus", "FOCUS CAR"], ["both", "BOTH"]] as const).map(([w, l]) => (
+        <button key={w} type="button" aria-pressed={(who ?? "self") === w} onClick={() => set(w)}>{l}</button>
+      ))}
+    </div>
+  );
+}
+
 export const laps = defineModule({
   type: "laps", title: "Laps", group: "Laps", blurb: "Every lap of the session by stint: times, sectors, fuel, position, marks; pick laps to compare.",
   size: { w: 8, h: 22, minW: 5, minH: 8 }, needs: ["laps", "rec", "sel", "focus", "summary"], rate: 2,
   options: [
-    { key: "who", label: "Whose laps", type: "select", choices: [["self", "Mine"], ["focus", "The focus car (when one is set)"]], def: "self" },
+    { key: "who", label: "Whose laps", type: "select", choices: [["self", "Mine"], ["focus", "The focus car (when one is set)"], ["both", "Both, lap by lap (when a focus car is set)"]], def: "self" },
     { key: "onlyStint", label: "This stint only", type: "toggle", def: false },
   ],
-  view({ ctx: c, opts }) {
+  view({ ctx: c, opts, id, size }) {
     const sel = useSelection();
     const [fold, setFold] = useState<Set<number>>(new Set());
-    const other = opts.who === "focus" && c.focus !== "self" ? c.cars.get(c.focus) ?? null : null;
-    const fl = useFieldLaps(other ? other.i : null, other ? `${other.i}:${other.laps}` : "");
+    const both = opts.who === "both";
+    const other = (opts.who === "focus" || both) && c.focus !== "self" ? c.cars.get(c.focus) ?? null : null;
+    const fetched = useFieldLaps(other && !c.view ? other.i : null, other ? `${other.i}:${other.laps}` : "");
+    const fl = c.view && other ? { car: other.i, laps: c.view.carLaps[other.i] ?? [] } : fetched;
     if (other && fl.car !== other.i) return { state: { kind: "empty", msg: `Loading #${other.num}'s laps from the bridge…` } };
+    if (both && other) {
+      const mine = new Map<number, Json>(c.laps.map((l) => [l.n, l])), theirs = new Map<number, Json>(fl.laps.map((l) => [l.n, l]));
+      const ns = [...new Set([...mine.keys(), ...theirs.keys()])].sort((a, b) => b - a);
+      if (!ns.length) return { state: { kind: "empty", msg: "No laps yet." } };
+      const big = size.w >= 7 && size.h >= 12, tm = (l?: Json) => (l && okMs(l.ms) ? fmtLap(l.ms) : NONE);
+      const d = (a?: number | null, b?: number | null) => (okMs(a) && okMs(b) ? <Delta ms={a - b} /> : NONE);
+      return {
+        flush: true,
+        headExtra: big ? <WhoSeg who="both" id={id} /> : null,
+        info: [`YOU vs ${carNum(other)}`],
+        body: (
+          <table className="t">
+            <thead><tr><th>Lap</th><th>You</th><th>{carNum(other)}</th><th>Δ</th>{big ? <><th>Δ S1</th><th>Δ S2</th><th>Δ S3</th></> : null}</tr></thead>
+            <tbody>
+              {ns.map((n) => {
+                const a = mine.get(n), b = theirs.get(n);
+                return (
+                  <tr key={n}>
+                    <td>{n}</td>
+                    <td className={a && !a.valid ? "iv" : ""}>{tm(a)}</td>
+                    <td className={b && !b.valid ? "iv" : ""}>{tm(b)}</td>
+                    <td>{a?.valid && b?.valid ? d(a.ms, b.ms) : NONE}</td>
+                    {big ? [0, 1, 2].map((k) => <td key={k}>{a?.valid && b?.valid ? d(a.s?.[k], b.s?.[k]) : NONE}</td>) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ),
+      };
+    }
     let L: Json[] = other ? fl.laps : c.laps;
-    if (!L.length) return { state: { kind: "empty", msg: other ? "No laps for that car yet." : "No completed laps yet." } };
+    if (!L.length && !(!other && c.past.length)) return { state: { kind: "empty", msg: other ? "No laps for that car yet." : "No completed laps yet." } };
     const cs = Math.max(...L.map((l) => l.stint || 1));
-    if (opts.onlyStint && !other) L = L.filter((l) => (l.stint || 1) === cs);
+    if ((opts.onlyStint || size.w < 7 || size.h < 12) && !other) L = L.filter((l) => (l.stint || 1) === cs);
     const ok = L.filter((l) => l.valid && l.ms > 0), best = ok.length ? Math.min(...ok.map((l) => l.ms as number)) : null;
     const sBest = [0, 1, 2].map((k) => Math.min(...ok.map((l) => (l.s ?? [])[k] as number).filter((v) => v > 0), Infinity));
     // ◆ is the session best of the whole field, never just this list's best, which is ● like any improvement.
@@ -77,56 +121,71 @@ export const laps = defineModule({
         lb = Math.min(lb, l.ms);
         for (const k of [0, 1, 2]) if ((l.s ?? [])[k] > 0) sb[k] = Math.min(sb[k]!, l.s[k]);
       } }
-    const own = !other, ncol = own ? 11 : 9;
-    const row = (l: Json) => {
-      const id = "lap-" + l.n, p = pb.get(l.n) ?? [], inv = !l.valid, isB = !inv && l.ms === best, ref = own && sel.ref === id, cmp = own && sel.cmp === id;
+    const own = !other, ncol = own ? 9 : 8;
+    const large = size.w >= 7 && size.h >= 12;
+    const cls = (v: number | null | undefined, sbest: boolean, pbest: boolean) => (!okMs(v) ? "" : sbest ? "b" : pbest ? "p" : "");
+    const markOf = (l: Json, p: boolean[] | undefined, isB: boolean) => [l.out && "OUT", l.in && "IN", !l.valid && "INV", isB && !l.out && !l.in && l.valid ? "● PB" : p && p[0] && l.valid ? "● PB" : ""].filter(Boolean).join(" ");
+    const row = (l: Json, old?: string) => {
+      const id = "lap-" + l.n, p = old ? undefined : pb.get(l.n), inv = !l.valid, isB = !old && !inv && l.ms === best;
+      const ref = own && !old && sel.ref === id, cmp = own && !old && sel.cmp === id;
       return (
-        <tr key={l.n} className={[ref && "ref", cmp && "cmp"].filter(Boolean).join(" ") || undefined}>
-          {own ? <td className="lp-sel">{hasTrace(c, l.n) ? <SelButtons sel={sel} id={id} /> : null}</td> : null}
-          <td className="n">{l.n}</td>
-          <td className="n">{inv ? <span className="t-inv">{fmtLap(l.ms)}</span> : mark(l.ms, l.ms === fb, isB || !!p[0], fmtLap)}</td>
-          <td className="n">{isB || inv || best == null ? "" : fmtDelta(l.ms - best)}</td>
-          {[0, 1, 2].map((k) => { const v = (l.s ?? [])[k]; return <td className="n" key={k}>{inv ? <span className="s-dim">{fmtSector(v)}</span> : mark(v, v <= fS[k]!, v === sBest[k] || !!p[k + 1], fmtSector)}</td>; })}
-          {own ? <td className="n">{nf(l.fuel, 2)}</td> : null}
-          <td className="n">{l.pos ? "P" + l.pos : NONE}</td><td className="n">{l.gap != null ? fmtGap(l.gap) : NONE}</td>
-          <td className="tags">
-            {l.out ? <b className="tag out">OUT</b> : null} {l.in ? <b className="tag in">IN</b> : null} {inv ? <b className="tag inv">INV</b> : null} {ref ? <b className="tag ref">REF</b> : null} {cmp ? <b className="tag cmp">CMP</b> : null}
-          </td>
+        <tr key={old ? old + l.n : l.n}>
+          <td className={isB ? "p" : ""}>{l.n}</td>
+          <td className={inv ? "iv" : cls(l.ms, !old && l.ms === fb, isB || !!p?.[0], )}>{okMs(l.ms) ? fmtLap(l.ms).replace(/^0:(\d\d\.)/, "0:$1") : NONE}</td>
+          {[0, 1, 2].map((k) => { const v = (l.s ?? [])[k]; return <td key={k} className={inv ? "mu" : cls(v, !old && v <= fS[k]!, (!old && v === sBest[k]) || !!p?.[k + 1])}>{okMs(v) ? fmtSector(v) : NONE}</td>; })}
+          {large ? <><td>{l.fuel > 0 ? nf(l.fuel, 2) : NONE}</td><td>{l.pos ? l.pos : NONE}</td><td className="l">{markOf(l, p, isB)}</td></> : <td>{l.fuel > 0 ? nf(l.fuel, 2) : NONE}</td>}
+          {large && own ? <td>{old || !hasTrace(c, l.n) ? "" : <SelButtons sel={sel} id={id} />}</td> : null}
         </tr>
       );
     };
     let body: ReactNode;
+    const stints = (c.s?.stints as Json[] | undefined) ?? [];
     if (own) {
-      const stints = (c.s?.stints as Json[] | undefined) ?? [];
-      body = [...new Set(L.map((l) => (l.stint || 1) as number))].sort((a, b) => b - a).map((n) => {
-        const ls = L.filter((l) => (l.stint || 1) === n), info = stints.find((t) => t.n === n) ?? {}, folded = fold.has(n);
-        const clean = ls.filter((l) => l.valid && !l.out && !l.in), avg = clean.length ? clean.reduce((a, l) => a + l.ms, 0) / clean.length : null, fu = ls.filter((l) => l.fuel > 0);
+      const live = c.r?.session;
+      body = [
+        large && live && okMs(live.current_lap_ms) ? <tr key="live" className="own"><td>{live.lap_number}</td><td>{fmtLap(live.current_lap_ms)}</td><td /><td /><td /><td>{NONE}</td><td>{live.position || NONE}</td><td className="l">LIVE</td><td /></tr> : null,
+        ...[...new Set(L.map((l) => (l.stint || 1) as number))].sort((a, b) => b - a).map((n) => {
+          const ls = L.filter((l) => (l.stint || 1) === n), info = stints.find((t) => t.n === n) ?? {}, folded = fold.has(n);
+          return (
+            <Fragment key={n}>
+              {large ? (
+                <tr className="grp" onClick={() => setFold((s0) => { const q = new Set(s0); if (q.has(n)) q.delete(n); else q.add(n); return q; })}>
+                  <td colSpan={ncol} className="l di" style={{ textAlign: "right", fontFamily: "var(--sans)", letterSpacing: ".08em", background: "var(--p2)" }}>
+                    {folded ? "▸ " : ""}STINT {n} · {info.wet || ls[0]?.wet ? "W" : "SET"} {nf(info.tyre_set != null ? info.tyre_set : ls[ls.length - 1]!.set, 0)} · {plural(ls.length, "lap").toUpperCase()}
+                  </td>
+                </tr>
+              ) : null}
+              {folded ? null : ls.slice().reverse().map((l) => row(l))}
+            </Fragment>
+          );
+        }),
+      ];
+    } else body = L.slice().reverse().map((l) => row(l));
+    if (own && large) {
+      const older = c.past.slice().reverse().filter((ps) => ps.id !== c.view?.id).map((ps, k) => {
+        const ls = ps.laps as Json[], key = -1 - k, folded = fold.has(key), okk = ls.filter((l) => l.valid && l.ms > 0).map((l) => l.ms as number);
         return (
-          <Fragment key={n}>
-            <tr className="tt-group"><td colSpan={ncol}>
-              <button type="button" className="fold" aria-expanded={!folded} aria-label={`Fold stint ${n}`} onClick={() => setFold((s) => { const q = new Set(s); if (q.has(n)) q.delete(n); else q.add(n); return q; })} />
-              Stint {n} · {info.wet || ls[0]?.wet ? "W" : "D"} set {nf(info.tyre_set != null ? info.tyre_set : ls[ls.length - 1]!.set, 0)} · {plural(ls.length, "lap")} · best {fmtLap(info.best_ms != null ? info.best_ms : Math.min(...ls.filter((l) => l.valid).map((l) => l.ms as number), Infinity))} · avg clean {fmtLap(avg)} · {fu.length ? nf(fu.reduce((a, l) => a + l.fuel, 0) / fu.length, 2) : NONE} L/lap
-            </td></tr>
-            {folded ? null : ls.slice().reverse().map(row)}
+          <Fragment key={"past" + k}>
+            <tr className="grp" onClick={() => setFold((s0) => { const q = new Set(s0); if (q.has(key)) q.delete(key); else q.add(key); return q; })}>
+              <td colSpan={ncol} className="l di" style={{ textAlign: "right", fontFamily: "var(--sans)", letterSpacing: ".08em", background: "var(--p2)" }}>{folded ? "▸ " : ""}{String(ps.kind).toUpperCase()} · {plural(ls.length, "lap").toUpperCase()} · BEST {fmtLap(okk.length ? Math.min(...okk) : null)}</td>
+            </tr>
+            {folded ? null : ls.slice().reverse().map((l) => row(l, "p" + k))}
           </Fragment>
         );
       });
-    } else body = L.slice().reverse().map(row);
-
-    // Ideal lap: the best sectors of the clean laps that have all three. When the best lap has no sectors the ideal can be slower than it.
-    const full = ok.filter((l) => !l.out && !l.in && (l.s ?? []).length >= 3 && (l.s as number[]).slice(0, 3).every((v) => v > 0));
-    const ideal = full.length ? [0, 1, 2].reduce((a, k) => a + Math.min(...full.map((l) => l.s[k] as number)), 0) : null, bl = ok.find((l) => l.ms === best);
-    const why = !ideal ? "" : bl && !full.includes(bl) ? ` · best lap L${bl.n} had no sectors` : best != null ? ` · ${fmtDelta(ideal - best)} vs best` : "";
-    const bm = best == null ? "" : best === fb ? " · ◆ " + fmtLap(best) : " · ● " + fmtLap(best);
+      body = [body, ...older];
+    }
+    const refN = sel.ref ? Number(String(sel.ref).replace("lap-", "")) : null, cmpN = sel.cmp ? Number(String(sel.cmp).replace("lap-", "")) : null;
     return {
-      info: other ? `#${other.num} ${carName(other, "short")} · ${plural(L.length, "lap")}${bm}` : `${opts.who === "focus" ? "yours · click a car to see theirs · " : ""}${plural(L.length, "lap")}${bm}`,
+      flush: true,
+      headExtra: large ? <WhoSeg who={opts.who} id={id} /> : null,
+      info: large ? [plural(L.length, "lap").toUpperCase(), refN ? `REF L${refN}` : "", cmpN ? <span key="c" className="wn">CMP L{cmpN}</span> : ""] : [opts.onlyStint ? "THIS STINT" : "THIS STINT"],
       body: (
-        <table className="tt lp">
+        <table className="t">
           <thead>
-            <tr>{own ? <th className="lp-sel" /> : null}<th className="n">Lap</th><th className="n">Time</th><th className="n">Δ best</th><th className="n">S1</th><th className="n">S2</th><th className="n">S3</th>{own ? <th className="n">Fuel L</th> : null}<th className="n">Pos</th><th className="n">Gap</th><th /></tr>
+            <tr><th>Lap</th><th>Time</th><th>S1</th><th>S2</th><th>S3</th>{large ? <><th>Fuel used</th><th>Pos</th><th className="l">Marks</th>{own ? <th>Compare</th> : null}</> : <th>Fuel</th>}</tr>
           </thead>
           <tbody>{body}</tbody>
-          <tfoot>{ideal ? <tr><td colSpan={ncol}>Ideal {fmtLap(ideal)} <span className="note">(Σ best sectors, {plural(full.length, "lap")}){why}</span></td></tr> : null}</tfoot>
         </table>
       ),
     };
@@ -137,14 +196,37 @@ export const laps = defineModule({
 export const debrief = defineModule({
   type: "debrief", title: "Debrief", group: "Laps", blurb: "The engineer's notes on the last laps.", size: { w: 4, h: 12, minW: 3, minH: 6 },
   needs: ["summary"],
-  view: ({ ctx }) => ({ body: <Debrief laps={ctx.s?.debrief} /> }),
+  view({ ctx, size }) {
+    const laps = ((ctx.s?.debrief as Json[] | undefined) ?? []).slice().reverse();
+    if (!laps.length) return { state: { kind: "empty", msg: "The last laps' analysis appears here after the first lap." } };
+    const large = size.h >= 10;
+    const shown = laps.slice(0, large ? 5 : 3);
+    return {
+      flush: true,
+      info: large ? [`LAST ${shown.length} LAPS`] : [],
+      body: (
+        <table className="t">
+          <tbody>
+            {shown.map((l) => (
+              <tr key={l.lap_number}>
+                <td className="mu" style={{ width: 44 }}>L{l.lap_number}</td>
+                <td className="l" style={{ whiteSpace: "normal", lineHeight: 1.4, padding: 6 }}>
+                  {((l.lines as Json[] | undefined) ?? []).length ? (l.lines as Json[]).map((x, k) => <span key={k} className={x.severity >= 2 ? "up" : x.severity === 1 ? "wn" : ""}>{x.severity >= 2 ? "▲ " : ""}{x.text}{k < (l.lines as Json[]).length - 1 ? " " : ""}</span>) : <span className="p">● {fmtLap(l.lap_time_ms)}</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ),
+    };
+  },
 });
 
 // ---------- lap picker ----------
 export const lapPicker = defineModule({
   type: "lap-picker", title: "Lap picker", group: "Analysis", blurb: "Every lap with a trace (bridge, this page, imported): pick REF and CMP.",
   size: { w: 3, h: 22, minW: 3, minH: 8 }, multi: false, needs: ["rec", "laps", "sel"],
-  view({ ctx: c }) {
+  view({ ctx: c, size }) {
     const sel = useSelection();
     const file = useRef<HTMLInputElement>(null);
     const [note, setNote] = useState("");
@@ -160,113 +242,41 @@ export const lapPicker = defineModule({
       if (autoSel.ref && rows.length) { const ok = own.filter((l) => l.valid); set("ref", ok.length ? ok.reduce((a, x) => (x.ms < a.ms ? x : a)) : rows[0]!); }
       if (autoSel.cmp) { const n = own.find((l) => l.id !== selection.get().ref && l.valid) ?? own.find((l) => l.id !== selection.get().ref); if (n) set("cmp", n); }
     });
-
-    const foot = (
-      <>
-        <div className="lk-foot">
-          <button type="button" className="btn" onClick={() => recorder.exportLaps()}>Export laps</button>
-          <label className="btn">Import laps<input ref={file} type="file" accept=".json,application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setNote(await recorder.importLaps(f)); e.target.value = ""; }} /></label>
-          <button type="button" className="btn" onClick={() => { autoSel.cmp = false; selection.select("cmp", null); }}>Clear CMP</button>
-        </div>
-        <p className="note" role="status">{note}</p>
-      </>
-    );
+    const large = size.h >= 12;
+    const foot = large ? (
+      <div className="f" style={{ padding: 8, gap: 8, borderTop: "1px solid var(--ln)", flexWrap: "wrap" }}>
+        <button type="button" className="btn sm" onClick={() => recorder.exportLaps()}>Export laps</button>
+        <label className="btn sm">Import laps<input ref={file} type="file" accept=".json,application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setNote(await recorder.importLaps(f)); e.target.value = ""; }} /></label>
+        <button type="button" className="btn sm" onClick={() => { autoSel.cmp = false; selection.select("cmp", null); }}>Clear CMP</button>
+        <span className="v di" role="status">{note}</span>
+      </div>
+    ) : <input ref={file} type="file" accept=".json,application/json" hidden />;
     if (!rows.length) return { state: { kind: "empty", msg: "Laps with traces appear here after the first whole lap. You can also import a laps file.", action: { label: "Import laps…", fn: () => file.current?.click() } }, body: foot };
+    const from = (l: RecLap) => (l.src === "import" ? "imported" : l.src === "live" ? "this page" : "bridge");
     return {
-      info: plural(rows.length, "lap"),
+      flush: true,
+      info: large ? [sel.ref ? `REF ${lapName(have.get(sel.ref) ?? rows[0]!)}` : "", sel.cmp && have.get(sel.cmp) ? `CMP ${lapName(have.get(sel.cmp)!)}` : ""] : [],
       body: (
-        <>
-          <table className="tt lk">
-            <tbody>
-              {rows.map((l) => {
-                const r = sel.ref === l.id, m = sel.cmp === l.id;
-                return (
-                  <tr key={l.id} className={[r && "ref", m && "cmp"].filter(Boolean).join(" ") || undefined}>
-                    <td className="lp-sel"><SelButtons sel={sel} id={l.id} /></td>
-                    <td className="lk-n" title={lapName(l)}>{lapName(l)}</td>
-                    <td className="n">{l.valid ? fmtLap(l.ms) : <span className="t-inv">{fmtLap(l.ms)}</span>}</td>
-                    <td className="tags">
-                      {l.valid ? null : <b className="tag inv">INV</b>}
-                      {m && autoSel.cmp ? <b className="tag s-dim" title="Follows the newest lap until you pick one">auto</b> : null}
-                      {!l.data && recorder.pending.has(l.n) ? <span className="note">loading</span> : null}
-                    </td>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+          <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+            <table className="t">
+              <thead><tr><th>Lap</th><th>Time</th>{large ? <th className="l">From</th> : null}<th style={{ width: 52, textAlign: "center" }}>REF</th><th style={{ width: 52, textAlign: "center" }}>CMP</th></tr></thead>
+              <tbody>
+                {rows.map((l) => (
+                  <tr key={l.id}>
+                    <td title={lapName(l)}>{lapName(l).replace(/^L/, "")}</td>
+                    <td className={l.valid ? (rows.every((x) => !x.valid || x.ms >= l.ms) ? "p" : "") : "iv"}>{fmtLap(l.ms)}</td>
+                    {large ? <td className="l mu">{from(l)}{!l.data && recorder.pending.has(l.n) ? " · loading" : ""}</td> : null}
+                    <td style={{ textAlign: "center" }}><button type="button" className="btn sm" aria-pressed={sel.ref === l.id} style={sel.ref === l.id ? { borderColor: "var(--tx)", color: "var(--tx)" } : undefined} onClick={() => pick("ref", l.id)}>R</button></td>
+                    <td style={{ textAlign: "center" }}><button type="button" className="btn sm" aria-pressed={sel.cmp === l.id} style={sel.cmp === l.id ? { borderColor: "var(--warn)", color: "var(--warn)" } : undefined} onClick={() => pick("cmp", l.id)}>C</button></td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {foot}
-        </>
+        </div>
       ),
     };
   },
 });
-
-// ---------- where the time goes ----------
-const SEG = 20;
-
-/** Brake onset, minimum speed and throttle pickup: the largest normalised difference names the cause. */
-function cause(ref: RecLap, cmp: RecLap, a: number, b: number, binM: number, speedUnit: ReturnType<typeof unit>): string {
-  const ev = (l: RecLap) => {
-    const d = l.data!;
-    let bo: number | null = null, mi = a, tp: number | null = null;
-    for (let i = a; i <= b; i++) { if (bo == null && d.brk[i]! > 0.1) bo = i; if (d.speed[i]! < d.speed[mi]!) mi = i; }
-    for (let i = mi; i <= b; i++) if (d.thr[i]! > 0.9) { tp = i; break; }
-    return { bo, mv: d.speed[mi]!, tp };
-  };
-  const r = ev(ref), m = ev(cmp), out: [number, string][] = [];
-  const dist = (bins: number) => (binM ? `${Math.abs(bins * binM).toFixed(0)} m` : `${Math.abs((bins / (NB - 1)) * 100).toFixed(1)} %`);
-  if (r.bo != null && m.bo != null && m.bo !== r.bo) out.push([(Math.abs(m.bo - r.bo) * (binM || 12.5)) / 20, `Brakes ${dist(m.bo - r.bo)} ${m.bo < r.bo ? "earlier" : "later"}`]);
-  const dv = m.mv - r.mv;
-  if (Math.abs(dv) >= 1) out.push([Math.abs(dv) / 5, `Min speed ${dv > 0 ? "+" : MINUS}${Math.abs(speedUnit.f(dv)).toFixed(0)} ${speedUnit.u}`]);
-  if (r.tp != null && m.tp != null && m.tp !== r.tp) out.push([(Math.abs(m.tp - r.tp) * (binM || 12.5)) / 20, `Throttle ${dist(m.tp - r.tp)} ${m.tp > r.tp ? "later" : "earlier"}`]);
-  out.sort((x, y) => y[0] - x[0]);
-  return out.length && out[0]![0] >= 0.2 ? out[0]![1] : NONE;
-}
-
-export const segments = defineModule({
-  type: "segments", title: "Where the time goes", group: "Analysis", blurb: "The lap cut into 20 parts, ranked by time lost, with the likely cause.",
-  size: { w: 3, h: 10, minW: 3, minH: 6 }, needs: ["rec", "sel", "reading"],
-  view({ ctx: c }) {
-    const sel = useSelection();
-    const p = usePrefs();
-    const s = selState(sel);
-    if ("msg" in s) return { state: { kind: "empty", msg: s.msg } };
-    if (!s.cmp || !s.cmp.data) return { state: { kind: "empty", msg: "Pick a comparison lap (CMP) as well." } };
-    const len = c.r ? c.r.fixed.track_length_m : 0, binM = len > 0 ? len / (NB - 1) : 0, R = s.ref.data!.t, M = s.cmp.data.t;
-    const segs = [];
-    for (let k = 0; k < SEG; k++) {
-      const a = Math.round((k / SEG) * (NB - 1)), b = Math.round(((k + 1) / SEG) * (NB - 1)), d = M[b]! - M[a]! - (R[b]! - R[a]!);
-      segs.push({ k, a, b, d, why: cause(s.ref, s.cmp, a, b, binM, unit("speed", p.units)) });
-    }
-    const where = (x: { a: number; b: number }) => (len > 0 ? `${Math.round(x.a * binM)}–${Math.round(x.b * binM)} m` : `${((x.a / (NB - 1)) * 100).toFixed(0)}–${((x.b / (NB - 1)) * 100).toFixed(0)} %`);
-    const cur = sel.cursor;
-    // The parts that differ by 10 ms or more, biggest change first; under 10 ms is noise between two laps of one driver.
-    const shown = segs.filter((x) => Math.abs(x.d) >= 10).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)), why = shown.some((x) => x.why && x.why !== NONE);
-    // Net is the sum of every part, the lap delta of the traces; it differs from the lap times only by the traces' offset.
-    const gain = segs.filter((x) => x.d < 0).reduce((a, x) => a + x.d, 0), loss = segs.filter((x) => x.d > 0).reduce((a, x) => a + x.d, 0), net = gain + loss;
-    const lapD = s.cmp.ms - s.ref.ms;
-    return {
-      info: `CMP ${lapName(s.cmp)} vs REF ${lapName(s.ref)}`,
-      body: (
-        <>
-          <table className="tt sg">
-            <thead hidden={!shown.length}><tr><th className="n">#</th><th className="n">Distance</th><th className="n">Δ</th>{why ? <th>Cause</th> : null}</tr></thead>
-            <tbody>
-              {shown.map((x, i) => (
-                <tr key={x.k} className={cur != null && cur * (NB - 1) >= x.a && cur * (NB - 1) <= x.b ? "sg-on" : undefined} title="Show this part on the traces and the map" onClick={() => selection.setCursor((x.a + x.b) / 2 / (NB - 1))}>
-                  <td className="n">{i + 1}</td><td className="n">{where(x)}</td><td className="n"><Delta ms={x.d} /></td>{why ? <td className="sg-why">{x.why}</td> : null}
-                </tr>
-              ))}
-            </tbody>
-            <tfoot><tr><td colSpan={why ? 4 : 3}>
-              Gains <Delta ms={gain} /> · losses <Delta ms={loss} /> · net <Delta ms={net} /> (CMP {MINUS} REF lap <Delta ms={lapD} />{Math.abs(net - lapD) > 5 ? <span className="note">, trace offset {nf(Math.abs(net - lapD) / 1000, 3)} s</span> : null})
-            </td></tr></tfoot>
-          </table>
-          <div className="sg-none">{shown.length ? null : <div className="empty">No part differs by 0.01 s or more.</div>}</div>
-        </>
-      ),
-    };
-  },
-});
-

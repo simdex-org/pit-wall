@@ -106,6 +106,6 @@ Everything else (every option, templates, the pit page, troubleshooting) is in t
 
 ## Credits
 
-- 3D car: [three.js](https://github.com/mrdoob/three.js) 0.160.0, MIT. Fonts: [Barlow Semi Condensed](https://github.com/jpt/barlow) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), SIL OFL.
+- 3D car: [three.js](https://github.com/mrdoob/three.js) 0.160.0, MIT. Fonts: [IBM Plex Sans Condensed and IBM Plex Mono](https://github.com/IBM/plex), SIL OFL.
 - ACC's shared memory layout: Kunos' *ACC Shared Memory Documentation* 1.8.12. The pitstop MFD layout and navigation: [Simulator Controller](https://github.com/SeriousOldMan/Simulator-Controller).
 - Nürburgring 24h layout traced from Wikimedia Commons *Circuit Nürburgring-2002-24h.svg* (Pitlane02, CC BY-SA 3.0). Other outlines: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), [ODbL](https://opendatacommons.org/licenses/odbl/1-0/).

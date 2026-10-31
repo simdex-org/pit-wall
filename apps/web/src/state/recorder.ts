@@ -13,8 +13,16 @@ import { selection } from "./selection";
 /** Bins per lap, and the channels the bridge sends for each. */
 export const NB = 400;
 export const LCH = ["t", "speed", "thr", "brk", "steer", "gear", "rpm"] as const;
+/** Added later: laps from an older bridge or an old laps file lack them, and the coach then skips what needs them. */
+export const LCH_X = ["glat", "glon", "tc", "abs"] as const;
 export type LapChannel = (typeof LCH)[number];
-export type LapData = Record<LapChannel, Float32Array>;
+export type LapData = Record<LapChannel, Float32Array> & Partial<Record<(typeof LCH_X)[number], Float32Array>>;
+const ALL_CH = [...LCH, ...LCH_X];
+/** The core channels must all be there; the later ones are taken only when whole. */
+const takeData = (o: Json): LapData | null => {
+  if (!LCH.every((k) => Array.isArray(o[k]) && o[k].length === NB)) return null;
+  return Object.fromEntries(ALL_CH.filter((k) => Array.isArray(o[k]) && o[k].length === NB).map((k) => [k, Float32Array.from(o[k] as number[], (v) => (isFinite(+v) ? +v : 0))])) as LapData;
+};
 
 export const TRACE_N = 3600; // 60 s at 60 Hz
 export const TRACE_KEYS = ["speed", "thr", "brk", "clu", "steer", "rpm", "gear", "fuel", "gLat", "gLon", "tFL", "tFR", "tRL", "tRR", "pFL", "pFR", "pRL", "pRR"] as const;
@@ -25,7 +33,7 @@ export interface RecLap { id: string; n: number; ms: number; valid: boolean; src
 export type LinePoint = [x: number, z: number, spl?: number];
 export interface RecLine { n: number; valid: boolean; ms: number; pts: LinePoint[] }
 export interface Layout { track: string; pts: [number, number, number][]; sec: number[] }
-interface Sample { p: number; t: number; speed: number; thr: number; brk: number; steer: number; gear: number; rpm: number }
+interface Sample { p: number; t: number; speed: number; thr: number; brk: number; steer: number; gear: number; rpm: number; glat: number; glon: number; tc: number; abs: number }
 
 const CORNER_KEYS = ["FL", "FR", "RL", "RR"] as const;
 const coreT = (c: Json, i: number, cap: Json) => (cap?.tyre_edge_temps ? (c.tyre_temp_inner_c[i] + c.tyre_temp_middle_c[i] + c.tyre_temp_outer_c[i]) / 3 : c.tyre_core_temp_c[i]);
@@ -58,6 +66,8 @@ class Recorder {
   failed = new Set<number>();
   private layoutTried = "";
   private imp = 0;
+  /** The earlier session being shown, or null for the live one. */
+  private sid: number | null = null;
   private prevLaps: number | null = null;
   private prevValid = true;
   private posT = 0;
@@ -69,6 +79,8 @@ class Recorder {
 
   /** Called on every feed update; acts when a new reading or a new lap list arrived. */
   onFeed(c: Ctx): void {
+    const sid = c.view?.id ?? null;
+    if (sid !== this.sid) this.showSession(sid);
     if (c.r && c.r !== this.lastR) { this.lastR = c.r; this.onReading(c.r); }
     if (c.laps !== this.lastLaps) { this.lastLaps = c.laps; this.wantLaps(c); void this.ensureLayout(c.r); }
     const sel = `${selection.get().ref}|${selection.get().cmp}`;
@@ -98,18 +110,18 @@ class Recorder {
   private sample(s: Json, c: Json): void {
     const p = s.track_position, l = this.cur[this.cur.length - 1];
     if (l && p <= l.p) return; // position must advance; drops jitter and the wrap after the line
-    this.cur.push({ p, t: s.current_lap_ms, speed: c.speed_kmh, thr: c.throttle, brk: c.brake, steer: c.steer_angle, gear: c.gear, rpm: c.rpm });
+    this.cur.push({ p, t: s.current_lap_ms, speed: c.speed_kmh, thr: c.throttle, brk: c.brake, steer: c.steer_angle, gear: c.gear, rpm: c.rpm, glat: c.acc_g[0], glon: c.acc_g[2], tc: +c.tc_in_action || 0, abs: +c.abs_in_action || 0 });
   }
 
   /** The same algorithm as the bridge's, so live and bridge laps compare bin for bin. */
   private resample(smp: Sample[], ms: number): LapData {
-    const d = Object.fromEntries(LCH.map((k) => [k, new Float32Array(NB)])) as LapData;
+    const d = Object.fromEntries(ALL_CH.map((k) => [k, new Float32Array(NB)])) as Record<(typeof ALL_CH)[number], Float32Array>;
     let j = 0;
     for (let i = 0; i < NB; i++) {
       const p = i / (NB - 1);
       while (j < smp.length - 2 && smp[j + 1]!.p < p) j++;
       const a = smp[j]!, b = smp[j + 1]!, f = b.p > a.p ? Math.max(0, Math.min(1, (p - a.p) / (b.p - a.p))) : 0;
-      for (const k of LCH) d[k][i] = a[k] + (b[k] - a[k]) * f;
+      for (const k of ALL_CH) d[k][i] = a[k] + (b[k] - a[k]) * f;
     }
     for (let i = 0; i < NB; i++) d.gear[i] = Math.round(d.gear[i]!);
     const end = d.t[NB - 1]!;
@@ -119,6 +131,7 @@ class Recorder {
 
   private finishLap(n: number, ms: number, valid: boolean): void {
     const cur = this.cur, curLine = this.curLine;
+    if (this.sid !== null) { this.cur = []; this.curLine = []; return; }
     const whole = cur.length > 60 && cur[0]!.p < 0.1 && cur[cur.length - 1]!.p > 0.9;
     // Only whole laps: a part lap cannot be compared. The bridge copy replaces this one.
     if (whole && curLine.length > 50) {
@@ -170,14 +183,21 @@ class Recorder {
   /** A new session: own laps and lines belong to the old one. */
   private resetSession(): void {
     this.laps = this.laps.filter((l) => l.src === "import"); this.lines = []; this.curLine = []; this.cur = []; this.spread = null;
-    this.failed.clear(); this.gHist = { maxLat: 0, maxLon: 0 };
+    this.pending.clear(); this.failed.clear(); this.gHist = { maxLat: 0, maxLon: 0 };
     this.bump();
+  }
+
+  /** An earlier session on show (its laps come from the bridge's copy), or the live one again with null. */
+  private showSession(sid: number | null): void {
+    this.sid = sid;
+    this.resetSession();
+    selection.select("ref", null); selection.select("cmp", null); selection.setCorner(null);
   }
 
   private onReading(r: Json): void {
     const c = r.car, s = r.session, cap = r.capabilities ?? {};
     this.maxRpm = r.fixed.max_rpm || this.maxRpm;
-    if (this.prevLaps != null && s.completed_laps < this.prevLaps) this.resetSession();
+    if (this.prevLaps != null && s.completed_laps < this.prevLaps && this.sid === null) this.resetSession();
     if (this.prevLaps != null && s.completed_laps > this.prevLaps) {
       if (s.last_lap_ms > 0) this.finishLap(s.completed_laps, s.last_lap_ms, this.prevValid); else { this.cur = []; this.curLine = []; }
     }
@@ -221,13 +241,16 @@ class Recorder {
   async ensureLap(n: number): Promise<void> {
     n = n | 0;
     if (!(n > 0) || this.pending.has(n) || this.failed.has(n) || this.laps.some((l) => l.id === "lap-" + n && l.src === "bridge")) return;
+    const sid = this.sid;
     this.pending.add(n);
     this.bump();
-    const j = await get<Json>("/lap?n=" + n);
+    const j = await get<Json>("/lap?n=" + n + (sid === null ? "" : "&s=" + sid));
+    if (sid !== this.sid) return; // another session is on show now
     this.pending.delete(n);
-    if (!j || !isObj(j.ch) || !LCH.every((k) => Array.isArray(j.ch[k]) && j.ch[k].length === NB)) { this.failed.add(n); this.bump(); return; }
+    const data = j && isObj(j.ch) ? takeData(j.ch) : null;
+    if (!j || !data) { this.failed.add(n); this.bump(); return; }
     const valid = j.valid !== false;
-    this.putLap({ id: "lap-" + n, n, ms: +j.ms, valid, src: "bridge", label: "", data: Object.fromEntries(LCH.map((k) => [k, Float32Array.from(j.ch[k] as number[], (v) => (isFinite(v) ? v : 0))])) as LapData });
+    this.putLap({ id: "lap-" + n, n, ms: +j.ms, valid, src: "bridge", label: "", data });
     if (Array.isArray(j.line) && j.line.length > 50) {
       this.putLine({
         n, valid, ms: +j.ms,
@@ -247,7 +270,7 @@ class Recorder {
   }
 
   // ---------- export and import ----------
-  private pack = (l: RecLap) => ({ n: l.n, ms: l.ms, valid: l.valid, label: l.label || "", data: Object.fromEntries(LCH.map((k) => [k, Array.from(l.data![k], (v) => +v.toFixed(3))])) });
+  private pack = (l: RecLap) => ({ n: l.n, ms: l.ms, valid: l.valid, label: l.label || "", data: Object.fromEntries(ALL_CH.filter((k) => l.data![k]).map((k) => [k, Array.from(l.data![k]!, (v) => +v.toFixed(3))])) });
 
   exportLaps(): void {
     download("pitwall-laps.json", { format: "pitwall-laps", version: 1, laps: this.laps.filter((l) => l.data).map(this.pack) });
@@ -271,12 +294,13 @@ class Recorder {
     let added = 0;
     const label = cleanText(String(file.name).replace(/\.json$/i, ""), 32) || "import";
     for (const l of (j.laps as Json[]).slice(0, 200)) {
-      if (!isObj(l) || !isObj(l.data) || !LCH.every((k) => Array.isArray(l.data[k]) && l.data[k].length === NB)) continue;
+      const data = isObj(l) && isObj(l.data) ? takeData(l.data) : null;
+      if (!data) continue;
       const n = Math.max(0, +l.n | 0), ms = +l.ms;
       if (!okMs(ms)) continue;
       const lb = cleanText(typeof l.label === "string" && l.label ? l.label : label, 32);
       if (this.laps.some((x) => x.src === "import" && x.n === n && x.ms === ms && x.label === lb)) continue;
-      this.laps.push({ id: "imp-" + ++this.imp, n, ms, valid: l.valid !== false, src: "import", label: lb, data: Object.fromEntries(LCH.map((k) => [k, Float32Array.from(l.data[k] as number[], (v) => (isFinite(+v) ? +v : 0))])) as LapData });
+      this.laps.push({ id: "imp-" + ++this.imp, n, ms, valid: l.valid !== false, src: "import", label: lb, data });
       added++;
     }
     this.bump();

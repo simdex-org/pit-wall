@@ -4,6 +4,11 @@ import { car3dView, CarView, levelColour, VIEWS } from "../draw/car3d";
 import { defineModule } from "../engine/registry";
 import type { Ctx } from "../feed/store";
 import { clamp, nf } from "../lib/format";
+import { Icon } from "../lib/icons";
+import { editor } from "../state/editor";
+import { registry } from "../engine/registry";
+import { sanitizeOptions } from "../state/templates";
+import { bodyState, stateLevel, suspState } from "../lib/states";
 import { CORNERS } from "../state/plan";
 import { ZONES } from "./car";
 
@@ -45,7 +50,7 @@ function Car3D({ m, onFail }: { m: Model; onFail: () => void }) {
   const host = useRef<HTMLDivElement>(null);
   const tagCv = useRef<HTMLCanvasElement>(null);
   const gl = useRef<CarView | null>(null);
-  const view = useRef({ az: VIEWS.iso![0], el: VIEWS.iso![1], x: false });
+  const view = useRef({ az: VIEWS.iso![0], el: VIEWS.iso![1], x: false, zoom: 1 });
   const model_ = useRef(m);
   model_.current = m;
   const [xray, setXray] = useState(false);
@@ -80,6 +85,12 @@ function Car3D({ m, onFail }: { m: Model; onFail: () => void }) {
 
   useEffect(() => { view.current.x = xray; draw(); });
 
+  useEffect(() => { // not passive: React's onWheel cannot stop the page from scrolling
+    const el = host.current!, onWheel = (e: WheelEvent) => { e.preventDefault(); view.current.zoom = clamp(view.current.zoom * Math.exp(e.deltaY * 0.001), 0.4, 1.5); drawRef.current(); };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
   const turn = (to: string) => { // ease the camera to a view, the short way round
     const v = view.current, [az1, el1] = VIEWS[to]!, az0 = v.az, el0 = v.el, daz = Math.atan2(Math.sin(az1 - az0), Math.cos(az1 - az0)), t0 = performance.now();
     const step = (now: number) => { const k = Math.min(1, (now - t0) / 350), e = k * (2 - k); v.az = az0 + daz * e; v.el = el0 + (el1 - el0) * e; drawRef.current(); if (k < 1) requestAnimationFrame(step); };
@@ -99,19 +110,46 @@ function Car3D({ m, onFail }: { m: Model; onFail: () => void }) {
         onPointerUp={() => { drag.current = null; }}>
         <canvas className="c3-tags" ref={tagCv} />
       </div>
-      <Key m={m} />
-      <p className="note c3-na">
-        ACC reports bodywork damage in five zones (front, rear, left, right, centre), suspension damage per corner and brake pad thickness: those are painted. It does not report
-        the glass, the steering, the engine, the wing on its own, or tyre wear, so those stay grey; the wing, splitter and diffuser take their zone's colour.
-      </p>
     </>
   );
 }
 
-function Wrapper({ c, opts }: { c: Ctx; opts: Record<string, unknown> }): ReactNode {
+/** The parts as a table: what ACC reports, with a word for the state. */
+function Parts({ c, m, rows }: { c: Ctx; m: Model; rows: number }) {
+  const a = c.r!.car, dmg = (a.damage as number[] | undefined) ?? [], sus = (a.suspension_damage as number[] | undefined) ?? [], pads = (a.brake_pad_mm as number[] | undefined) ?? [];
+  const body = (i: number, name: string): [string, number, string, string, string] => { const v = dmg[i] ?? 0, s = bodyState(v, m.br); return [name, v, nf(v, 0), s === "ok" ? "Ok" : s === "warn" ? "Damaged" : "Heavy", s === "ok" ? "dn" : s === "warn" ? "wn" : "up"]; };
+  const list = [body(0, "Front"), body(3, "Right"), body(2, "Left"), body(1, "Rear"), body(4, "Roof")];
+  list.sort((x, y) => y[1] - x[1]);
+  const si = sus.reduce((b, v, i) => (v > (sus[b] ?? 0) ? i : b), 0), sv = sus[si] ?? 0;
+  const pi = pads.reduce((b, v, i) => (v > 0 && v < (pads[b] || Infinity) ? i : b), 0), pv = pads[pi] ?? 0;
+  const extra: [string, number, string, string, string][] = [
+    [`Susp. ${CORNERS[si]}`, sv, nf(sv, 2), suspState(sv, m.sr) === "ok" ? "Ok" : suspState(sv, m.sr) === "warn" ? "Worn" : "Failed", suspState(sv, m.sr) === "ok" ? "dn" : suspState(sv, m.sr) === "warn" ? "wn" : "up"],
+    [`Pad ${CORNERS[pi]} (mm)`, pv, nf(pv, 1), pv > m.low + 1.5 ? "Ok" : pv > m.low ? "Low" : "Replace", pv > m.low + 1.5 ? "dn" : pv > m.low ? "wn" : "up"],
+  ];
+  const all = list.concat(extra).slice(0, Math.max(3, rows));
+  return (
+    <div style={{ width: rows > 6 ? 270 : 300, flex: "none", borderLeft: "1px solid var(--ln)", display: "flex", flexDirection: "column", overflow: "auto" }}>
+      <table className="t">
+        <thead><tr><th className="l">Part</th><th>Value</th><th className="l">State</th></tr></thead>
+        <tbody>{all.map(([n, , v, st, cls]) => <tr key={n}><td className="l">{n}</td><td>{v}</td><td className={"l " + cls}>{cls === "dn" ? "● " : "▲ "}{st}</td></tr>)}</tbody>
+      </table>
+      {rows > 6 ? <div className="f v di" style={{ padding: 12, gap: 10 }}><span className="lab">Scale</span><div style={{ flex: 1, height: 6, background: "linear-gradient(90deg,var(--ok),var(--warn),var(--bad))" }} /><span>0 → {m.br}</span></div> : null}
+    </div>
+  );
+}
+
+function Wrapper({ c, opts, rows, parts }: { c: Ctx; opts: Record<string, unknown>; rows: number; parts: boolean }): ReactNode {
   const [failed, setFailed] = useState(false);
   if (failed) return <p className="note">This view needs WebGL, which this browser has turned off or does not have.</p>;
-  return <Car3D m={model(c, opts)} onFail={() => setFailed(true)} />;
+  const m = model(c, opts);
+  return (
+    <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", padding: "var(--pad)" }} title="ACC reports bodywork damage in five zones, suspension damage per corner and brake pad thickness; the glass, steering, engine, wing on its own and tyre wear stay grey.">
+        <Car3D m={m} onFail={() => setFailed(true)} />
+      </div>
+      {parts ? <Parts c={c} m={m} rows={rows} /> : null}
+    </div>
+  );
 }
 
 export const car3d = defineModule({
@@ -121,15 +159,18 @@ export const car3d = defineModule({
     { key: "bodyRed", label: "Bodywork is red at", type: "select", choices: [["50", "50"], ["100", "100"], ["200", "200"]], def: "100" },
     { key: "susRed", label: "Suspension is red at", type: "select", choices: [["0.1", "0.10"], ["0.3", "0.30"], ["1", "1.00"]], def: "0.3" },
     { key: "labels", label: "Show the figures on the car", type: "toggle", def: true },
+    { key: "parts", label: "Show the parts table on the right", type: "toggle", def: true },
   ],
-  view({ ctx: c, opts }) {
+  view({ ctx: c, opts, id, size }) {
     const a = c.r!.car, dmg = (a.damage as number[] | undefined) ?? [], sus = (a.suspension_damage as number[] | undefined) ?? [];
     const m = model(c, opts);
-    const worst = Math.max(0, ...["front", "rear", "left", "right", "centre", "s0", "s1", "s2", "s3"].map((k) => m.lv[k] || 0));
+    const level = Math.max(0, ...dmg.slice(0, 5).map((v) => stateLevel(bodyState(v, m.br))), ...sus.map((v) => stateLevel(suspState(v, m.sr))));
     return {
-      info: worst > 0 ? `worst ${Math.round(Math.min(worst, 9.99) * 100)} % of red · drag to turn` : "no damage · drag to turn",
-      alert: [dmg.some((v) => v > 0) || sus.some((v) => v > 0) ? 2 : 0],
-      body: <Wrapper c={c} opts={opts} />,
+      flush: true,
+      info: [`BODY RED AT ${m.br}`, `SUSPENSION RED AT ${nf(m.sr, 2)}`, level > 0 ? "DAMAGED" : "NO DAMAGE"],
+      quick: <button type="button" className="btn icon" title="Parts table" aria-label="Parts table" aria-pressed={opts.parts !== false} onClick={() => editor.setOpt((m) => { m.options = sanitizeOptions(registry.get(m.type)!, { ...m.options, parts: opts.parts === false }, () => {}); }, id)}><Icon name="panel-right" /></button>,
+      alert: [level],
+      body: <Wrapper c={c} opts={opts} rows={Math.floor(((size.h * 28) - 26 - 22) / 21)} parts={opts.parts !== false} />,
     };
   },
 });

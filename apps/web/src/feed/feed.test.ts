@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import fixture from "./fixtures/sim.json";
 import { numbersOnly } from "./sanitize";
-import { applyPayload, emptyCtx, emptyInternals, withFocus, addPageLog } from "./store";
+import { applyPayload, emptyCtx, emptyInternals, FeedStore, sessionLabel, withFocus, addPageLog } from "./store";
 import type { Payload } from "./types";
 
 const first = fixture.first as unknown as Payload;
@@ -69,5 +69,39 @@ describe("applyPayload with a simulated session", () => {
     expect(withFocus(c, 3).focusCar?.i).toBe(3);
     expect(withFocus(c, 7).focus).toBe("self");
     expect(withFocus(c, "x" as unknown as number)).toBe(c);
+  });
+});
+
+describe("earlier sessions", () => {
+  const past = [
+    { id: 1, kind: "Practice", track: "monza", laps: [{ n: 1, ms: 90000 }], stints: [{ n: 1 }], stops: [], field: false },
+    { id: 2, kind: "Practice", track: "monza", laps: [{ n: 1, ms: 89000 }, { n: 2, ms: 88000 }], stints: [{ n: 1 }], stops: [{ lap: 2 }], field: false },
+  ];
+
+  test("kinds are numbered when they repeat, the live session counted", () => {
+    const c = applyPayload(emptyCtx(), emptyInternals(), structuredClone({ ...first, past }), 1000);
+    expect(sessionLabel(c, 1)).toBe("Practice 1");
+    expect(sessionLabel(c, 2)).toBe("Practice 2");
+    expect(sessionLabel(c, "live")).toBe("Race");
+  });
+
+  test("showing one swaps the laps, stints and stops, keeps the live reading, and live comes back", async () => {
+    const s = new FeedStore();
+    s.receive(structuredClone({ ...first, past }));
+    const live = s.get();
+    await s.showSession(2);
+    const c = s.get();
+    expect(c.view?.label).toBe("Practice 2");
+    expect(c.laps).toHaveLength(2);
+    expect(c.s?.stops).toHaveLength(1);
+    expect(c.field).toBeNull();
+    expect(c.r).toBe(live.r);
+    s.receive(structuredClone({ ...next, summary: null }));
+    expect(s.get().view?.id).toBe(2);
+    await s.showSession(null);
+    expect(s.get().view).toBeNull();
+    expect(s.get().field).not.toBeNull();
+    expect(s.get().laps).toBe(live.laps);
+    expect(s.get().cars.size).toBe(20);
   });
 });

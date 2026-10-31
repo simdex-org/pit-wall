@@ -35,6 +35,7 @@ export function EngineerBar({ open, onToggle }: { open: boolean; onToggle: (on?:
   }, [c.s]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sv = w ? sevOf(w.severity) : 0;
+  const m = w ? /^(.*?[.:])\s+(.*)$/.exec(w.text) : null, head = m ? m[1]! : w?.text ?? "", rest = m ? m[2]! : "";
   const fieldOn = !!(c.field && c.bc?.state === "live");
   const pit = !c.pit ? "pit off"
     : (c.pitJob?.state === "running" || c.pit.busy) ? (c.pit.waiting_lift ? "pit busy: driver must lift" : "pit busy")
@@ -52,14 +53,17 @@ export function EngineerBar({ open, onToggle }: { open: boolean; onToggle: (on?:
         <button type="button" id="engMain" className={`eng-main sev${sv}`} aria-expanded={open} aria-controls="engDrawer" title="All advice and the debrief (A)" onClick={() => onToggle()}>
           {w ? (
             <>
-              <Icon name={SEV[sv]![0]} /><b>{SEV[sv]![1]}</b><span className="eng-text">{w.text}</span>
-              {adv.length > 1 && <span className="eng-more">(+{adv.length - 1})</span>}
+              <span className={sv >= 2 ? "up" : sv === 1 ? "wn" : "di"} aria-label={SEV[sv]![1]}>{sv >= 2 ? "▲" : sv === 1 ? "!" : "i"}</span>
+              <b className="eng-head">{head}</b><span className="eng-text mu">{rest}</span>
+              <span className="sp" />
+              {adv.length > 1 && <span className={"eng-more " + (adv.slice(1).some((a) => sevOf(a.severity) >= 2) ? "up" : "wn")}>! {adv.length - 1} more</span>}
+              <span className="btn sm gh" aria-hidden="true">{open ? "Close ▴" : "Open ▾"}</span>
             </>
           ) : (
-            <><Icon name="info" /><span className="eng-text">{c.s ? "Nothing to report." : "Waiting for the driver's engineer."}</span></>
+            <><span className="di">i</span><span className="eng-text mu">{c.s ? "Nothing to report." : "Waiting for the driver's engineer."}</span></>
           )}
         </button>
-        <span id="engInfo" className={`eng-info${say ? ` say s-${["dim", "warn", "bad"][say.sev] ?? "dim"}` : ""}`} aria-live="polite">{say ? say.text : status}</span>
+        <span id="engInfo" className={`eng-info${say ? ` say s-${["dim", "warn", "bad"][say.sev] ?? "dim"}` : ""}`} aria-live="polite" title={status} hidden={!say}>{say ? say.text : ""}</span>
       </footer>
     </>
   );

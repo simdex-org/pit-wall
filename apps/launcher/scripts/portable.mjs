@@ -12,9 +12,9 @@ const run = (cmd, args, cwd = app) => execFileSync(cmd, args, { cwd, stdio: "inh
 run("node", ["scripts/prepare.mjs"]);
 rmSync(join(tauri, "resources.zip"), { force: true });
 run(join(process.env.SystemRoot ?? "C:\Windows", "System32", "tar.exe"), ["-a", "-c", "-f", "resources.zip", "-C", "resources", "node", "bridge", "web", "app.json"], tauri);
-run("pnpm", ["tauri", "build", "--no-bundle", "--", "--features", "portable", "--target-dir", "target-portable"]);
+run("pnpm", ["tauri", "build", "--no-bundle", "--", "--features", "portable"]);
 
 const out = join(app, "dist-portable");
 mkdirSync(out, { recursive: true });
-cpSync(join(tauri, "target-portable", "release", "pitwall-launcher.exe"), join(out, "PitWall.exe"));
+cpSync(join(tauri, "release", "pitwall-launcher.exe"), join(out, "PitWall.exe"));
 console.log(`built ${join(out, "PitWall.exe")}`);

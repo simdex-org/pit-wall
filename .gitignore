@@ -7,5 +7,5 @@ data/tracks/
 apps/launcher/src-tauri/resources/
 apps/launcher/src-tauri/gen/
 apps/launcher/src-tauri/resources.zip
-apps/launcher/src-tauri/target-portable/
 apps/launcher/dist-portable/
+apps/

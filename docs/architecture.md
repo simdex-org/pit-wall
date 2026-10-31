@@ -20,6 +20,7 @@ page --POST /pit--> pit/apply.ts --> pit/acc-mfd.ts --> MFD key presses (or vJoy
 | `config.ts` | thresholds and strategy inputs, validated as a whole |
 | `telemetry/` | raw pages, the reading and summary, the strategy maths, the simulator |
 | `broadcast/` | ACC's broadcasting protocol, standings, the simulated field |
+| `sim/` | the simulated session: cars, circuit, traffic, pit lane and strategy |
 | `pit/` | plan validation, the page driver, key and vJoy output, the simulated page |
 | `http/` | endpoints, the SSE stream, static files |
 | `win/` | Windows shared memory |

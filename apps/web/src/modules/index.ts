@@ -7,4 +7,7 @@ import "./pit";
 import "./car";
 import "./charts";
 import "./laps";
+import "./lapmap";
+import "./coach";
 import "./car3d";
+import "./weather";

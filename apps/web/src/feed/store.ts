@@ -1,4 +1,5 @@
 import { DEFAULT_THRESHOLDS, Thresholds } from "../lib/states";
+import { get } from "../state/bridge";
 import { numbersOnly } from "./sanitize";
 import type { BroadcastState, Car, Field, Json, LogLine, Payload } from "./types";
 
@@ -11,6 +12,10 @@ export interface Ctx {
   s: Json | null;
   st: Json | null;
   laps: Json[];
+  /** Earlier sessions: {id, kind, track, laps, stints, stops, field}. */
+  past: Json[];
+  /** The earlier session the page is showing in place of the live one, or null. */
+  view: { id: number; label: string; carLaps: Record<string, Json[]> } | null;
   field: Field | null;
   entries: { track: Json | null; cars: Record<string, Json> } | null;
   cars: Map<number, Car>;
@@ -34,7 +39,7 @@ export interface Ctx {
 }
 
 export const emptyCtx = (): Ctx => ({
-  r: null, from: "", s: null, st: null, laps: [], field: null, entries: null, cars: new Map(), me: null, mode: null, focus: "self",
+  r: null, from: "", s: null, st: null, laps: [], past: [], view: null, field: null, entries: null, cars: new Map(), me: null, mode: null, focus: "self",
   focusCar: null, pit: null, pitJob: null, pitLog: [], log: [], cfg: null, th: DEFAULT_THRESHOLDS, bc: null,
   ages: { r: null, s: null, field: null }, live: false, stale: false, wet: false, hz: 0,
 });
@@ -96,6 +101,7 @@ export function applyPayload(prev: Ctx, it: Internals, raw: Payload, now: number
 
   if (p.summary) { c.s = p.summary; c.st = p.summary.strategy ?? null; }
   if (p.laps) c.laps = p.laps;
+  if (p.past) c.past = p.past;
   if (p.config) c.cfg = p.config;
   if (p.bc !== undefined) c.bc = p.bc;
   if (p.entries) { c.entries = p.entries; c.cars = mergeCars(c.entries, c.field, it.slow); }
@@ -144,9 +150,37 @@ export function withFocus(prev: Ctx, v: Focus | null | undefined): Ctx {
   return next;
 }
 
+/** An earlier session's name: its kind, numbered when the same kind came before or comes after (the live session counts). */
+export function sessionLabel(c: Pick<Ctx, "past" | "r">, id: number | "live"): string {
+  const kinds = c.past.map((p) => p.kind as string), live = c.r?.session.kind as string | undefined;
+  const kind = id === "live" ? live ?? "Session" : (c.past.find((p) => p.id === id)?.kind as string) ?? "Session";
+  const all = live ? [...kinds, live] : kinds;
+  if (all.filter((k) => k === kind).length < 2) return kind;
+  const idx = id === "live" ? kinds.length : c.past.findIndex((p) => p.id === id);
+  return `${kind} ${all.slice(0, idx + 1).filter((k) => k === kind).length}`;
+}
+
+/** What an earlier session shows in place of the live one: its laps, stints, stops and, when the bridge has it, the field as it ended. */
+interface Frozen { id: number; field: Field | null; entries: Ctx["entries"]; cars: Map<number, Car>; carLaps: Record<string, Json[]>; view?: Ctx["view"]; viewOf?: Json[] }
+
+function overlay(c: Ctx, v: Frozen): Ctx {
+  const p = c.past.find((q) => q.id === v.id);
+  if (!p) return c;
+  if (v.viewOf !== c.past) { v.view = { id: v.id, label: sessionLabel(c, v.id), carLaps: v.carLaps }; v.viewOf = c.past; } // same object until the list changes
+  const next: Ctx = {
+    ...c, laps: p.laps, field: v.field, entries: v.entries, cars: v.cars, me: v.field?.me ?? null, mode: v.field?.mode ?? (p.kind === "Race" ? "race" : "best"),
+    s: c.s && { ...c.s, stints: p.stints, stops: p.stops }, view: v.view!,
+    ages: { ...c.ages, field: v.field ? 0 : null },
+  };
+  next.focusCar = focusCar(next);
+  return next;
+}
+
 /** A subscribable holder for the context; React reads it through useSyncExternalStore. */
 export class FeedStore {
-  private ctx = emptyCtx();
+  private live = emptyCtx();
+  private ctx = this.live;
+  private frozen: Frozen | null = null;
   private it = emptyInternals();
   private subs = new Set<() => void>();
 
@@ -158,13 +192,28 @@ export class FeedStore {
   };
 
   private set(next: Ctx): void {
-    this.ctx = next;
-    for (const fn of this.subs) fn();
+    this.live = next;
+    this.ctx = this.frozen ? overlay(next, this.frozen) : next;
+    for (const fn of this.subs) {
+      try { fn(); } catch (e) { console.error(e); } // one failing listener must not starve the modules after it
+    }
   }
 
-  receive(raw: Payload): void { this.set(applyPayload(this.ctx, this.it, raw, performance.now())); }
-  log(sev: number, cat: string, text: string): void { this.set(addPageLog(this.ctx, this.it, sev, cat, text)); }
-  setFocus(v: Focus | null | undefined): void { this.set(withFocus(this.ctx, v)); }
+  receive(raw: Payload): void { this.set(applyPayload(this.live, this.it, raw, performance.now())); }
+  log(sev: number, cat: string, text: string): void { this.set(addPageLog(this.live, this.it, sev, cat, text)); }
+  setFocus(v: Focus | null | undefined): void { this.set(withFocus(this.live, v)); }
+
+  /** Show an earlier session (its id from `past`), or the live one with null. */
+  async showSession(id: number | null): Promise<void> {
+    if (id === null) { this.frozen = null; return this.set(this.live); }
+    const p = this.live.past.find((q) => q.id === id);
+    if (!p) return;
+    const b = p.field ? await get<Json>("/session?id=" + id) : null;
+    const slow = new Map<number, Partial<Car>>(Object.entries((b?.slow ?? {}) as Record<string, Partial<Car>>).map(([k, v]) => [Number(k), v]));
+    const entries = b ? (b.entries as Ctx["entries"]) : null, field = b ? (b.field as Field) : null;
+    this.frozen = { id, field, entries, cars: mergeCars(entries, field, slow), carLaps: (b?.laps ?? {}) as Record<string, Json[]> };
+    this.set(this.live);
+  }
 }
 
 export const feed = new FeedStore();

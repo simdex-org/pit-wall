@@ -50,7 +50,7 @@ export function Workspace({ workspace }: { workspace: WorkspaceData }) {
   return (
     <main id="ws" ref={host} className={`ws${geo.narrow ? " narrow" : ""}${editing ? " editing" : ""}`} data-ws={workspace.id} style={style}
       onClick={editing ? onEditClick : undefined} onPointerDown={editing ? onEditPointer : undefined}>
-      {ordered.map((m) => <ModuleHost key={m.id} inst={m} style={placement(m, geo.narrow, rowPx)} auto={geo.narrow && AUTO_HEIGHT.has(m.type)} edit={editing ? { sel: ed.sel === m.id } : undefined} />)}
+      {ordered.map((m) => <ModuleHost key={m.id + m.type} inst={m} style={placement(m, geo.narrow, rowPx)} auto={geo.narrow && AUTO_HEIGHT.has(m.type)} edit={editing ? { sel: ed.sel === m.id } : undefined} />)}
     </main>
   );
 }

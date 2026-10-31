@@ -8,7 +8,7 @@ import {
 import { ask } from "./confirm";
 
 const LAYOUT_LABELS: Record<LayoutKey, [string, string[]]> = {
-  density: ["Density", ["Compact", "Comfortable"]], radius: ["Corner radius", ["0", "2", "4", "8"]], panel: ["Panels", ["Ruled", "Boxed", "Flat"]],
+  density: ["Density", ["Follows size", "Compact", "Comfortable"]], radius: ["Corner radius", ["0", "2", "4", "8"]], panel: ["Panels", ["Ruled", "Boxed", "Flat"]],
   numFont: ["Numbers", ["Mono", "Sans"]], labels: ["Labels", ["UPPER", "Sentence"]], fontScale: ["Font scale", []],
 };
 

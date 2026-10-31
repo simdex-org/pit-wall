@@ -1,7 +1,8 @@
-import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CSSProperties, ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import type { Ctx } from "../feed/store";
 import { Icon } from "../lib/icons";
 import { clearAlert, setAlert } from "../state/alerts";
+import { editor } from "../state/editor";
 import type { ModuleInstance } from "../state/templates";
 import { registry } from "./registry";
 import type { Channel, ModuleDef, ModuleView } from "./types";
@@ -53,12 +54,38 @@ function EditButtons({ inst }: { inst: ModuleInstance }) {
   );
 }
 
+/** Outside editing: a "view" choice (table, cards, chart) switches in the header, and Options opens the module's other settings. */
+function QuickView({ inst, def, quick }: { inst: ModuleInstance; def: ModuleDef | undefined; quick?: ReactNode }) {
+  const toggle = (
+    <button type="button" className="btn icon mhide" title={inst.hidden ? "Show the content" : "Hide the content"} aria-label={inst.hidden ? "Show the content" : "Hide the content"}
+      onClick={() => editor.setOpt((m) => { m.hidden = !m.hidden; }, inst.id)}><Icon name={inst.hidden ? "eye" : "eye-off"} /></button>
+  );
+  if (inst.hidden || !def?.options.length) return <span className="mquick">{inst.hidden ? null : quick}{toggle}</span>;
+  const v = def.options.find((o) => o.key === "view" && o.type === "select");
+  const now = String(inst.options.view ?? v?.def ?? "");
+  return (
+    <span className="mquick">
+      {v && v.type === "select" ? (
+        <select aria-label="View" value={now} onChange={(e) => editor.setOpt((m) => { m.options = { ...m.options, view: e.target.value }; }, inst.id)}>
+          {(v.choices ?? []).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+      ) : null}
+      {quick}
+      <button type="button" className="btn icon" title="Options" aria-label="Options" onClick={() => editor.openOptions(inst.id)}><Icon name="sliders-horizontal" /></button>
+      {toggle}
+    </span>
+  );
+}
+
+/** The same controls floated over a module whose header is switched off. */
+function FloatView({ inst, def, quick }: { inst: ModuleInstance; def: ModuleDef | undefined; quick?: ReactNode }) {
+  return <span className="float"><QuickView inst={inst} def={def} quick={quick} /></span>;
+}
+
 interface Placed { style?: CSSProperties; auto?: boolean; edit?: { sel: boolean } }
 
 function Frame({ inst, def, ctx, view, na, style, auto, edit }: { inst: ModuleInstance; def: ModuleDef | undefined; ctx: Ctx; view: ModuleView; na: string | null } & Placed) {
   const section = useRef<HTMLElement>(null);
-  const body = useRef<HTMLDivElement>(null);
-  const [more, setMore] = useState({ y: false, x: false });
 
   useEffect(() => {
     const [level, count] = view.alert ?? [0, 0];
@@ -66,47 +93,53 @@ function Frame({ inst, def, ctx, view, na, style, auto, edit }: { inst: ModuleIn
   }, [inst.id, view.alert?.[0], view.alert?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearAlert(inst.id), [inst.id]);
 
-  // A body with more below or to the right says so: headless and overlay scrollbars hide it.
-  useLayoutEffect(() => {
-    const b = body.current;
+  // Less space, less detail: blocks a module marks data-p="1".."9" (the higher, the sooner it goes) are dropped one by one until the body fits, so it needn't scroll.
+  const fit = () => {
+    const b = section.current?.querySelector<HTMLElement>(".mb");
+    if (!b || b.hidden) return;
+    const els = [...b.querySelectorAll<HTMLElement>("[data-p]")];
+    if (!els.length) return;
+    els.forEach((e) => { e.hidden = false; });
+    els.sort((a, c) => +c.dataset.p! - +a.dataset.p!);
+    for (const e of els) { if (b.scrollHeight <= b.clientHeight + 1) break; e.hidden = true; }
+  };
+  useLayoutEffect(fit);
+  useEffect(() => {
+    const b = section.current?.querySelector(".mb");
     if (!b) return;
-    const measure = () => setMore((m) => {
-      const y = !b.hidden && b.scrollTop + b.clientHeight < b.scrollHeight - 1;
-      const x = !b.hidden && b.scrollLeft + b.clientWidth < b.scrollWidth - 1;
-      return m.y === y && m.x === x ? m : { y, x };
-    });
-    measure();
-    b.addEventListener("scroll", measure, { passive: true });
-    const ro = new ResizeObserver(measure);
+    const ro = new ResizeObserver(fit);
     ro.observe(b);
-    return () => { b.removeEventListener("scroll", measure); ro.disconnect(); };
-  });
+    return () => ro.disconnect();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const title = inst.title || def?.title || inst.type;
   const state = na ? { kind: "na" as const, msg: na } : view.state;
   const stale = def ? staleness(def, ctx) : 0;
   const [level] = view.alert ?? [0];
-  const cls = ["mod", auto && "auto-h", inst.hidden && "is-hidden", inst.header === false && "no-header", stale > 0 && "stale", edit?.sel && "sel", more.y && "more", more.x && "more-x"].filter(Boolean).join(" ");
+  const ses = ctx.r?.session, pitTag = def?.group === "Car" && def.type !== "car-status" && ses?.in_pit_lane ? (ses.in_pit_box ? "IN BOX" : "IN PIT LANE") : "";
+  const cls = ["mod", auto && "auto-h", inst.hidden && "is-hidden", inst.header === false && "no-header", stale > 0 && "stale", edit?.sel && "sel"].filter(Boolean).join(" ");
 
   return (
-    <section ref={section} id={inst.id} className={cls} data-type={inst.type} data-state={state ? state.kind : "ok"} data-alert={level >= 2 ? "bad" : level ? "warn" : undefined}
-      tabIndex={-1} aria-labelledby={`${inst.id}-t`} hidden={inst.hidden} style={style}
+    <section ref={section} id={inst.id} className={cls} data-type={inst.type} data-state={state ? state.kind : "ok"} data-wide={inst.w >= 5 ? "" : undefined} data-alert={level >= 2 ? "bad" : level ? "warn" : undefined}
+      tabIndex={-1} aria-labelledby={`${inst.id}-t`} style={style}
       onKeyDown={view.onKey ? (e) => { if (e.target === e.currentTarget || !(e.target as HTMLElement).closest("input,textarea,select")) if (view.onKey!(e)) { e.preventDefault(); e.stopPropagation(); } } : undefined}>
       <header className="mh">
         <h2 className="mt" id={`${inst.id}-t`}>{title}</h2>
-        <span className="mi">{view.info ?? ""}</span>
-        <span className="mtag" hidden={!stale}>{stale ? `◐ STALE ${Math.round(stale / 1000)} s` : ""}</span>
+        {view.headExtra}<span className="mi">{Array.isArray(view.info) ? view.info.filter(Boolean).map((t, i) => <span key={i}>{t}</span>) : view.info ?? ""}</span>
+        <span className="mhid" hidden={!pitTag}>{pitTag}</span>
+        <span className="mtag" hidden={!stale}>{stale ? `${ctx.r?.session.in_pit_lane ? "◐ IN PIT, NO DATA " : "◐ STALE "}${Math.round(stale / 1000)} s` : ""}</span>
         <span className={`malert ${level >= 2 ? "s-bad" : "s-warn"}`} hidden={!level}>{level >= 2 ? "■ CRIT" : "▲ WARN"}</span>
-        {edit ? <EditButtons inst={inst} /> : null}
+        {edit ? <EditButtons inst={inst} /> : <QuickView inst={inst} def={def} quick={view.quick} />}
         <span className="mtools">
-          {def?.tools.map((t) => (
-            <button key={t.id} type="button" className="btn icon" title={t.label} aria-label={t.label} onClick={() => def.tool?.(t.id, { ctx, opts: inst.options, id: inst.id })}>
+          {(view.tools ?? def?.tools)?.map((t) => (
+            <button key={t.id} type="button" className="btn icon" title={t.label} aria-label={t.label} onClick={() => def?.tool?.(t.id, { ctx, opts: inst.options, id: inst.id, size: { w: inst.w, h: inst.h } })}>
               <Icon name={t.icon} />
             </button>
           ))}
         </span>
       </header>
-      <div className="mb" ref={body} hidden={!!state}>{view.body}</div>
+      <div className={"mb" + (view.flush ? " z" : "")} hidden={!!state}>{view.body}</div>
+      {!edit && inst.header === false && !inst.hidden ? <FloatView inst={inst} def={def} quick={view.quick} /> : null}
       {edit ? <span className="mgrip" data-act="resize" aria-hidden="true" /> : null}
       {state && (
         <div className="mstate">
@@ -134,7 +167,7 @@ function Live({ inst, def, style, auto, edit }: { inst: ModuleInstance; def: Mod
 
 /** The view runs only while its required channels are present, so it never has to guard against their absence. */
 function Running({ inst, def, ctx, style, auto, edit }: { inst: ModuleInstance; def: ModuleDef; ctx: Ctx } & Placed) {
-  const view = def.view({ ctx, opts: inst.options, id: inst.id });
+  const view = def.view({ ctx, opts: inst.options, id: inst.id, size: { w: inst.w, h: inst.h } });
   return <Frame inst={inst} def={def} ctx={ctx} view={view} na={null} style={style} auto={auto} edit={edit} />;
 }
 

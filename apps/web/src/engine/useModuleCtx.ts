@@ -11,7 +11,7 @@ const FEED: Partial<Record<Channel, (c: Ctx) => unknown[]>> = {
   summary: (c) => [c.s, c.st, c.ages.s],
   field: (c) => [c.field, c.cars, c.me, c.mode, c.bc, c.ages.field],
   entries: (c) => [c.entries],
-  laps: (c) => [c.laps],
+  laps: (c) => [c.laps, c.past, c.view],
   config: (c) => [c.cfg, c.th],
   pit: (c) => [c.pit, c.pitJob, c.pitLog],
   focus: (c) => [c.focus, c.focusCar],

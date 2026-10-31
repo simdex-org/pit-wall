@@ -68,6 +68,7 @@ export interface Payload {
   reading?: Json | null;
   summary?: Json | null;
   laps?: Json[] | null;
+  past?: Json[] | null;
   field?: Field | null;
   entries?: { track: Json | null; cars: Record<string, Json> } | null;
   log?: LogLine[] | null;

@@ -14,6 +14,8 @@ export interface OptionDef {
   max?: number;
   step?: number;
   hint?: string;
+  /** Kept (saved, sanitised) but not listed in the options dialog: the module has its own panel for it. */
+  hidden?: boolean;
 }
 
 export interface ToolDef { id: string; label: string; icon: string }
@@ -22,12 +24,21 @@ export interface ModuleAction { label: string; fn: () => void }
 
 /** What a module's view hands back to its frame: the header line, an alert level and the body (or a state instead of a body). */
 export interface ModuleView {
-  info?: string;
+  /** The header line: a string, or several figures shown side by side. */
+  info?: string | ReactNode[];
+  /** Extra header content after the title (a segmented switch). */
+  headExtra?: ReactNode;
+  /** Icon buttons on the right of the header, beside Options and Hide. */
+  quick?: ReactNode;
+  /** Replaces the module's tools while it shows, for a button whose icon follows a state (pause, then resume). */
+  tools?: ToolDef[];
   /** 0 to 2, and how many lines it stands for; feeds the tab badge and marks the module. */
   alert?: [level: number, count?: number];
   /** Shown in place of the body: nothing to show yet ('empty'), or the module cannot work here ('na'). */
   state?: { kind: "empty" | "na"; msg: string; action?: ModuleAction };
   body?: ReactNode;
+  /** The body has no padding of its own: the module draws to the edges (tables, cells). */
+  flush?: boolean;
   /** Keys pressed while the module has the focus; return true when handled. */
   onKey?: (e: KeyboardEvent) => boolean;
 }
@@ -39,6 +50,8 @@ export interface ModuleProps {
   opts: Opts;
   /** The instance id, for modules that keep state per instance. */
   id: string;
+  /** The module's size on the grid, in columns and rows. */
+  size: { w: number; h: number };
 }
 
 export interface ModuleDef {

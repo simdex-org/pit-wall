@@ -1,7 +1,7 @@
 // Canvas drawing for the chart modules, one call per canvas: live channels, lap-comparison traces and G-G.
 import { clamp, fmtDelta, MINUS } from "../lib/format";
 import { fv, unit, UnitChoice } from "../lib/units";
-import { LapData, NB, Ring, recorder, RecLap, TRACE_N, TraceKey } from "../state/recorder";
+import { LapChannel, NB, Ring, recorder, RecLap, TRACE_N, TraceKey } from "../state/recorder";
 import { CORNERS } from "../state/plan";
 import { chCursor, chGrid, chLabel, chTag, chY, fitCanvas, Tokens, tokens } from "./canvas";
 
@@ -43,19 +43,20 @@ export interface LiveRange { lo: number; hi: number; s: Series }
  */
 export function drawLive(cv: HTMLCanvasElement, defs: Record<string, RowDef>, rows: string[], T: Ring, hover: number | null, win: number): LiveRange | null {
   const [g, w, h] = fitCanvas(cv), tk = tokens(), n = Math.min(T.n, win), lh = h / Math.max(1, rows.length);
+  const gl = w >= 420 ? 78 : 62, vr = 44; // label gutter at the left, value gutter at the right
   const at = (arr: Float32Array, k: number) => arr[(T.i - n + k + TRACE_N) % TRACE_N]!;
-  const xOf = (k: number) => w - ((n - 1 - k) * w) / Math.max(1, win - 1);
+  const xOf = (k: number) => gl + (w - gl - vr) - ((n - 1 - k) * (w - gl - vr)) / Math.max(1, win - 1);
   const hk = hover == null ? n - 1 : Math.max(0, n - 1 - hover);
   let range: LiveRange | null = null;
   rows.forEach((id, r) => {
     const def = defs[id];
     if (!def) return;
-    const top = r * lh, tb = 16; // a title band per lane: the plot starts under it, so the title never covers a trace
+    const top = r * lh, tb = 4;
     g.save(); g.translate(0, top + tb); chGrid(g, w, lh - tb, tk); g.restore();
     if (r) { g.strokeStyle = tk.line; g.beginPath(); g.moveTo(0, Math.round(top) + 0.5); g.lineTo(w, Math.round(top) + 0.5); g.stroke(); }
     let sym = 0.05;
     for (const s of def.series) if (s.sym) for (let k = 0; k < n; k++) sym = Math.max(sym, Math.abs(at(T.data[s.k], k)));
-    const parts: [string, string][] = [[def.label.toUpperCase(), tk.dim]];
+    const parts: [string, string][] = [];
     for (const s of def.series) {
       const arr = T.data[s.k], lo = s.sym ? -sym : s.min ?? 0, hi = s.sym ? sym : s.max!();
       if (n > 1) {
@@ -68,9 +69,14 @@ export function drawLive(cv: HTMLCanvasElement, defs: Record<string, RowDef>, ro
         for (let k = 0; k < n; k++) { const v = at(arr, k); a = Math.min(a, v); b = Math.max(b, v); }
         range = { lo: a, hi: b, s };
       }
-      parts.push([`${typeof s.name === "function" ? s.name() : s.name} ${n ? s.fmt(at(arr, hk)) : "–"}`, tk[s.c]]);
+      parts.push([n ? s.fmt(at(arr, hk)) : "–", tk[s.c]]);
     }
-    chLabel(g, 6, top + 3, parts, tk);
+    g.textAlign = "left"; g.textBaseline = "top"; g.font = `600 9.5px ${tk.font}`; g.fillStyle = tk.dim;
+    g.fillText(def.label.toUpperCase(), 6, top + 8);
+    const un = def.series[0] ? (typeof def.series[0].name === "function" ? def.series[0].name() : def.series[0].name) : "";
+    g.font = `400 9px ${tk.num}`; g.fillText(un, 6, top + 21);
+    g.textAlign = "right"; g.textBaseline = "top"; g.font = `500 10px ${tk.num}`;
+    parts.forEach(([t, col], i) => { g.fillStyle = col === tk.chRef || col === tk.text ? tk.text : col; g.fillText(t, w - 4, top + 8 + i * 12); });
   });
   if (hover != null && n) chCursor(g, xOf(hk), h, tk);
   return range;
@@ -80,7 +86,7 @@ export function drawLive(cv: HTMLCanvasElement, defs: Record<string, RowDef>, ro
 interface Lane {
   label: string; ser?: [LapChannelKey, keyof Tokens | null][]; fmt?: (v: number) => string; u?: () => string; sym?: boolean; min?: number; max?: (a: Float32Array, b?: Float32Array) => number;
 }
-type LapChannelKey = keyof LapData;
+type LapChannelKey = LapChannel;
 
 export function lanes(u: UnitChoice): Record<string, Lane> {
   return {
@@ -95,14 +101,16 @@ export function lanes(u: UnitChoice): Record<string, Lane> {
 export const LANE_CHOICES: [string, string][] = [["delta", "Δ time"], ["speed", "Speed"], ["pedals", "Throttle & brake"], ["steer", "Steering"], ["gear", "Gear"], ["rpm", "RPM"]];
 
 export interface TraceRange { label: string; lo: string; hi: string; u: string }
+/** The part of the lap shown (bins), and the corner zones to shade and number. */
+export interface TraceZoom { lo: number; hi: number; bands: { a: number; b: number; n: number; sel: boolean }[] }
 
 /**
  * Each lane: a 14 px title band, then the plot with its axis range at the right edge; 6 px and a rule between lanes.
  * `len` is the track length in metres (0: percent). Returns the first value lane's range over both laps, for the module header.
  */
-export function drawTraces(cv: HTMLCanvasElement, defs: Record<string, Lane>, laneIds: string[], ref: RecLap, cmp: RecLap | null, cursor: number | null, len: number): TraceRange | null {
+export function drawTraces(cv: HTMLCanvasElement, defs: Record<string, Lane>, laneIds: string[], ref: RecLap, cmp: RecLap | null, cursor: number | null, len: number, zoom: TraceZoom | null = null): TraceRange | null {
   const [g, w, h] = fitCanvas(cv), tk = tokens(), axis = 16, TB = 14, GAP = 6, n = Math.max(1, laneIds.length), lh = (h - axis - GAP * (n - 1)) / n;
-  const xOf = (i: number) => (i / (NB - 1)) * w;
+  const lo = zoom ? zoom.lo : 0, hi = zoom ? zoom.hi : NB - 1, xOf = (i: number) => ((i - lo) / (hi - lo)) * w;
   const ci = cursor == null ? null : Math.round(cursor * (NB - 1));
   const tags: [number, number, string, string][] = [];
   let range: TraceRange | null = null;
@@ -113,6 +121,10 @@ export function drawTraces(cv: HTMLCanvasElement, defs: Record<string, Lane>, la
     const tw = g.measureText(t).width + 6, y0 = base === "top" ? y - 1 : y - 12;
     g.fillStyle = tk.bg; g.globalAlpha = 0.85; g.fillRect(w - tw - 2, y0, tw + 2, 13); g.globalAlpha = 1; g.fillStyle = tk.dim; g.fillText(t, w - 4, y);
   };
+  for (const k of zoom?.bands ?? []) { // the corner zones, under the traces
+    const x0 = Math.max(0, xOf(k.a)), x1 = Math.min(w, xOf(k.b));
+    if (x1 > x0 && (k.sel || k.n % 2)) { g.globalAlpha = k.sel ? 0.5 : 0.35; g.fillStyle = k.sel ? tk.accSoft : tk.line; g.fillRect(x0, 0, x1 - x0, h - axis); g.globalAlpha = 1; }
+  }
   laneIds.forEach((id, r) => {
     const L = defs[id];
     if (!L) return;
@@ -169,12 +181,16 @@ export function drawTraces(cv: HTMLCanvasElement, defs: Record<string, Lane>, la
   });
   // distance axis
   g.font = `500 10px ${tk.num}`; g.fillStyle = tk.dim; g.textBaseline = "bottom";
-  const total = len > 0 ? len : 100, step = [100, 200, 250, 500, 1000, 2000].find((s) => (total / s) * 56 < w) ?? 5000;
-  for (let x = 0; x <= total; x += len > 0 ? step : 10) {
-    const px = (x / total) * w;
+  const total = len > 0 ? len : 100, span = ((hi - lo) / (NB - 1)) * total, step = (len > 0 ? [10, 20, 50, 100, 200, 250, 500, 1000, 2000] : [1, 2, 5, 10]).find((q) => (span / q) * 56 < w) ?? 5000;
+  for (let x = Math.ceil(((lo / (NB - 1)) * total) / step) * step; x <= (hi / (NB - 1)) * total + 1e-6; x += step) {
+    const px = (((x / total) * (NB - 1) - lo) / (hi - lo)) * w;
     g.textAlign = px < 20 ? "left" : px > w - 30 ? "right" : "center";
     g.fillText(len > 0 ? x + " m" : x + " %", px, h - 2);
   }
+  g.textAlign = "left"; g.textBaseline = "bottom";
+  for (const k of zoom?.bands ?? []) { const x0 = xOf(k.a); if (x0 >= 0 && x0 < w - 14) { g.fillStyle = k.sel ? tk.text : tk.dim; g.font = `600 10px ${tk.num}`; g.fillText("T" + k.n, x0 + 3, h - axis - 2); } }
+  tags.sort((a, b) => a[1] - b[1]);
+  for (let i = 1; i < tags.length; i++) if (tags[i]![1] - tags[i - 1]![1] < 15) tags[i]![1] = tags[i - 1]![1] + 15; // R and C at nearly one value would sit on top of each other
   if (ci != null) { chCursor(g, xOf(ci), h - axis, tk); for (const [x, y, t, c] of tags) chTag(g, x, y, t, c, tk, w); }
   return range;
 }
@@ -183,7 +199,7 @@ export function drawTraces(cv: HTMLCanvasElement, defs: Record<string, Lane>, la
 export function drawGG(cv: HTMLCanvasElement, T: Ring, trail: number): void {
   const [g, w, h] = fitCanvas(cv), tk = tokens(), n = T.n;
   const at = (a: Float32Array, k: number) => a[(T.i - n + k + TRACE_N) % TRACE_N]!;
-  const R = Math.min(w, h) / 2 - 16, cx = w / 2, cy = h / 2;
+  const R = Math.max(8, Math.min(w, h) / 2 - 16), cx = w / 2, cy = h / 2;
   const m = clamp(Math.max(recorder.gHist.maxLat, recorder.gHist.maxLon) * 1.15, 1.5, 3);
   const px = (v: number) => cx + (v / m) * R, py = (v: number) => cy - (v / m) * R;
   g.strokeStyle = tk.line; g.lineWidth = 1; g.font = `500 10px ${tk.num}`; g.fillStyle = tk.dim; g.textAlign = "left"; g.textBaseline = "bottom";

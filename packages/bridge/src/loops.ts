@@ -24,6 +24,18 @@ function fieldExt(): [Rec, Rec | null, Rec | null] {
   return [ext, f.raceInfo(), me];
 }
 
+/** The field and the telemetry notice a new session at different moments: the newest earlier session waits for the field's last ended one. */
+const filing = { past: 0, waiting: 0, used: 0 };
+function fileField(tel: Telemetry): void {
+  const id = tel.past[tel.past.length - 1]?.id ?? 0;
+  if (id !== filing.past) filing.past = filing.waiting = id;
+  const f = FIELD.f;
+  if (filing.waiting && f?.ended && f.endedSeq !== filing.used) {
+    tel.attachField(filing.waiting, rnd(f.ended));
+    filing.used = f.endedSeq; filing.waiting = 0;
+  }
+}
+
 /** One tick: read ACC, build the reading, and the summary on every (rate/10)th. Returns the raw page when live, false when not, null when unreadable. */
 function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number, rate: number): Rec | false | null {
   let raw: Rec;
@@ -60,8 +72,9 @@ function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number,
   reading.reading.xz = Object.entries(raw.coords ?? {}).flatMap(([i, q]) => [Number(i), (q as number[])[0], (q as number[])[1]]);
   STATE.reading = rnd(reading); STATE.t_reading = Date.now() / 1000; STATE.lap = raw.laps + 1;
   if (summary) { STATE.summary = rnd(summary); STATE.t_summary = Date.now() / 1000; }
+  fileField(tel);
   if (tel.lapsVer !== STATE.laps_ver) {
-    STATE.laps = rnd(tel.laps); STATE.laps_ver = tel.lapsVer;
+    STATE.laps = rnd(tel.laps); STATE.past = rnd(tel.past); STATE.laps_ver = tel.lapsVer;
     const lay = sim ? null : tel.bestLayout(); // the pretend track is not a real one
     if (lay) saveLayout(raw.track, lay);
   }
@@ -87,7 +100,7 @@ export async function accLoop(pages: Pages | FakePages, tel: Telemetry, sim: boo
   }
 }
 
-export interface FieldArgs { broadcastPort?: number; broadcastPassword?: string; simulateAcc: boolean; simSession: "race" | "quali" }
+export interface FieldArgs { broadcastPort?: number; broadcastPassword?: string; simulateAcc: boolean; simSession: "race" | "quali" | "practice" | "weekend" }
 
 /** The sink of the broadcast side: ACC's messages (or the pretend field's) into Field; a snapshot every 250 ms when it changed. */
 function makeSink(field: Field) {
@@ -119,7 +132,7 @@ export function startField(args: FieldArgs, pages: FakePages | null): void {
   let src: FieldSource, f: Field;
   if (args.simulateAcc) {
     if (!pages) return off("Field timing off: no simulated session.");
-    const ff = new FakeField(pages, args.simSession);
+    const ff = new FakeField(pages);
     src = ff; f = ff;
   } else {
     let cfg = { port: 0, password: "", command_password: "" };
@@ -135,5 +148,5 @@ export function startField(args: FieldArgs, pages: FakePages | null): void {
   }
   FIELD.f = f; FIELD.src = src; STATE.bc = src.state;
   src.start(makeSink(f));
-  console.log("Field timing: " + (args.simulateAcc ? `simulated 20-car field${args.simSession === "quali" ? " (qualifying)" : ""}` : `listening to ACC's broadcasting on 127.0.0.1:${(src as Client).state.port}`));
+  console.log("Field timing: " + (args.simulateAcc ? `simulated 20-car field${args.simSession === "race" ? "" : ` (${args.simSession === "quali" ? "qualifying" : args.simSession})`}` : `listening to ACC's broadcasting on 127.0.0.1:${(src as Client).state.port}`));
 }

@@ -8,7 +8,7 @@ import type { Telemetry } from "./telemetry/telemetry.js";
 import type { Rec } from "./util.js";
 
 export const STATE: Rec = {
-  reading: null, summary: null, t_reading: 0, t_summary: 0, ver: 0, pit_job: null, laps: [], laps_ver: 0,
+  reading: null, summary: null, t_reading: 0, t_summary: 0, ver: 0, pit_job: null, laps: [], past: [], laps_ver: 0,
   field: null, field_ver: 0, t_field: 0, entries: null, entries_ver: 0, log: [], log_seq: 0, lap: 0,
   pit_log: [], pit_log_ver: 0, config: cleanConfig({}), config_ver: 0,
   bc: { state: "off", msg: "", port: 0 },

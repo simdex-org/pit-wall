@@ -48,13 +48,12 @@ export function useRowCursor(order: number[]): { cursor: number | null; onKey: (
 }
 
 /** The row every car table shares: status bar, own car, focus car and keyboard cursor. */
-export function CarTr({ car, c, cursor, extra, children }: { car: Car; c: Ctx; cursor?: number | null; extra?: string; children: ReactNode }) {
+export function CarTr({ car, c, cursor, extra, p, children }: { car: Car; c: Ctx; cursor?: number | null; extra?: string; p?: number; children: ReactNode }) {
   const me = car.i === c.me, foc = c.focus !== "self" && car.i === c.focus;
-  const cls = [me && "me", foc && "focus", cursor === car.i && "kcur", extra].filter(Boolean).join(" ");
+  const cls = [me && "own", foc && "foc", cursor === car.i && "kcur", extra].filter(Boolean).join(" ");
   return (
-    <tr data-i={car.i} data-loc={carLoc(car)} className={cls || undefined} aria-selected={foc || undefined}
+    <tr data-i={car.i} data-p={p} data-loc={carLoc(car)} className={cls || undefined} aria-selected={foc || undefined}
       ref={(el) => { if (el && cursor === car.i) el.scrollIntoView({ block: "nearest" }); }} onClick={() => feed.setFocus(car.i)}>
-      <td className="sb" />
       {children}
     </tr>
   );

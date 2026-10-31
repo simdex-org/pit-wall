@@ -9,6 +9,8 @@ export class FakeMfd implements Mfd {
   s: Layout;
   fuel = 12.0;
   set = 3;
+  /** The set on the car: the simulated session moves it when the car takes new tyres. */
+  current = 3;
   p = [27.5, 27.4, 27.3, 27.2];
   pads = [2, 3];
   repair = [true, true];
@@ -55,6 +57,6 @@ export class FakeMfd implements Mfd {
   }
 
   read(): MfdSnapshot {
-    return { status: "live", fuel: this.fuel, tyre_set: this.set, pressures: [...this.p], current_set: 3, strategy_set: 2, in_pit_lane: false }; // set 3 on the car, as in FakePages
+    return { status: "live", fuel: this.fuel, tyre_set: this.set, pressures: [...this.p], current_set: this.current, strategy_set: 2, in_pit_lane: false };
   }
 }

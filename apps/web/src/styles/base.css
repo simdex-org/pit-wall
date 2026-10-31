@@ -2,23 +2,24 @@
    over mono values; one accent carries the focus car everywhere; the own car has its own colour. No gradients, no glow, no
    shadows (the inset box-shadows below are bars, not depth). Colour is never the only cue: every state also has a glyph or a word.
    Every colour is a token on :root; the appearance settings overwrite them on <html>, so these are the defaults.
-   Fonts: Barlow Semi Condensed and JetBrains Mono, SIL OFL, self-hosted in public/fonts.
+   Fonts: IBM Plex Sans Condensed and IBM Plex Mono, SIL OFL, self-hosted in public/fonts.
    Module-specific geometry lives in modules-a.css and modules-b.css; this file styles the shell, the module frame, the dialogs
    and the shared classes. */
-@font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-semi-condensed-400.woff2) format("woff2");font-weight:400;font-display:swap}
-@font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-semi-condensed-500.woff2) format("woff2");font-weight:500;font-display:swap}
-@font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-semi-condensed-600.woff2) format("woff2");font-weight:600;font-display:swap}
-@font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-semi-condensed-700.woff2) format("woff2");font-weight:700;font-display:swap}
-@font-face{font-family:"JetBrains Mono";src:url(/fonts/jetbrains-mono.woff2) format("woff2");font-weight:100 800;font-display:swap}
+@font-face{font-family:"IBM Plex Sans Condensed";src:url(/fonts/ibm-plex-sans-condensed-400.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"IBM Plex Sans Condensed";src:url(/fonts/ibm-plex-sans-condensed-500.woff2) format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"IBM Plex Sans Condensed";src:url(/fonts/ibm-plex-sans-condensed-600.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"IBM Plex Mono";src:url(/fonts/ibm-plex-mono-400.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"IBM Plex Mono";src:url(/fonts/ibm-plex-mono-500.woff2) format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"IBM Plex Mono";src:url(/fonts/ibm-plex-mono-600.woff2) format("woff2");font-weight:600;font-display:swap}
 
 /* ================================================================ tokens */
 :root{
   /* surface */
-  --bg:#0a0b0d;--panel:#101216;--raise:#171a1f;--line:#262a31;--line2:#1b1e24;--txt:#e6e8eb;--mut:#a1a7b0;--dim:#7a818b;
+  --bg:#0a0b0d;--panel:#111316;--raise:#171a1e;--line:#272b32;--line2:#1b1e23;--txt:#e9ebee;--mut:#a4aab2;--dim:#7f8690;
   /* identity, timing, state */
   --acc:#2ad4c4;--acc-ink:#08090b;--me:#ffd400;
-  --best:#c27aff;--pb:#3ddc84;--slow:#f5c518;--inv:#6b717a;
-  --ok:#3ddc84;--warn:#ff9f1a;--bad:#ff5468;--cold:#5aaeff;
+  --best:#c58bff;--pb:#3ddc84;--slow:#f5c518;--inv:#6b717a;
+  --ok:#3ddc84;--warn:#ff9f1a;--bad:#ff5c6c;--cold:#5aaeff;
   /* traces */
   --c-speed:#e6e8eb;--c-thr:#3ecf7a;--c-brk:#ff5e57;--c-steer:#f2c230;--c-gear:#a98bff;--c-rpm:#8a929c;
   --c-ref:#e6e8eb;--c-cmp:#ff9f1a;--c-lap:#5aaeff;--c-fl:#35b9d6;--c-fr:#3ecf7a;--c-rl:#f2c230;--c-rr:#f06ab8;
@@ -27,10 +28,10 @@
   --bad-soft:color-mix(in srgb,var(--bad) 14%,transparent);
   --warn-soft:color-mix(in srgb,var(--warn) 14%,transparent);
   /* density (compact), scale, radius */
-  --row:28px;--trow:24px;--pad:8px;--hh:28px;--fs:1;--r:2px;
+  --row:28px;--trow:24px;--pad:8px;--hh:26px;--fs:1;--r:2px;
   /* type */
-  --font:"Barlow Semi Condensed",Bahnschrift,"Segoe UI",system-ui,sans-serif;
-  --num:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --font:"IBM Plex Sans Condensed","Barlow Semi Condensed",system-ui,sans-serif;
+  --num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
   --t-xs:.625rem;--t-sm:.6875rem;--t-md:.8125rem;--t-lg:.9375rem;--t-xl:1.25rem;--t-2xl:1.75rem;--t-3xl:2.75rem;
   /* the fill behind sticky table headers and overlays inside a module: the page in "ruled", the panel otherwise */
   --mbg:var(--bg);
@@ -81,6 +82,18 @@ select{-webkit-appearance:none;appearance:none;padding-right:24px;
 select:hover:not(:disabled){background-color:var(--line2)}
 option,optgroup{background:var(--raise);color:var(--txt);font:400 var(--t-md) var(--font)}
 option:checked{background:var(--acc-soft)}
+/* Chromium (WebView2 too): the open list is drawn by the page, not the OS */
+@supports (appearance:base-select){
+  select,select::picker(select){appearance:base-select}
+  select{background-image:none;padding:0 8px;display:inline-flex;align-items:center;justify-content:space-between;gap:8px}
+  select::picker-icon{color:var(--mut);transition:rotate .12s}
+  select:open::picker-icon{rotate:180deg}
+  select::picker(select){margin-top:2px;padding:2px;background:var(--raise);border:1px solid var(--acc);border-radius:var(--r);box-shadow:none}
+  option{display:flex;align-items:center;padding:4px 8px;min-height:24px;border-radius:1px;cursor:pointer}
+  option:hover,option:focus-visible{background:var(--line2);outline:0}
+  option:checked{background:var(--acc-soft);box-shadow:inset 2px 0 var(--acc)}
+  option::checkmark{display:none}
+}
 /* checkbox = switch (the knob position says on/off as well as the colour), radio = ring with a dot */
 input[type=checkbox]{-webkit-appearance:none;appearance:none;position:relative;flex:none;cursor:pointer;width:30px;height:16px;margin:0;
   background:var(--raise);border:1px solid var(--line);border-radius:var(--r);transition:background-color .12s,border-color .12s}
@@ -94,10 +107,6 @@ details>summary{cursor:pointer;list-style:none}
 details>summary::-webkit-details-marker{display:none}
 details>summary::before{content:"▸";display:inline-block;width:1.2em;color:var(--dim)}
 details[open]>summary::before{content:"▾"}
-.step{flex:none;width:28px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--raise);color:var(--mut);border-radius:var(--r);font:500 var(--t-lg)/1 var(--num);cursor:pointer}
-.step:hover:not(:disabled){color:var(--txt);border-color:var(--dim)}
-.step:active:not(:disabled){background:var(--line2)}
-.step:disabled{opacity:.45;cursor:not-allowed}
 input[type=color]{width:32px;height:24px;padding:1px;border:1px solid var(--line);border-radius:var(--r);background:var(--raise);cursor:pointer;flex:none}
 input[type=color]::-webkit-color-swatch-wrapper{padding:0}
 input[type=color]::-webkit-color-swatch{border:0;border-radius:1px}
@@ -156,9 +165,10 @@ label.btn{cursor:pointer}
 #ws:empty::before{content:"This workspace is empty. Press E or Edit to add modules.";grid-column:1 / -1;padding:24px;color:var(--mut)}
 
 /* ---------- topbar (40 px) ---------- */
-#top{display:flex;align-items:center;gap:8px;height:48px;padding:0 12px 0 16px;border-bottom:1px solid var(--line);background:var(--panel);min-width:0}
-.wordmark{display:inline-flex;align-items:center;gap:10px;font-size:14px;font-weight:700;letter-spacing:.18em;white-space:nowrap;margin-right:4px;flex:none}
-.wordmark::before{content:"";width:4px;height:18px;background:var(--acc);transform:skewX(-14deg)}
+#top{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px 0 16px;border-bottom:1px solid var(--line);background:var(--panel);min-width:0}
+.brand{display:inline-flex;align-items:center;gap:10px;flex:none;cursor:default}
+.logo{width:28px;height:28px;flex:none}
+.wordmark{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:600;letter-spacing:.22em;white-space:nowrap;margin-right:4px;flex:none}
 #tplBtn{display:inline-flex;align-items:center;gap:4px;height:28px;max-width:220px;padding:0 4px 0 10px;flex:none;
   border:1px solid transparent;border-radius:var(--r);background:var(--raise);color:var(--mut);font-weight:500;anchor-name:--tpl}
 #tplBtn:hover{color:var(--txt);border-color:var(--dim)}
@@ -168,20 +178,24 @@ label.btn{cursor:pointer}
 #tabs::-webkit-scrollbar{display:none}
 .tabw{display:flex;align-items:center;flex:none}
 #tabs [role=tab]{display:inline-flex;align-items:center;gap:4px;height:100%;padding:0 14px;white-space:nowrap;
-  font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+  font-size:11.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
 #tabs [role=tab]:hover{color:var(--txt)}
-#tabs [role=tab][aria-selected=true]{color:var(--txt);box-shadow:inset 0 -3px 0 var(--acc)}
+#tabs [role=tab][aria-selected=true]{color:var(--txt);box-shadow:inset 0 -2px 0 var(--acc)}
 #tabs [role=tab]:focus-visible{outline-offset:-2px}
 .tab-alert{font:600 var(--t-xs)/1 var(--num);letter-spacing:0}
 .tab-sel{display:none;align-self:center;max-width:160px}
+#sessionSel{align-self:center;max-width:200px;flex:none}
+#sessionSel[data-past]{border-color:var(--warn);color:var(--warn)}
 .tabw{position:relative}
 .tab-menu{position:absolute;right:0;top:50%;translate:0 -50%;width:20px!important;height:24px;font-size:var(--t-lg);line-height:1;opacity:0}
 #tabs .tabw:has(.tab-menu)>[role=tab]{padding-right:26px}   /* edit mode: room for the ⋯, shown on the selected or hovered tab only */
 .tabw:hover .tab-menu,.tabw:focus-within .tab-menu,.tabw:has([aria-selected=true]) .tab-menu{opacity:1}
 .tab-add{display:inline-flex;align-items:center;justify-content:center;line-height:1;width:28px;height:28px;margin:0 4px;align-self:center;flex:none;border:1px dashed var(--line);border-radius:var(--r);color:var(--mut);font-size:var(--t-lg)}
 .tab-add:hover{color:var(--txt);border-color:var(--dim)}
-#clock{font:500 16px var(--num);white-space:nowrap;margin:0 4px 0 8px;padding:0 12px;border-left:1px solid var(--line);line-height:28px;flex:none}
-#link{height:24px;flex:none;padding:0 10px;border-radius:12px}
+#clock{font:500 15px var(--num);white-space:nowrap;padding:0 12px;border-left:1px solid var(--line);border-right:1px solid var(--line);line-height:24px;flex:none}
+#link{display:inline-flex;align-items:center;gap:6px;height:22px;flex:none;padding:0 8px;border:1px solid var(--line);border-radius:var(--r);font:500 11px var(--num);color:var(--mut)}
+#link::before{content:"";width:6px;height:6px;background:var(--dim)}
+#link[data-state=live]::before{background:var(--ok)}#link[data-state=stale]::before{background:var(--warn)}
 #top>.btn.icon{flex:none}
 
 /* ---------- popovers: template switcher, workspace menu ---------- */
@@ -199,29 +213,24 @@ label.btn{cursor:pointer}
 .pop .note{font-family:var(--num);font-size:var(--t-xs)}
 .pop kbd{margin-left:auto}
 .pop-h{padding:8px 12px 4px;font-size:var(--t-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.pop .pop-act{color:var(--dim)}
+.pop .pop-act:hover,.pop .pop-act:focus-visible{color:var(--txt)}
 .pop hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 
 /* ---------- KPI strip (64 px): instrument tiles in three groups (race, timing, car); the key figures are big.
    Tiles drop from the end when narrow (measured in the KPI strip) ---------- */
-#kpi{display:flex;align-items:stretch;gap:6px;height:64px;padding:6px 8px;border-bottom:1px solid var(--line);overflow:hidden;min-width:0}
-.kc{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;flex:1 0 auto;padding:0 14px;white-space:nowrap;
-  background:var(--panel);border:1px solid var(--line2);border-radius:var(--r)}
-#kpi .kc:is([data-k=ahead],[data-k=fuel]){margin-left:10px}
-.kl{font-size:var(--t-xs);font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);line-height:1}
-.kn{font:500 var(--t-lg)/1.1 var(--num);color:var(--txt);display:flex;align-items:center;gap:4px}
-#kpi .kc:is([data-k=pos],[data-k=lap],[data-k=fuel],[data-k=boxIn],[data-k=last],[data-k=best]) .kn{font-size:var(--t-xl);font-weight:600;line-height:1}
-#kpi .kc[data-k=pos]{box-shadow:inset 3px 0 0 var(--acc);padding-left:16px}
-.kn .u{font-size:var(--t-sm);font-weight:400;color:var(--mut)}
+#kpi{display:flex;align-items:stretch;gap:0;height:56px;padding:0;border-bottom:1px solid var(--line);background:var(--panel);overflow:hidden;min-width:0}
+.kc{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;flex:1 0 auto;padding:8px 14px;white-space:nowrap;border-right:1px solid var(--line)}
+.kl{font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);line-height:1}
+.kn{font:500 20px/1 var(--num);letter-spacing:-.02em;color:var(--txt);display:flex;align-items:center;gap:4px}
+.kn .u{font-size:.6em;font-weight:400;color:var(--mut)}
 .kn .tag{margin-left:2px}
-.kpi-end{display:flex;align-items:center;gap:8px;margin-left:auto;padding:0 8px;flex:none}
 .kpi-edit{align-self:center;color:var(--mut)}
 .kc-more{align-self:center;padding:0 8px;font-size:var(--t-sm);color:var(--dim);cursor:help;flex:none}
-.focus-chip{height:24px;color:var(--acc);border-color:var(--acc);font-weight:600;letter-spacing:.04em;cursor:pointer;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.focus-chip:hover{background:var(--acc-soft)}
 .kpi-edit:hover{color:var(--txt)}
 
 /* ---------- edit bar (64 px, replaces the KPI strip in edit mode) ---------- */
-#editBar{display:flex;align-items:center;gap:8px;height:64px;padding:0 8px 0 16px;border-bottom:1px solid var(--line);box-shadow:inset 0 2px 0 var(--acc);min-width:0}
+#editBar{display:flex;align-items:center;gap:8px;height:56px;padding:0 8px 0 16px;border-bottom:1px solid var(--line);box-shadow:inset 0 2px 0 var(--acc);min-width:0}
 .eb-title{font-size:var(--t-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-right:8px}
 .eb-name{display:inline-flex;align-items:center;gap:8px;margin-right:8px}
 .eb-name input{width:160px}
@@ -265,7 +274,7 @@ label.btn{cursor:pointer}
 .mod:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .mh{display:flex;align-items:center;gap:8px;flex:none;height:var(--hh);padding:0 4px 0 var(--pad);min-width:0}
 :root[data-panel=ruled] .mh{border-bottom:1px solid var(--line2)}
-:root[data-panel=boxed] .mh{border-bottom:1px solid var(--line)}
+:root[data-panel=boxed] .mh{border-bottom:1px solid var(--line);background:var(--raise)}
 .mt{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:var(--t-sm);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
 .mi{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 var(--t-xs) var(--num);color:var(--dim)}
@@ -279,11 +288,6 @@ label.btn{cursor:pointer}
    nothing inside moves when the alert comes and goes */
 :root[data-panel=ruled] .mod[data-alert]{box-shadow:-6px 0 0 -4px var(--warn)}
 :root[data-panel=ruled] .mod[data-alert=bad]{box-shadow:-6px 0 0 -4px var(--bad)}
-/* a body with more below the fold says so (headless and overlay scrollbars hide it) */
-.mod.more>.mb{border-bottom:1px solid var(--line2);margin-bottom:14px}   /* the marker has its own strip, never over the last row */
-.mod.more::after{content:"more ▾";position:absolute;right:0;bottom:0;height:14px;line-height:14px;padding:0 4px;font-size:var(--t-xs);color:var(--dim);background:var(--mbg);pointer-events:none}
-.mod.more-x::before{content:"more ▸";position:absolute;right:0;top:calc(var(--hh) + 2px);height:14px;line-height:14px;padding:0 4px;font-size:var(--t-xs);color:var(--dim);background:var(--mbg);pointer-events:none;z-index:2}   /* the table continues to the right; above the sticky th (z 1) */
-.ws.editing .mod.more::after,.ws.editing .mod.more-x::before{display:none}
 .mhid{color:var(--dim);border-style:dashed}
 .mtools,.medit{display:flex;align-items:center;gap:0;flex:none}
 .mh .btn.icon{width:24px;height:24px}
@@ -312,7 +316,8 @@ label.btn{cursor:pointer}
 .ws.editing .mgrip{display:block;position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;touch-action:none;z-index:2}
 .ws.editing .mgrip::before{content:"";position:absolute;right:3px;bottom:3px;width:8px;height:8px;border-right:2px solid var(--acc);border-bottom:2px solid var(--acc)}
 .ws.editing .mod.is-hidden{outline:1px dashed var(--dim);background:transparent;border-color:transparent}
-.ws.editing .mod.is-hidden :is(.mb,.mstate,.mi,.mtag){display:none}
+.mod.is-hidden :is(.mb,.mstate,.mi,.mtag,.malert){display:none}
+.mod.is-hidden{align-self:start;height:auto}
 .ws.editing .mod.is-hidden .mt{color:var(--dim)}
 .ws.editing .mod.sel{outline:2px solid var(--acc);outline-offset:-2px;z-index:1}
 :root[data-panel=ruled] .ws.editing .mod{outline-offset:3px}
@@ -328,7 +333,7 @@ label.btn{cursor:pointer}
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2l4-4M0 8l8-8M6 10l4-4' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E")}
 
 /* ---------- engineer bar (28 px) and drawer ---------- */
-#eng{display:flex;align-items:stretch;height:28px;border-top:1px solid var(--line);min-width:0;position:relative;z-index:6;background:var(--bg)}
+#eng{display:flex;align-items:stretch;height:32px;border-top:1px solid var(--line);min-width:0;position:relative;z-index:6;background:var(--raise)}
 .eng-main{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;color:var(--txt);text-align:left}
 .eng-main:hover{background:var(--raise)}
 .eng-main>b{flex:none;font-size:var(--t-xs);font-weight:700;letter-spacing:.08em}
@@ -344,7 +349,7 @@ label.btn{cursor:pointer}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 var(--t-sm)/28px var(--num);color:var(--mut)}
 .eng-info.say{color:var(--txt);font-family:var(--font);font-size:var(--t-md)}
 .eng-info.say.s-warn{color:var(--warn)}.eng-info.say.s-bad{color:var(--bad)}
-#engDrawer{position:absolute;left:0;right:0;bottom:28px;z-index:5;max-height:40vh;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;
+#engDrawer{position:absolute;left:0;right:0;bottom:32px;z-index:5;max-height:40vh;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;
   padding:12px 48px 12px 16px;background:var(--bg);border-top:1px solid var(--line);overflow:auto;animation:fadein .12s}
 .ed-col{min-width:0}
 .ed-col>.mt{display:block;padding-bottom:4px;border-bottom:1px solid var(--line);margin-bottom:4px}
@@ -406,7 +411,7 @@ label.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .dlg-scroll>.fld:last-child{border-bottom:0}
 
 /* ---------- add-module drawer (#drawer, 320 px from the right; between the edit bar and the engineer bar, so Save and Pit.say stay visible) ---------- */
-#drawer{position:fixed;top:84px;right:0;bottom:29px;z-index:25;width:min(320px,100vw);display:flex;flex-direction:column;
+#drawer{position:fixed;top:100px;right:0;bottom:33px;z-index:25;width:min(320px,100vw);display:flex;flex-direction:column;
   background:var(--bg);border-left:1px solid var(--line);animation:fadein .12s}
 #drawer>input{margin:12px 16px 8px;flex:none}
 .dr-list{flex:1;min-height:0;overflow:auto;padding:0 16px 16px}
@@ -549,7 +554,8 @@ table.tt{width:100%;border-collapse:collapse}
 .tag.est{color:var(--dim);border-style:dashed;text-transform:none;letter-spacing:0}
 
 /* ---------- meters and gauges ---------- */
-.bar{position:relative;height:6px;background:var(--line2);overflow:hidden;min-width:24px}
+.bar{position:relative;height:8px;background:var(--line);overflow:hidden;min-width:24px}
+.bar::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--panel) calc(10% - 1px) 10%)}
 .bar>i{position:absolute;inset:0 auto 0 0;width:0;background:var(--mut)}
 .bar.thr>i{background:var(--c-thr)}
 .bar.brk>i{background:var(--c-brk)}
@@ -572,8 +578,8 @@ table.tt{width:100%;border-collapse:collapse}
 .flag[data-flag=penalty]{background:#000 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 10'%3E%3Ccircle cx='7' cy='5' r='3' fill='%23ff7a1a'/%3E%3C/svg%3E") center/100% 100%}
 .flag[data-flag=chequered]{background:#f2f2f2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath d='M0 0h2v2H0zM2 2h2v2H2z'/%3E%3C/svg%3E") 0 0/4px 4px}
 .lg{display:inline-flex;align-items:center;gap:4px;font-size:var(--t-xs);color:var(--mut);white-space:nowrap}
-.lg .sw{display:inline-block;width:12px;height:3px;background:var(--c,var(--mut));flex:none}
-.lg .sw.dash{height:0;background:none;border-top:2px dashed var(--c,var(--mut))}
+.lg .lsw{display:inline-block;width:12px;height:3px;background:var(--c,var(--mut));flex:none}
+.lg .lsw.dash{height:0;background:none;border-top:2px dashed var(--c,var(--mut))}
 .diff{font-family:var(--num);white-space:nowrap;color:var(--mut)}
 .diff>s{color:var(--dim)}
 .diff>b{color:var(--txt);font-weight:600}
@@ -690,12 +696,6 @@ table.tt{width:100%;border-collapse:collapse}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 /* stepper: − [value] + as one segmented control */
-.stp{display:inline-flex;align-items:stretch;min-width:0;border:1px solid var(--line);border-radius:var(--r);background:var(--raise);overflow:hidden}
-.stp:hover{border-color:var(--dim)}
-.stp:focus-within{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
-.stp .step{border:0;border-radius:0;background:none;width:30px;height:auto}
-.stp .step:hover:not(:disabled){background:var(--line2)}
-.stp input[type=number]{border:0;background:none;box-shadow:none;border-radius:0;text-align:center;height:32px;flex:1 1 auto}
 
 /* the Flag KPI cell fills with the flag's colour and blinks (chequered: steady) */
 #kpi .kc:where([data-flag]:not([data-flag=""])){animation:flagBlink 1s steps(1) infinite;color:#fff}
@@ -708,3 +708,26 @@ table.tt{width:100%;border-collapse:collapse}
 #kpi .kc[data-flag=chequered] .kl{align-self:center;padding:1px 6px;background:#111;color:#fff;text-shadow:none}
 @keyframes flagBlink{50%{opacity:.3}}
 @media (prefers-reduced-motion:reduce){#kpi .kc[data-k=flag]{animation:none!important}}
+
+/* ---------- design pass: small buttons, engineer bar ---------- */
+.btn.sm{height:22px;padding:0 7px;font-size:var(--t-sm)}
+
+/* ---------- design pass: settings as a framed dialog over a dimmed page, flat caps navigation ---------- */
+#settings{display:flex;align-items:center;justify-content:center;background:rgb(0 0 0 / .55)}
+#settings .set{width:min(1100px,calc(100vw - 48px));height:min(720px,calc(100vh - 48px));background:var(--bg);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;grid-template-columns:180px minmax(0,1fr)}
+.set-nav{padding:8px 0}
+.set-nav button{height:30px;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.set-nav button[aria-selected=true]{background:var(--line2)}
+.set-pane>h3.mt{letter-spacing:.12em}
+
+/* a module 6 columns or wider reads at the comfortable density when the density follows size; narrower ones stay compact */
+
+
+/* a drag never selects the dashboard; fields and text areas still select */
+body{user-select:none;-webkit-user-select:none}
+input,textarea,[contenteditable]{user-select:text;-webkit-user-select:text}
+
+/* scrolling works, but no scrollbar is ever drawn */
+*{scrollbar-width:none}
+::-webkit-scrollbar{display:none}
+[data-p][hidden]{display:none!important}

@@ -40,6 +40,7 @@ export class Telemetry {
   splits: number[] = [];
   debrief: Rec[] = [];
   secPos: number[] = [];
+  secKept: number[] = []; // where the sectors end, in lap fractions, from the last lap that had them all
   stintStart: number | null = null;
   fuelAtLine: number | null = null;
   lapFuel: number[] = [];
@@ -47,6 +48,10 @@ export class Telemetry {
   best: number | null = null;
   stint: Rec[] = [];
   laps: Rec[] = [];
+  /** The sessions before this one, newest last: {id, kind, track, laps, stints, stops, field}. Lap traces and the field's final state stay in `vault`. */
+  past: Rec[] = [];
+  vault = new Map<number, { traces: Map<number, Trace>; field?: Rec }>();
+  private pastId = 0;
   lapStartPit = false;
   lapSawPit = false;
   lapsVer = 0;
@@ -73,11 +78,17 @@ export class Telemetry {
     this.newSession();
   }
 
-  private newSession(): void {
+  private newSession(old?: Rec): void {
+    if (old && this.laps.length) {
+      const id = ++this.pastId;
+      this.past.push({ id, kind: SESSIONS[old.session] ?? "Session", track: old.track, laps: this.laps.map(({ psi, core, ...l }) => l), stints: this.stints(old), stops: this.stops, field: false });
+      this.vault.set(id, { traces: this.traces });
+      if (this.past.length > 6) this.vault.delete(this.past.shift()!.id);
+    }
     this.prev = null; this.splits = []; this.debrief = []; this.secPos = [];
     this.stintStart = this.fuelAtLine = null;
     this.lapFuel = []; this.lapBrakeMax = 0; this.best = null; this.stint = [];
-    this.laps = []; this.lapStartPit = this.lapSawPit = false; this.lapsVer = 0;
+    this.laps = []; this.lapStartPit = this.lapSawPit = false; this.lapsVer++;
     this.events = []; this.edge = {}; this.adviceIds = new Set();
     this.stintNo = 1; this.stintRoad = null; this.stops = []; this.stop = null; this.pending = null;
     this.cur = []; this.line = []; this.traces = new Map();
@@ -93,7 +104,7 @@ export class Telemetry {
   update(r: Rec, ext: Rec = {}): Rec {
     this.seq++;
     let p = this.prev;
-    if (p && r.session_index !== p.session_index) { this.newSession(); p = null; }
+    if (p && r.session_index !== p.session_index) { this.newSession(p); p = null; }
     const now = this.clock();
     this.cls = ext.car_class || carClass(r.car);
     this.sessLen = Math.max(this.sessLen, r.time_left);
@@ -180,7 +191,7 @@ export class Telemetry {
     }
     this.edgeEvent("invalid", !r.valid, 1, "CAR", "Lap invalidated");
     this.edgeEvent("off", r.tyres_out >= 3, 1, "CAR", `Off track: ${r.tyres_out} wheels out`);
-    this.edgeEvent("dmg", sum(r.damage) > 0, 2, "CAR", "Car damage");
+    this.edgeEvent("dmg", r.damage.some((d: number) => d >= 10), 2, "CAR", "Car damage");
     CORNERS.forEach((c, i) => {
       const hot = th.brake_c[i < 2 ? "front" : "rear"][1];
       this.edgeEvent("tyre" + c, r.core_temp[i] > th.tyre_c[1], 1, "CAR", `${c} tyre ${r.core_temp[i].toFixed(0)} °C, over ${th.tyre_c[1].toFixed(0)}`);
@@ -222,7 +233,7 @@ export class Telemetry {
     }
     const c = this.cur;
     if (!c.length || p > c[c.length - 1]!.p) { // position must advance; drops jitter and the wrap after the line
-      c.push({ p, t: r.cur_ms, speed: r.speed, thr: r.gas, brk: r.brake, steer: r.steer, gear: r.gear - 1, rpm: r.rpm });
+      c.push({ p, t: r.cur_ms, speed: r.speed, thr: r.gas, brk: r.brake, steer: r.steer, gear: r.gear - 1, rpm: r.rpm, glat: r.acc_g[0], glon: r.acc_g[2], tc: r.tc_on, abs: r.abs_on });
     }
     const l2 = this.line[this.line.length - 1];
     if ((x || z) && (!l2 || Math.hypot(l2[0]! - x, l2[1]! - z) > 1.5)) this.line.push([x, z, p]); // p: ACC's lap fraction here
@@ -277,6 +288,7 @@ export class Telemetry {
         this.events.push([0, "PIT", `Stop L${pd.in} cost ${(pd.rec.loss_ms / 1000).toFixed(1)} s`]);
       }
     }
+    if (whole) this.secKept = this.secPos.slice();
     this.splits = []; this.secPos = []; this.lapBrakeMax = 0; this.fuelAtLine = r.fuel;
     this.lapStartPit = this.lapSawPit = !!r.pit_lane;
     this.cur = []; this.line = [];
@@ -301,9 +313,18 @@ export class Telemetry {
     return { valid: !inv, ms, sec: t.sec.map(r5), line: t.line.map(([x, z, q]) => [r1(x!), r1(z!), r5(q!)]) };
   }
 
-  /** GET /lap?n=N: a whole lap's 400-point channels and its racing line, or null. */
-  lapTrace(n: number): Rec | null {
-    const t = this.traces.get(n);
+  /** The field's final state of an earlier session, once the broadcast side has it. */
+  attachField(id: number, field: Rec): void {
+    const v = this.vault.get(id);
+    if (!v) return;
+    v.field = field;
+    this.past.find((p) => p.id === id)!.field = true;
+    this.lapsVer++;
+  }
+
+  /** GET /lap?n=N (&s=ID for an earlier session): a whole lap's 400-point channels and its racing line, or null. */
+  lapTrace(n: number, session?: number): Rec | null {
+    const t = (session === undefined ? this.traces : this.vault.get(session)?.traces)?.get(n);
     if (!t) return null;
     const r3 = (v: number) => Math.round(v * 1000) / 1000, r1 = (v: number) => Math.round(v * 10) / 10, r5 = (v: number) => Math.round(v * 1e5) / 1e5;
     return { n, ms: t.ms, valid: t.valid, ch: Object.fromEntries(LCH.map((k) => [k, t.ch[k]!.map(r3)])), line: t.line.map(([x, z, p]) => [r1(x!), r1(z!), r5(p!)]) };
@@ -470,7 +491,7 @@ export class Telemetry {
     for (const a of adv) if (!this.adviceIds.has(a.id)) this.events.push([a.severity, "ENG", a.text]);
     this.adviceIds = ids;
     return { what: "pit-wall/summary", fuel_per_lap: fpl, stint_laps: r.laps - (this.stintStart ?? 0), max_rpm: r.max_rpm,
-      best_ms: best, best_src: src, advice: adv, press_line: pl, strategy: st, stints: this.stints(r),
+      best_ms: best, best_src: src, lap_sectors_ms: this.splits.map((v, i) => v - (this.splits[i - 1] ?? 0)), sector_pos: this.secKept.length ? this.secKept : this.secPos, advice: adv, press_line: pl, strategy: st, stints: this.stints(r),
       stops: this.stops.map((s) => ({ ...s })), penalty: pen, debrief: this.debrief, stint: this.stint };
   }
 
@@ -500,7 +521,7 @@ export class Telemetry {
       out.push([0, "fuel_flag", short > 0.5 ? `${short.toFixed(0)} L short of the flag (${st.laps_to_go} laps): plan the stop`
         : `Fuel to the flag, ${(r.fuel - st.fuel_needed_l).toFixed(1)} L spare`]);
     }
-    if (sum(r.damage) > 0) out.push([1, "damage", "Car damaged: think about repairs at the stop"]);
+    if (r.damage.some((d: number) => d >= 10)) out.push([1, "damage", "Car damaged: think about repairs at the stop"]);
     if (!r.rain_tyres && r.rain.length > 1 && 3 <= r.rain[1] && r.rain[1] < RAIN.length) out.push([1, "rain_coming", `${RAIN[r.rain[1]]} in 10 min on dry tyres: think about wets`]);
     const pw = st.pit_window;
     if (st.mandatory_left && pw && pw.close_lap - (r.laps + 1) <= 2) {

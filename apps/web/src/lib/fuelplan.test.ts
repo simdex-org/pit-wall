@@ -35,4 +35,14 @@ describe("fuelPlan", () => {
   it("returns nothing without a consumption", () => {
     expect(fuelPlan({ ...base, fpl: 0 }).total).toBeNull();
   });
+
+  it("builds a plan for stop laps chosen by hand and bounds a stint by the tank", () => {
+    const p = fuelPlan(base), o = p.build([34, 67]);
+    expect(o.stints.map((t) => t.laps)).toEqual([34, 33, 33]);
+    expect(o.stints.map((t) => t.from - 1)).toEqual([0, 34, 67]);
+    expect(o.stints[1]!.add).toBe(99);
+    expect(o.tank).toBe(true);
+    expect(p.maxStint.rest).toBe(39);
+    expect(p.build([60]).tank).toBe(false);
+  });
 });

@@ -17,6 +17,4 @@ zip = { version = "2", default-features = false, features = ["deflate"], optiona
 portable = ["dep:zip"]
 
 [profile.release]
-lto = true
-codegen-units = 1
 strip = true

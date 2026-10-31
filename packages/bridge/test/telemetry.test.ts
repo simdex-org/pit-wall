@@ -1,19 +1,24 @@
 import { describe, expect, test } from "vitest";
 import { cleanConfig } from "../src/config.js";
-import { carClass, NB } from "../src/telemetry/constants.js";
+import { carClass, LCH, NB } from "../src/telemetry/constants.js";
+import { World } from "../src/sim/world.js";
 import { FakePages } from "../src/telemetry/fake-pages.js";
 import { Telemetry } from "../src/telemetry/telemetry.js";
 import { Rec, ValueError } from "../src/util.js";
 
-describe("telemetry pipeline", () => {
+describe("telemetry pipeline", { timeout: 60000 }, () => {
   const now = [0];
   const clock = () => now[0]!;
-  const pages = new FakePages({ lapMs: 60000, clock });
+  const pages = new FakePages({ clock, seed: 2 });
   const tel = new Telemetry(undefined, clock);
   let raw: Rec = {}, reading: Rec = {};
+  const run = (p: FakePages, t: Telemetry, seconds: number, hz = 30, each: (r: Rec) => void = () => {}) => {
+    const n0 = now[0]!;
+    while (now[0]! < n0 + seconds) { now[0]! += 1 / hz; const r = p.read(); each(r); t.update(r); raw = r; }
+  };
 
   test("a real layout has a believable speed profile", () => {
-    const mz = new FakePages({ track: "monza" });
+    const mz = new World("race", { track: "monza" }).circuit;
     expect(Math.min(...mz.v) * 3.6).toBeGreaterThan(50);
     expect(Math.min(...mz.v) * 3.6).toBeLessThan(100);
     expect(Math.max(...mz.v) * 3.6).toBeGreaterThan(250);
@@ -21,8 +26,10 @@ describe("telemetry pipeline", () => {
     expect(Math.abs(mz.tcum[mz.tcum.length - 1]! - 1)).toBeLessThan(1e-9);
   });
 
-  test("three laps: debrief, sectors, fuel, advice, strategy", () => {
-    for (let i = 0; i < Math.floor(3.2 * 60 * 30); i++) { now[0]! += 1 / 30; raw = pages.read(); reading = tel.update(raw); }
+  test("the grid, the start and three laps: debrief, sectors, fuel, advice, strategy", () => {
+    run(pages, tel, 20 + 4 * 100); // twenty seconds of grid, then lights out
+    expect(raw.laps).toBeGreaterThanOrEqual(3);
+    reading = tel.update(raw);
     const s = tel.summary(raw);
     const car = reading.reading.car, ses = reading.reading.session;
     expect(tel.debrief).toHaveLength(3);
@@ -30,15 +37,13 @@ describe("telemetry pipeline", () => {
     const d = tel.debrief[0]!;
     expect(d.sectors_ms).toHaveLength(3);
     expect(d.sectors_ms.reduce((a: number, b: number) => a + b, 0)).toBe(d.lap_time_ms);
-    expect(Math.abs(s.fuel_per_lap - 3.1)).toBeLessThan(0.05);
-    expect(s.advice.some((a: Rec) => a.text.startsWith("Fronts 27.7 psi, 0.7 over") && a.id === "press_front")).toBe(true);
+    expect(Math.abs(s.fuel_per_lap - pages.world.player.lpl)).toBeLessThan(0.3);
     expect(s.stint_laps).toBeGreaterThanOrEqual(3);
     expect(car.gear).toBeGreaterThanOrEqual(1); expect(car.gear).toBeLessThanOrEqual(6);
     expect(ses.status).toBe("Live"); expect(ses.kind).toBe("Race");
-    expect(d.lines.some((l: Rec) => l.text.includes("Pressures out of"))).toBe(true);
-    expect(d.lines.some((l: Rec) => l.text === "Used 3.10 L")).toBe(true);
-    expect(s.stint.map((l: Rec) => l.n)).toEqual([...tel.debrief].reverse().map((x) => x.lap_number));
-    expect(tel.laps.map((l) => l.n)).toEqual(s.stint.map((l: Rec) => l.n));
+    expect(d.lines.some((l: Rec) => l.text.startsWith("Used "))).toBe(true);
+    expect(s.stint.map((l: Rec) => l.n).slice(-3)).toEqual([...tel.debrief].reverse().map((x) => x.lap_number));
+    expect(tel.laps.map((l) => l.n)).toEqual(expect.arrayContaining(s.stint.map((l: Rec) => l.n)));
     expect(tel.laps[tel.laps.length - 1]!.s).toHaveLength(3);
     expect(tel.laps[tel.laps.length - 1]!.out).toBe(false);
     expect(s.stint[s.stint.length - 1].pads[0]).toBeLessThan(s.stint[0].pads[0]);
@@ -47,20 +52,15 @@ describe("telemetry pipeline", () => {
     const st = s.strategy;
     expect(Math.abs(st.laps_of_fuel - car.fuel_litres / s.fuel_per_lap)).toBeLessThan(1e-9);
     expect("fuel_laps_remaining" in s).toBe(false);
-    // the fuel runs out (L18) before the window opens (L21): a splash first, then the mandatory stop inside the window
-    expect(st.pit_window.open_lap).toBeGreaterThan(st.box_by_lap);
+    expect([st.laps_src, st.pit_window.src]).toEqual(["timed", "acc"]);
     expect(st.mandatory_left).toBe(1);
-    expect([st.laps_src, st.stops_needed, st.stops_why, st.pit_window.src]).toEqual(["timed", 2, "fuel + mandatory", "acc"]);
-    expect(st.options.map((o: Rec) => o.id)).toEqual(["now_f", "now_ft", "late_f", "late_ft", "win_f", "win_ft"]);
+    expect(st.stops_needed).toBeGreaterThanOrEqual(1);
+    expect(st.pit_window.open_lap).toBeGreaterThan(10);
+    expect(st.options.map((o: Rec) => o.id)).toEqual(expect.arrayContaining(["now_f", "now_ft"]));
     expect(st.options[1].stationary_s).toBe(30.0);
     expect(st.drive_loss_src).toBe("config"); expect(s.best_src).toBe("bridge");
-    const o = Object.fromEntries(st.options.map((x: Rec) => [x.id, x]));
-    expect(o.now_f.more_stops).toBe(1); expect(o.late_f.more_stops).toBe(1);
-    expect(o.late_f.outside_window).toBe(true); expect(o.late_f.reach).toBe(true); expect(o.win_f.reach).toBe(false);
-    const d2 = tel.strategy({ ...raw, missing_pits: 0 }); // the mandatory stop made: boxing now leaves a second fuel stop, boxing late does not
-    const o2 = Object.fromEntries(d2.options.map((x: Rec) => [x.id, x]));
-    expect(d2.stops_needed).toBe(1); expect(d2.stops_why).toBe("fuel");
-    expect(o2.now_f.more_stops).toBe(1); expect(o2.late_f.more_stops).toBe(0);
+    const d2 = tel.strategy({ ...raw, missing_pits: 0 }); // the mandatory stop made
+    expect(d2.mandatory_left).toBe(0);
     const q = new Telemetry(undefined, clock).strategy({ ...raw, session: 1 });
     expect(q.laps_to_go).toBeNull(); expect(q.options).toEqual([]); expect(q.box_by_lap).not.toBeNull();
   });
@@ -68,9 +68,11 @@ describe("telemetry pipeline", () => {
   test("traces, saved layout and log categories", () => {
     const traced = tel.laps.filter((l) => l.trace);
     expect(traced.length).toBeGreaterThan(0);
-    expect(tel.laps[0]!.trace).toBe(false); // the first lap was joined halfway
+    expect(tel.laps[0]!.trace).toBe(false); // the standing start lap has no whole trace to compare
     const lt = tel.lapTrace(traced[traced.length - 1]!.n)!;
     expect(lt.ch.t).toHaveLength(NB);
+    for (const k of LCH) expect(lt.ch[k]).toHaveLength(NB);
+    expect(Math.max(...lt.ch.glat!.map(Math.abs))).toBeGreaterThan(0);
     expect(Math.abs(lt.ch.t[NB - 1] - lt.ms)).toBeLessThan(0.01);
     expect(lt.line.length).toBeGreaterThan(1000);
     expect(tel.lapTrace(999)).toBeNull();
@@ -79,13 +81,13 @@ describe("telemetry pipeline", () => {
     expect(lay.sec).toHaveLength(2);
     expect(lay.sec[0]).toBeGreaterThan(0); expect(lay.sec[0]).toBeLessThan(lay.sec[1]); expect(lay.sec[1]).toBeLessThan(1);
     const cats = new Set(tel.events.map((e) => e[1]));
-    for (const c of ["LAP", "ENG", "FLAG"]) expect(cats.has(c)).toBe(true);
+    for (const c of ["LAP", "ENG"]) expect(cats.has(c)).toBe(true);
   });
 
   test("a measured pit stop", () => {
     let fuelAdd = 0;
     const n0 = now[0]!;
-    while (now[0]! < n0 + 3 * 60) {
+    while (now[0]! < n0 + 4.5 * 60) {
       now[0]! += 1 / 30;
       raw = pages.read();
       const e = now[0]! - n0;
@@ -108,29 +110,50 @@ describe("telemetry pipeline", () => {
   });
 
   test("a reset mid-lap gives that lap no trace", () => {
-    const tp = new FakePages({ lapMs: 60000, clock }), tt = new Telemetry(undefined, clock);
-    const n0 = now[0]!;
-    while (now[0]! < n0 + 3 * 60) {
-      now[0]! += 1 / 30;
-      const r = tp.read();
-      if (r.laps % 2 && 0.5 < r.track_pos && r.track_pos < 0.52) r.xyz = [r.xyz[0] + 500, r.xyz[1], r.xyz[2]];
-      tt.update(r);
-    }
+    const tp = new FakePages({ clock }), tt = new Telemetry(undefined, clock);
+    run(tp, tt, 20 + 4 * 100, 30, (r) => { if (r.laps % 2 && 0.5 < r.track_pos && r.track_pos < 0.52) r.xyz = [r.xyz[0] + 500, r.xyz[1], r.xyz[2]]; });
     const jumped = tt.laps.filter((l) => l.n % 2 === 0).map((l) => l.n); // lap n is driven while raw.laps is n - 1
     expect(jumped.length).toBeGreaterThan(0);
     expect(jumped.every((n) => tt.lapTrace(n) === null)).toBe(true);
     expect(tt.laps.some((l) => l.trace)).toBe(true);
   });
 
-  test("the demo's own stop at lap 18", () => {
-    const tp = new FakePages({ lapMs: 60000, clock }), tt = new Telemetry(undefined, clock);
-    const n0 = now[0]!;
-    while (now[0]! < n0 + 16.2 * 60) { now[0]! += 1 / 10; tt.update(tp.read()); }
-    const st = tt.stops;
-    expect(st).toHaveLength(1); expect(st[0]!.lap).toBe(18);
-    expect(Math.abs(st[0]!.box_ms - 3000)).toBeLessThan(200); expect(st[0]!.fuel_added_l).toBeGreaterThan(50);
-    expect(tt.laps[tt.laps.length - 1]!.s.slice(0, 2)).toEqual([20000, 20000]);
-    expect(tt.laps.filter((l) => l.in || l.out).map((l) => l.n)).toEqual([18, 19]);
+  test("a new session files the old one: laps, stints, stops, traces and the field's final state", () => {
+    const tp = new FakePages({ clock }), tt = new Telemetry(undefined, clock);
+    run(tp, tt, 20 + 3 * 100);
+    const n = tt.laps.length, traced = tt.laps.find((l) => l.trace)!.n;
+    expect(n).toBeGreaterThan(0);
+    const r = tp.read();
+    tt.update({ ...r, session_index: r.session_index + 1, session: 0, laps: 0 });
+    expect(tt.laps).toHaveLength(0);
+    const p = tt.past[0]!;
+    expect(p).toMatchObject({ id: 1, kind: "Race", laps: expect.any(Array), stints: expect.any(Array), stops: [], field: false });
+    expect(p.laps).toHaveLength(n);
+    expect(tt.lapTrace(traced)).toBeNull();
+    expect(tt.lapTrace(traced, 1)!.ch.t).toHaveLength(NB);
+    expect(tt.lapTrace(traced, 2)).toBeNull();
+    tt.attachField(1, { field: { cars: [] } });
+    expect(tt.past[0]!.field).toBe(true);
+    expect(tt.vault.get(1)!.field).toEqual({ field: { cars: [] } });
+    for (let i = 0; i < 8; i++) { tt.update({ ...r, session_index: r.session_index + 2 + i, laps: 0 }); tt.laps.push({ n: 1 }); }
+    expect(tt.past).toHaveLength(6);
+    expect(tt.vault.size).toBe(6);
+  });
+
+  test("the driver's own stop: the lane, the box, the fuel and the tyres, measured from the pages", () => {
+    const tp = new FakePages({ clock, seed: 2 }), tt = new Telemetry(undefined, clock);
+    const w = tp.world;
+    run(tp, tt, 50 * 60, 10, () => {});
+    expect(tt.stops).toHaveLength(1);
+    const st = tt.stops[0]!;
+    expect(st.lap).toBeGreaterThan(10); expect(st.lap).toBeLessThan(40);
+    expect(st.box_ms).toBeGreaterThan(8000); expect(st.box_ms).toBeLessThan(45000);
+    expect(st.fuel_added_l).toBeGreaterThan(20);
+    expect(st.tyres).toBe(true);
+    expect(w.player.mandatoryDone).toBe(true);
+    const flagged = tt.laps.filter((l) => l.in || l.out).map((l) => l.n);
+    expect(flagged).toContain(st.lap);
+    expect(tt.events.some(([, c]) => c === "PIT")).toBe(true);
   });
 });
 

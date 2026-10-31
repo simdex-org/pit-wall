@@ -16,7 +16,7 @@ export const PENALTIES: [string, string][] = [
 export const SERVABLE = new Set([1, 2, 3, 4, 7, 8, 9, 10, 19]);
 /** Lap traces: as recorder.js resample(). */
 export const NB = 400;
-export const LCH = ["t", "speed", "thr", "brk", "steer", "gear", "rpm"] as const;
+export const LCH = ["t", "speed", "thr", "brk", "steer", "gear", "rpm", "glat", "glon", "tc", "abs"] as const;
 
 export function carClass(model: string): string {
   const m = (model || "").toLowerCase();

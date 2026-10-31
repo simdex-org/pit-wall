@@ -3,14 +3,15 @@ import { defineModule } from "../engine/registry";
 import type { Ctx } from "../feed/store";
 import type { Json } from "../feed/types";
 import { Icon } from "../lib/icons";
-import { clamp, fmtLap, MINUS, nf, NONE, okMs, plural } from "../lib/format";
-import { brakeState, padState, pressState, State, STATE_WORD, stateGlyph, tyreState, waterState } from "../lib/states";
+import { clamp, fmtLap, fmtSector, MINUS, nf, NONE, okMs, plural } from "../lib/format";
+import { bodyState, brakeState, padState, pressState, State, STATE_WORD, stateGlyph, stateLevel, suspState, tyreState, waterState } from "../lib/states";
 import { fv, unit } from "../lib/units";
 import { usePrefs } from "../state/prefs";
 import { CORNERS } from "../state/plan";
 import { Delta } from "./delta";
 import { Kv } from "./cars";
 
+const r0 = (v: unknown): number => (typeof v === "number" && isFinite(v) ? v : 0);
 const stCls = (s: State | string) => (s === "ok" || s === "none" ? "" : "s-" + s);
 const sc = (c: Ctx) => ({ th: c.th, wet: c.wet, fuelLowLaps: c.cfg?.fuel_low_laps ?? 3 });
 const psiWindow = (c: Ctx) => (c.wet ? c.th.wet_psi : c.th.dry_psi);
@@ -19,36 +20,66 @@ const psiWindow = (c: Ctx) => (c.wet ? c.th.wet_psi : c.th.dry_psi);
 const coreT = (a: Json, i: number, cap: Json) => (cap?.tyre_edge_temps ? (a.tyre_temp_inner_c[i] + a.tyre_temp_middle_c[i] + a.tyre_temp_outer_c[i]) / 3 : a.tyre_core_temp_c[i]);
 
 // ---------- driver inputs ----------
-const Meter = ({ label, cls, value, text, warn }: { label: string; cls: string; value: number; text: string; warn?: string }) => (
-  <div className="cs-m"><span className="lbl">{label}</span><div className={`bar ${cls}`}><i className={warn} style={{ width: value * 100 + "%" }} /></div><span className="n">{text}</span></div>
-);
+const pct = (v: number) => (clamp(v, 0, 1) * 100).toFixed(0);
 
 export const carStatus = defineModule({
   type: "car-status", title: "Driver inputs", group: "Car", blurb: "Gear, speed, RPM, pedals, steering and the car's state flags, live.",
   size: { w: 3, h: 7, minW: 3, minH: 4 }, needs: ["reading"], requires: ["reading"], rate: 60,
-  view({ ctx: c }) {
+  view({ ctx: c, size }) {
     const p = usePrefs();
     const a = c.r!.car, s = c.r!.session, max = c.r!.fixed.max_rpm || 8000, rp = clamp(a.rpm / max, 0, 1);
-    const st = clamp(a.steer_angle, -1, 1);
-    const chips: [boolean, string, string][] = [
-      [a.pit_limiter, "gauge", "LIMITER"], [s.in_pit_lane, "square-parking", "PIT LANE"], [s.in_pit_box, "wrench", "IN BOX"], [a.tc_in_action, "activity", "TC"], [a.abs_in_action, "disc", "ABS"],
-      [a.tyres_off_track > 0, "triangle-alert", `${a.tyres_off_track} WHEEL${a.tyres_off_track > 1 ? "S" : ""} OFF`], [!s.lap_is_valid, "x", "INVALID LAP"],
+    const st = clamp(a.steer_angle, -1, 1), deg = Math.round(st * (c.r!.fixed.max_steer_deg || 270) / 2);
+    const gear = a.gear < 0 ? "R" : a.gear === 0 ? "N" : String(a.gear);
+    const sp = fv("speed", a.speed_kmh, p.units), su = unit("speed", p.units).u;
+    const tag = (on: boolean, t: string, cls: string) => on ? <span key={t} className={"tag " + cls}>{t}</span> : null;
+    const info = [
+      tag(true, "ABS", a.abs_in_action ? "wn" : "n"), tag(true, "TC", a.tc_in_action ? "wn" : "n"),
+      tag(!!a.pit_limiter, "LIMITER", "wn"), tag(!!s.in_pit_lane, "PIT LANE", "n"), tag(!!s.in_pit_box, "IN BOX", "n"), tag(a.tyres_off_track > 0, `${a.tyres_off_track} OFF`, "up"), tag(!s.lap_is_valid, "INVALID", "up"),
     ];
+    const large = size.h >= 6;
+    const dir = (l: string, v: number, cls: string) => (
+      <div className="fc" style={{ alignItems: "center", gap: 4, flex: 1 }} key={l}>
+        <span className="v" style={{ fontSize: 10.5 }}>{l === "STR" ? `${deg < 0 ? MINUS : ""}${Math.abs(deg)}°` : pct(v)}</span>
+        <div style={{ width: 14, height: 36, background: "var(--ln)", position: "relative" }}><div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: (l === "STR" ? Math.abs(st) * 100 : clamp(v, 0, 1) * 100) + "%", background: cls }} /></div>
+        <span className="lab" style={{ fontSize: 9 }}>{l}</span>
+      </div>
+    );
+    if (!large) {
+      return {
+        flush: true, info,
+        body: (
+          <div className="cells" style={{ height: "100%" }}>
+            <div className="c" style={{ flex: "none", width: 80 }}><span className="lab">Gear</span><span className="big">{gear}</span></div>
+            <div className="c"><span className="lab">Speed</span><span className="big">{sp}</span><span className="v di">{su} · {nf(a.rpm, 0)} rpm</span></div>
+            <div className="c" style={{ flex: "none", width: 150, padding: "6px 12px", flexDirection: "row", alignItems: "center", gap: 0 }}>
+              {dir("THR", a.throttle, "var(--ok)")}{dir("BRK", a.brake, "var(--bad)")}{dir("STR", st, "var(--warn)")}
+            </div>
+          </div>
+        ),
+      };
+    }
+    const bar = (l: string, v: number, cls: string, text: string) => (
+      <div className="f" style={{ gap: 10 }} key={l}><span className="lab" style={{ width: 28 }}>{l}</span><div className={"bar tall tk sp " + cls}><i style={{ width: clamp(v, 0, 1) * 100 + "%" }} /></div><span className="v" style={{ width: 40, textAlign: "right" }}>{text}</span></div>
+    );
     return {
+      flush: true, info,
       body: (
         <>
-          <div className="cs-top">
-            <div><div className="lbl">Gear</div><div className="big xl">{a.gear < 0 ? "R" : a.gear === 0 ? "N" : String(a.gear)}</div></div>
-            <div><div className="lbl">Speed</div><div className="big">{fv("speed", a.speed_kmh, p.units)}<span className="u"> {unit("speed", p.units).u}</span></div></div>
-            <b className="cs-shift s-bad" hidden={!(rp > 0.92)}>SHIFT</b>
+          <div className="f" style={{ flex: "none", borderBottom: "1px solid var(--ln)", gap: 0 }}>
+            <div className="c" style={{ width: 96, flex: "none", padding: "var(--pad)", borderRight: "1px solid var(--ln)", display: "flex", flexDirection: "column", gap: 6 }}><span className="lab">Gear</span><span className="big" style={{ fontSize: 44, lineHeight: "40px" }}>{gear}</span></div>
+            <div className="c" style={{ flex: 1, padding: "var(--pad)", borderRight: "1px solid var(--ln)", display: "flex", flexDirection: "column", gap: 6 }}><span className="lab">Speed</span><span className="big" style={{ fontSize: 34 }}>{sp}<span className="u">{su}</span></span></div>
+            <div className="c" style={{ width: 120, flex: "none", padding: "var(--pad)", display: "flex", flexDirection: "column", gap: 6 }}><span className="lab">RPM</span><span className="big" style={{ fontSize: 26 }}>{nf(a.rpm, 0)}</span></div>
           </div>
-          <Meter label="RPM" cls="rpm" value={rp} text={nf(a.rpm, 0)} warn={rp > 0.92 ? "s-bad" : rp > 0.8 ? "s-warn" : ""} />
-          <Meter label="Throttle" cls="thr" value={clamp(a.throttle, 0, 1)} text={(clamp(a.throttle, 0, 1) * 100).toFixed(0) + "%"} />
-          <Meter label="Brake" cls="brk" value={clamp(a.brake, 0, 1)} text={(clamp(a.brake, 0, 1) * 100).toFixed(0) + "%"} />
-          <Meter label="Clutch" cls="clu" value={clamp(a.clutch, 0, 1)} text={(clamp(a.clutch, 0, 1) * 100).toFixed(0) + "%"} />
-          <div className="cs-m"><span className="lbl">Steer</span><div className="cs-steer"><i style={{ left: 50 + Math.min(0, st) * 50 + "%", width: Math.abs(st) * 50 + "%" }} /></div><span className="n">{nf(a.steer_angle, 2)}</span></div>
-          <div className="cs-chips">
-            {chips.filter((x) => x[0]).map(([, ic, w]) => <span key={w} className={`chip ${/OFF|INVALID/.test(w) ? "alert" : "on"}`}><Icon name={ic} />{w}</span>)}
+          <div className="f" style={{ gap: 10, padding: "10px var(--pad) 0" }}>
+            <span className="lab" style={{ width: 28 }}>Rev</span>
+            <div className="bar tall tk sp"><i style={{ width: rp * 100 + "%", background: "var(--tx)" }} /><span style={{ position: "absolute", left: "92%", right: 0, top: 0, bottom: 0, background: "#ff5c6c55" }} /></div>
+            <span className="v di" style={{ width: 40, textAlign: "right" }}>{nf(max, 0)}</span>
+          </div>
+          <div className="fc" style={{ padding: "10px var(--pad) 0", gap: 8 }}>
+            {bar("Thr", a.throttle, "ok", pct(a.throttle))}{bar("Brk", a.brake, "bd", pct(a.brake))}
+            <div className="f" style={{ gap: 10 }}><span className="lab" style={{ width: 28 }}>Str</span>
+              <div className="bar tall sp" style={{ background: "var(--ln)" }}><i style={{ left: st < 0 ? 50 + st * 50 + "%" : "50%", width: Math.abs(st) * 50 + "%", background: "var(--warn)" }} /><span style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "var(--t3)" }} /></div>
+              <span className="v" style={{ width: 40, textAlign: "right" }}>{deg < 0 ? MINUS : ""}{Math.abs(deg)}°</span></div>
           </div>
         </>
       ),
@@ -59,113 +90,129 @@ export const carStatus = defineModule({
 // ---------- lap timer ----------
 export const lapTimer = defineModule({
   type: "lap-timer", title: "Lap", group: "Car", blurb: "The lap in progress, live delta, last, best and the game's estimate.",
-  size: { w: 3, h: 5, minW: 3, minH: 4 }, needs: ["reading", "summary"], requires: ["reading"], rate: 15,
-  view({ ctx: c }) {
+  size: { w: 3, h: 6, minW: 3, minH: 4 }, needs: ["reading", "summary", "laps", "field"], requires: ["reading"], rate: 15,
+  view({ ctx: c, size }) {
     const s = c.r!.session, a = c.r!.car, inv = !s.lap_is_valid;
     const best = c.s && c.s.best_ms != null ? c.s.best_ms : okMs(s.best_lap_ms) ? s.best_lap_ms : null;
     const d = a.reference_delta_s == null ? null : a.reference_delta_s * 1000;
     const sb = best != null && c.field?.best?.ms === best;
+    const last = c.laps.length ? c.laps[c.laps.length - 1] : null;
+    const large = size.h >= 5, compact = size.h <= 4;
+    const nSec = r0(c.r!.fixed.sector_count) || 3, now = s.current_sector | 0, done = (c.s?.lap_sectors_ms as number[] | undefined) ?? [];
+    const lapsDone = c.laps.filter((l) => l.valid !== false && Array.isArray(l.s) && l.s.length === nSec);
+    const pb = (k: number) => Math.min(...lapsDone.map((l) => (l.s as number[])[k]!).filter((v) => v > 0), Infinity);
+    const sbest = (k: number) => Math.min(...[...c.cars.values()].map((x) => (x.best_s ?? [])[k] ?? 0).filter((v) => v > 0), Infinity);
+    const prev = c.laps.slice().reverse().find((l) => Array.isArray(l.s) && l.s.length === nSec)?.s as number[] | undefined; // until this lap overwrites them
+    const sectors = (
+      <div className="cells" style={{ borderTop: "1px solid var(--ln)", flex: "none" }}>
+        {Array.from({ length: nSec }, (_, k) => {
+          const v = done[k], live = k === now && done.length === k && !inv, mark = v != null && v === sbest(k) ? "◆ " : v != null && v === pb(k) && lapsDone.length >= 3 ? "● " : "";
+          const vs = Number.isFinite(pb(k)) && v != null ? v - pb(k) : null;
+          return (
+            <div className="c" key={k} aria-current={live ? "step" : undefined} style={compact ? { flexDirection: "row", alignItems: "center", gap: 6, padding: "4px var(--pad)" } : { gap: 4 }}>
+              <span className="lab">S{k + 1}</span>
+              {v != null ? <span className={(compact ? "v " : "mid ") + (mark === "◆ " ? "b" : mark ? "p" : "")}>{mark}{fmtSector(v)}</span>
+                : live ? <span className={(compact ? "v " : "mid ") + "ac"}>{fmtSector(s.current_lap_ms - done.reduce((a, b) => a + b, 0))}</span> : <span className={(compact ? "v " : "mid ") + "mu"} title={prev?.[k] != null ? "Last lap" : undefined}>{prev?.[k] != null ? fmtSector(prev[k]) : NONE}</span>}
+              {!compact && size.h >= 7 && vs != null && Math.abs(vs) >= 1 ? <span className="v"><Delta ms={vs} /></span> : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+    const delta = d == null || !isFinite(d) ? <span className="big">{NONE}</span> : <span className={"big " + (d < -5 ? "dn" : d > 5 ? "up" : "")}>{d < -5 ? "▼" : d > 5 ? "▲" : ""} {(Math.abs(d) / 1000).toFixed(3)}</span>;
+    const cur = <span className={"big" + (inv ? " iv" : "")}>{fmtLap(s.current_lap_ms).replace(/^(\d):/, "$1:")}</span>;
     return {
+      flush: true,
+      info: large ? [`LAP ${s.lap_number || NONE}`] : [],
       body: (
-        <div data-loc={s.in_pit_lane ? "pit" : inv ? "invalid" : "track"} style={{ display: "contents" }}>
-          <div className="lbl">Lap {s.lap_number || NONE} · sector {(s.current_sector | 0) + 1}/{c.r!.fixed.sector_count || 3}</div>
-          <div className="lt-top">
-            <div className="big">{inv ? <><span className="t-inv">{fmtLap(s.current_lap_ms)}</span> <b className="tag inv">INV</b></> : fmtLap(s.current_lap_ms)}</div>
-            <div className="lt-d"><span className="lbl">Δ live</span><b className="n"><Delta ms={d} /></b></div>
+        <>
+          <div className={large ? "cells h" : "cells"} style={large ? { borderBottom: 0 } : { flex: 1, minHeight: 0 }}>
+            <div className="c"><span className="lab">Current</span>{cur}</div>
+            <div className="c"><span className="lab">{large ? "Live delta" : "Delta"}</span>{delta}</div>
           </div>
-          <div className="sub lt-sub">
-            <span>Last <b className="n">{fmtLap(s.last_lap_ms)}</b></span>
-            <span>Best <b className="n">{best == null ? NONE : sb ? <span className="t-best">◆ {fmtLap(best)}</span> : fmtLap(best)}</b></span>
-            <span>Est <b className="n">{fmtLap(s.estimated_lap_ms)}</b></span>
-          </div>
-        </div>
+          {sectors}
+          {large ? (
+            <div style={{ padding: "0 var(--pad) var(--pad)" }}>
+              <div className="r" data-p="1"><span>Last</span><span className={last && last.valid === false ? "iv" : last && last.ms === best ? "p" : ""}>{last && last.ms === best ? "● " : ""}{fmtLap(s.last_lap_ms)}</span></div>
+              <div className="r" data-p="2"><span>Best</span><span className={sb ? "b" : ""}>{sb ? "◆ " : ""}{best == null ? NONE : fmtLap(best)}</span></div>
+              <div className="r" data-p="3"><span>Game estimate</span><span className="mu">{fmtLap(s.estimated_lap_ms)}</span></div>
+            </div>
+          ) : null}
+        </>
       ),
     };
   },
 });
 
-// ---------- tyres: the car from above ----------
-/** A value as a marker inside its window, which is shaded. */
-function Gauge({ v, lo, hi, min, max, s }: { v: number; lo: number; hi: number; min: number; max: number; s: State }) {
+// ---------- tyres ----------
+/** A value inside its window: the window is shaded, the marker is the value. */
+function Gz({ v, lo, hi, min, max, cls }: { v: number; lo: number; hi: number; min: number; max: number; cls: string }) {
   const pc = (x: number) => clamp(((x - min) / (max - min)) * 100, 0, 100);
-  return <div className="tg"><i style={{ left: pc(lo) + "%", width: pc(hi) - pc(lo) + "%" }} /><b className={stCls(s)} style={{ left: pc(v) + "%" }} /></div>;
+  return <div className="gz sp" style={{ margin: 0, flex: "none", width: "100%" }}><b style={{ left: pc(lo) + "%", width: pc(hi) - pc(lo) + "%" }} /><i className={cls} style={{ left: pc(v) + "%" }} /></div>;
 }
 
-function TyreTiles({ c, brakes }: { c: Ctx; brakes: boolean }) {
-  const p = usePrefs(), u = p.units;
-  const r = c.r!, a = r.car, cap = r.capabilities ?? {}, s = r.session, ctx = sc(c);
-  const [tlo, thi] = c.th.tyre_c, [plo, phi] = psiWindow(c);
-  const wet = !!s.rain_tyres;
-  const tile = (i: number) => {
-    const front = i < 2, core = coreT(a, i, cap), pr = a.tyre_pressure_psi[i], bt = a.brake_temp_c[i];
-    const bw = c.th.brake_c[front ? "front" : "rear"] ?? c.th.brake_c.front;
-    const [blo, bhi] = bw;
-    const ts = tyreState(core, ctx), ps = pressState(pr, ctx), bs = brakeState(bt, front ? "front" : "rear", ctx);
-    const all = [ts, ps, bs];
-    const w = all.includes("bad") ? "bad" : all.includes("warn") ? "warn" : all.includes("cold") ? "cold" : "ok";
-    const word = all.map((x) => STATE_WORD[x]).find(Boolean) ?? "";
-    return (
-      <div className={`tz-c ${stCls(w)}`} key={i}>
-        <div className="tz-h"><b>{CORNERS[i]}</b><span className="tz-w">{word}</span></div>
-        <div className={`tz-v ${stCls(ts)}`}>{fv("temp", core, u)}<span className="u">{unit("temp", u).u}</span><i>{stateGlyph(ts)}</i></div>
-        <Gauge v={core} lo={tlo} hi={thi} min={Math.max(0, tlo - 30)} max={thi + 30} s={ts} />
-        <div className="tz-r"><span>Pressure</span><b className={stCls(ps)}>{fv("press", pr, u)}{stateGlyph(ps)} <span className="u">{unit("press", u).u}</span></b></div>
-        <Gauge v={pr} lo={plo} hi={phi} min={plo - 2} max={phi + 2.5} s={ps} />
-        {brakes ? (
-          <div className="tz-br">
-            <div className="tz-r"><span>Brake</span><b className={stCls(bs)}>{fv("temp", bt, u)}{stateGlyph(bs)} <span className="u">{unit("temp", u).u}</span></b></div>
-            <Gauge v={bt} lo={blo} hi={bhi - 100} min={0} max={bhi + 150} s={bs} />
-          </div>
-        ) : null}
-      </div>
-    );
-  };
-  return (
-    <div className="tz">
-      <div className="tz-bar"><span className={"tz-comp" + (wet ? " wet" : "")}>{wet ? "WET" : "DRY"}</span><span>Set {s.tyre_set || NONE}</span></div>
-      <div className="tz-grid">{[0, 1, 2, 3].map(tile)}</div>
-    </div>
-  );
-}
-
-const worst = (ss: State[]) => (ss.includes("bad") ? 2 : ss.some((s) => s === "warn" || s === "cold") ? 1 : 0);
+const NAMES = ["Front left", "Front right", "Rear left", "Rear right"];
 
 export const tyres = defineModule({
-  type: "tyres", title: "Tyres", group: "Car", blurb: "Pressures, core temperatures and brakes on a car seen from above, and the next stop's correction.",
-  size: { w: 4, h: 12, minW: 3, minH: 6 }, needs: ["reading", "summary", "config", "units"], requires: ["reading"], rate: 5,
+  type: "tyres", title: "Tyres", group: "Car", blurb: "Pressures, core temperatures and brakes at each corner, and the next stop's correction.",
+  size: { w: 4, h: 9, minW: 3, minH: 6 }, needs: ["reading", "summary", "config", "units"], requires: ["reading"], rate: 5,
   options: [
     { key: "corrections", label: "Show the next stop's correction", type: "toggle", def: true },
     { key: "brakes", label: "Show brakes", type: "toggle", def: true },
   ],
-  view({ ctx: c, opts }) {
+  view({ ctx: c, opts, size }) {
     const p = usePrefs(), u = p.units;
     const r = c.r!, a = r.car, pl = c.s?.press_line, cap = r.capabilities ?? {}, ctx = sc(c);
     const [lo, hi] = psiWindow(c), mid = (lo + hi) / 2;
+    const [tlo, thi] = c.th.tyre_c;
     const ps = (a.tyre_pressure_psi as number[]).map((v) => pressState(v, ctx));
     const ts = [0, 1, 2, 3].map((i) => tyreState(coreT(a, i, cap), ctx));
     const bs = (a.brake_temp_c as number[]).map((t, i) => brakeState(t, i < 2 ? "front" : "rear", ctx));
-    const cell = (v: string, s: State, i: number) => <td key={i} className={`n ${stCls(s)}`}>{v}{stateGlyph(s)}{s === "cold" && v !== NONE ? <span className="note"> COLD</span> : null}</td>;
-    const pu = unit("press", u);
-    const rows: [string, ReactNode[]][] = [];
-    if (pl) rows.push(["Avg at line", (pl.psi as number[]).map((x, i) => cell(fv("press", x, u), pressState(x, ctx), i))]);
-    if (opts.corrections && pl) {
-      rows.push(["Next stop", (pl.psi as number[]).map((x, i) => {
-        const d = mid - x, v = pu.f(d) - pu.f(0);
-        return <td className="n" key={i}>{Math.abs(d) < 0.05 ? "0" : (d > 0 ? "▲ +" : "▼ " + MINUS) + Math.abs(v).toFixed(pu.d)}</td>;
-      })]);
-    }
-    return {
-      info: `stint ${c.s ? plural(c.s.stint_laps, "lap") : NONE} · window ${fv("press", lo, u)}–${fv("press", hi, u)} ${pu.u} (${r.fixed.car_class || "GT3"} ${c.wet ? "wet" : "dry"})`,
-      alert: [worst(ps.concat(ts, opts.brakes ? bs : []))], // one alert per module: the tab badge counts problems, not corners
-      body: (
-        <>
-          <TyreTiles c={c} brakes={!!opts.brakes} />
-          <table className="tt ty-t" hidden={!rows.length}>
-            <thead><tr><th />{CORNERS.map((x) => <th className="n" key={x}>{x}</th>)}</tr></thead>
-            <tbody>{rows.map(([l, v]) => <tr key={l}><td>{l}</td>{v}</tr>)}</tbody>
+    const pu = unit("press", u), tu = unit("temp", u).u;
+    const worstOf = (...x: State[]) => (x.includes("bad") ? 2 : x.some((y) => y === "warn" || y === "cold") ? 1 : 0);
+    const large = size.w >= 4 && size.h >= 8;
+    const lapsOn = c.s ? c.s.stint_laps : null;
+    const pcls = (s: State) => (s === "ok" ? "" : s === "bad" ? "up" : s === "cold" ? "cd" : "wn");
+    const corr = (i: number) => (pl && Array.isArray(pl.psi) ? mid - (pl.psi as number[])[i]! : null);
+    const setCold = (i: number) => { const cx = corr(i); return cx == null ? null : (a.tyre_pressure_psi as number[])[i]! + cx; };
+    const alert: [number] = [worstOf(...ps, ...ts, ...(opts.brakes ? bs : []))];
+    if (!large) {
+      return {
+        flush: true, alert, info: [`SET ${r.session.tyre_set || NONE}`],
+        body: (
+          <table className="t">
+            <thead><tr><th className="l">Corner</th><th>{pu.u}</th><th>Core °{tu.replace("°", "")}</th><th>Brake °{tu.replace("°", "")}</th><th>Set cold</th></tr></thead>
+            <tbody>
+              {CORNERS.map((n, i) => (
+                <tr key={n}><td className="l">{n}</td><td className={pcls(ps[i]!)}>{fv("press", (a.tyre_pressure_psi as number[])[i], u)}{stateGlyph(ps[i]!)}</td><td className={pcls(ts[i]!)}>{fv("temp", coreT(a, i, cap), u)}</td><td className={pcls(bs[i]!)}>{fv("temp", (a.brake_temp_c as number[])[i], u)}</td><td className="ac">{setCold(i) != null ? fv("press", setCold(i), u) : NONE}</td></tr>
+              ))}
+            </tbody>
           </table>
-          <p className="note">ACC publishes core temperature only (no inner, middle or outer) and no tyre wear: Pace shows what the tyres cost in lap time.</p>
-        </>
+        ),
+      };
+    }
+    const row = (label: string, val: string, unitS: string, g: React.ReactNode, tail: React.ReactNode) => (
+      <div className="fc" style={{ gap: 4 }}><div className="f" style={{ gap: 8 }}><span className="lab" style={{ width: 40 }}>{label}</span><span className="v" style={{ fontSize: 12.5 }}>{val}<span className="u">{unitS}</span></span><span style={{ marginLeft: "auto" }}>{tail}</span></div>{g}</div>
+    );
+    return {
+      flush: true, alert,
+      info: [`SET ${r.session.tyre_set || NONE}${lapsOn != null ? ` · ${lapsOn} LAPS` : ""}`, `HOT ${fv("press", lo, u)}–${fv("press", hi, u)}`],
+      body: (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
+          {[0, 1, 2, 3].map((i) => {
+            const front = i < 2, core = coreT(a, i, cap), pr = (a.tyre_pressure_psi as number[])[i]!, bt = (a.brake_temp_c as number[])[i]!;
+            const bw = c.th.brake_c[front ? "front" : "rear"] ?? c.th.brake_c.front, [blo, bhi] = bw;
+            const cx = corr(i), sc0 = setCold(i), dd = pr - mid;
+            return (
+              <div className="dk" key={i} style={{ padding: "7px 12px", gap: 6, justifyContent: "space-between" }}>
+                <div><span className="lab" style={{ color: "var(--t2)" }}>{NAMES[i]}</span>{opts.corrections && sc0 != null ? <span className="v ac">set {fv("press", sc0, u)} <span className={cx! < 0 ? "dn" : "up"}>{Math.abs(cx!) < 0.05 ? "" : `${cx! < 0 ? "▼" : "▲"} ${Math.abs(pu.f(cx!) - pu.f(0)).toFixed(pu.d)}`}</span></span> : null}</div>
+                {row("Press", fv("press", pr, u), pu.u, <Gz v={pr} lo={lo} hi={hi} min={lo - 2} max={hi + 2.5} cls={ps[i] === "ok" ? "" : "w"} />, <span className={"v " + (ps[i] === "ok" ? "di" : pcls(ps[i]!))} style={{ whiteSpace: "nowrap" }}>{ps[i] === "ok" ? "ok" : `${dd > 0 ? "▲ +" : "▼ " + MINUS}${Math.abs(pu.f(dd) - pu.f(0)).toFixed(pu.d)}`}</span>)}
+                {row("Core", fv("temp", core, u), tu, <Gz v={core} lo={tlo} hi={thi} min={Math.max(0, tlo - 30)} max={thi + 30} cls={ts[i] === "ok" ? "" : "w"} />, <span className={"v " + (ts[i] === "ok" ? "di" : pcls(ts[i]!))} style={{ whiteSpace: "nowrap" }}>{ts[i] === "ok" ? "ok" : STATE_WORD[ts[i]!] ?? ""}</span>)}
+                {opts.brakes ? row("Brake", fv("temp", bt, u), tu, <Gz v={bt} lo={blo} hi={bhi - 100} min={0} max={bhi + 150} cls={bs[i] === "ok" ? "" : "w"} />, <span className={"v " + (bs[i] === "ok" ? "di" : pcls(bs[i]!))} style={{ whiteSpace: "nowrap" }}>{bs[i] === "ok" ? "ok" : STATE_WORD[bs[i]!] ?? ""}</span>) : null}
+              </div>
+            );
+          })}
+        </div>
       ),
     };
   },
@@ -175,33 +222,43 @@ export const tyres = defineModule({
 export const tyreHistory = defineModule({
   type: "tyre-history", title: "Tyre history", group: "Car", blurb: "Pressures and core temperatures at the line, lap by lap.",
   size: { w: 8, h: 11, minW: 4, minH: 6 }, needs: ["laps", "units", "config"],
-  view({ ctx: c }) {
+  view({ ctx: c, size }) {
     const p = usePrefs(), u = p.units;
     const L = c.laps.filter((l) => Array.isArray(l.psi));
     if (!L.length) return { state: { kind: "empty", msg: "Filled as laps are completed." } };
+    const large = size.w >= 6;
+    const rows = L.slice().reverse();
+    const bl = { borderLeft: "1px solid var(--ln)" };
     return {
-      info: `${plural(L.length, "lap")} · ${unit("press", u).u}, ${unit("temp", u).u}`,
-      body: (
-        <table className="tt th">
+      flush: true,
+      info: [large ? "AT THE LINE, LAP BY LAP" : `${unit("press", u).u.toUpperCase()} AT THE LINE`],
+      body: large ? (
+        <table className="t">
           <thead>
-            <tr>
-              <th className="n">Lap</th><th className="n">Set</th>
-              {CORNERS.map((x) => <th className="n" key={"p" + x}>{x} {unit("press", u).u}</th>)}
-              {CORNERS.map((x) => <th className="n" key={"t" + x}>{x} {unit("temp", u).u}</th>)}
-              <th className="n">Track {unit("temp", u).u}</th>
-            </tr>
+            <tr><th /><th colSpan={4} style={bl}>Pressure {unit("press", u).u}</th><th colSpan={4} style={bl}>Core temperature {unit("temp", u).u}</th><th style={bl} /></tr>
+            <tr><th>Lap</th>{CORNERS.map((x, i) => <th key={"p" + x} style={i ? undefined : bl}>{x}</th>)}{CORNERS.map((x, i) => <th key={"t" + x} style={i ? undefined : bl}>{x}</th>)}<th style={bl}>Set</th></tr>
           </thead>
           <tbody>
-            {L.slice().reverse().map((l) => {
+            {rows.map((l, k) => {
               const cx = { th: c.th, wet: !!l.wet, fuelLowLaps: 3 };
               return (
-                <tr key={l.n}>
-                  <td className="n">{l.n}</td><td className="n">{l.wet ? "W" : "D"}{nf(l.set, 0)}</td>
-                  {(l.psi as number[]).map((x, i) => { const s = pressState(x, cx); return <td key={"p" + i} className={`n ${stCls(s)}`}>{fv("press", x, u)}{stateGlyph(s)}</td>; })}
-                  {((l.core as number[] | undefined) ?? []).map((t, i) => { const s = tyreState(t, cx); return <td key={"t" + i} className={`n ${stCls(s)}`}>{fv("temp", t, u)}{stateGlyph(s)}</td>; })}
-                  <td className="n">{fv("temp", l.track_c, u, 1)}</td>
+                <tr key={l.n} className={k === 0 ? "cur" : undefined}>
+                  <td className="mu">{l.n}</td>
+                  {(l.psi as number[]).map((x, i) => { const s = pressState(x, cx); return <td key={"p" + i} className={pcls0(s)} style={i ? undefined : bl}>{fv("press", x, u)}{stateGlyph(s)}</td>; })}
+                  {((l.core as number[] | undefined) ?? []).map((t, i) => { const s = tyreState(t, cx); return <td key={"t" + i} className={pcls0(s)} style={i ? undefined : bl}>{fv("temp", t, u)}{stateGlyph(s)}</td>; })}
+                  <td style={bl}>{l.wet ? "W" : ""}{nf(l.set, 0)}</td>
                 </tr>
               );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <table className="t">
+          <thead><tr><th>Lap</th>{CORNERS.map((x) => <th key={x}>{x}</th>)}<th>Set</th></tr></thead>
+          <tbody>
+            {rows.map((l, k) => {
+              const cx = { th: c.th, wet: !!l.wet, fuelLowLaps: 3 };
+              return <tr key={l.n} className={k === 0 ? "cur" : undefined}><td className="mu">{l.n}</td>{(l.psi as number[]).map((x, i) => { const s = pressState(x, cx); return <td key={i} className={pcls0(s)}>{fv("press", x, u)}{stateGlyph(s)}</td>; })}<td>{nf(l.set, 0)}</td></tr>;
             })}
           </tbody>
         </table>
@@ -209,45 +266,39 @@ export const tyreHistory = defineModule({
     };
   },
 });
+const pcls0 = (s: State) => (s === "ok" ? "" : s === "bad" ? "up" : s === "cold" ? "cd" : "wn");
 
 // ---------- brakes ----------
 export const brakes = defineModule({
   type: "brakes", title: "Brakes", group: "Car", blurb: "Pad and disc thickness, wear per lap, laps left on the pads, and temperatures.",
   size: { w: 4, h: 6, minW: 3, minH: 5 }, needs: ["reading", "summary", "config", "units"], requires: ["reading"],
-  view({ ctx: c }) {
+  view({ ctx: c, size }) {
     const p = usePrefs(), u = p.units, ctx = sc(c);
     const a = c.r!.car, stint = (c.s?.stint as Json[] | undefined) ?? [];
     const first = stint.length ? stint[0]!.pads : null, last = stint.length ? stint[stint.length - 1]!.pads : null, low = c.th.pad_low_mm;
     const wear = (i: number): number | null => (first && last && stint.length > 1 ? (first[i] - last[i]) / (stint.length - 1) : null);
-    const pads = a.brake_pad_mm as number[], temps = a.brake_temp_c as number[];
+    const pads = a.brake_pad_mm as number[], temps = a.brake_temp_c as number[], disc = a.brake_disc_mm as number[];
     const tstate = (t: number, i: number) => brakeState(t, i < 2 ? "front" : "rear", ctx);
+    const large = size.w >= 4 && size.h >= 6;
+    const left = (i: number) => { const w = wear(i); return w != null && w > 0 ? Math.floor((pads[i]! - low) / w) : null; };
     return {
-      info: `pads F ${nf(a.front_pad_compound, 0)} · R ${nf(a.rear_pad_compound, 0)}${stint.length > 1 ? ` · over ${stint.length} laps` : ""}`,
+      flush: true,
+      info: [large ? "PADS AND DISCS" : "PADS"],
       alert: [Math.max(...pads.map((v) => (padState(v, ctx) === "bad" ? 2 : 0)), ...temps.map((t, i) => { const s = tstate(t, i); return s === "bad" ? 2 : s === "warn" ? 1 : 0; }))],
       body: (
-        <table className="tt br">
-          <thead><tr><th />{CORNERS.map((x) => <th className="n" key={x}>{x}</th>)}</tr></thead>
+        <table className="t">
+          <thead><tr><th className="l">Corner</th><th>Pad mm</th>{large ? <><th>Disc mm</th><th>Wear /lap</th></> : null}<th>Laps left</th><th>{large ? `Temp °${unit("temp", u).u.replace("°", "")}` : "Temp"}</th></tr></thead>
           <tbody>
-            <tr>
-              <td>Pad mm</td>
-              {pads.map((v, i) => {
-                // The bar sits under the figure; its tick is the pads-low line.
-                const s = padState(v, ctx), scale = Math.max(30, first ? first[i] : v);
-                return (
-                  <td className="n pad" key={i}>
-                    <span className={stCls(s)}>{nf(v, 1)}{stateGlyph(s)}</span>
-                    <div className="gauge"><i className={stCls(s)} style={{ width: clamp((v / scale) * 100, 0, 100).toFixed(1) + "%" }} /><b style={{ left: clamp((low / scale) * 100, 0, 100).toFixed(1) + "%" }} title={`${low} mm: pads low`} /></div>
-                  </td>
-                );
-              })}
-            </tr>
-            <tr><td>Wear / lap</td>{pads.map((_, i) => { const w = wear(i); return <td className="n" key={i}>{w == null ? NONE : nf(w, 3)}</td>; })}</tr>
-            <tr><td>Laps left</td>{pads.map((v, i) => { const w = wear(i); return <td className="n" key={i}>{w != null && w > 0.0005 ? nf(Math.max(0, (v - low) / w), 0) : NONE}</td>; })}</tr>
-            <tr><td>Disc mm</td>{(a.brake_disc_mm as number[]).map((v, i) => <td className="n" key={i}>{nf(v, 1)}</td>)}</tr>
-            <tr>
-              <td>Temp {unit("temp", u).u}</td>
-              {temps.map((t, i) => { const s = tstate(t, i); return <td className="n" key={i}><span className={stCls(s)}>{fv("temp", t, u)}{stateGlyph(s)}</span></td>; })}
-            </tr>
+            {CORNERS.map((n, i) => {
+              const ps = padState(pads[i]!, ctx), ts = tstate(temps[i]!, i), lf = left(i);
+              return (
+                <tr key={n}>
+                  <td className="l">{large ? NAMES[i] : n}</td><td className={pcls0(ps)}>{nf(pads[i], 1)}{stateGlyph(ps)}</td>
+                  {large ? <><td>{nf(disc[i], 1)}</td><td>{wear(i) != null ? nf(wear(i), 2) : NONE}</td></> : null}
+                  <td className={lf != null && lf < 20 ? "wn" : ""}>{lf ?? NONE}</td><td className={pcls0(ts)}>{fv("temp", temps[i], u)}{stateGlyph(ts)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       ),
@@ -259,14 +310,18 @@ export const brakes = defineModule({
 export const electronics = defineModule({
   type: "electronics", title: "Electronics", group: "Car", blurb: "Brake bias, TC, ABS, engine map, lights and wipers.",
   size: { w: 4, h: 5, minW: 3, minH: 4 }, needs: ["reading"], requires: ["reading"],
-  view({ ctx: c }) {
+  view({ ctx: c, size }) {
     const a = c.r!.car, s = c.r!.session;
+    const large = size.w >= 4 && size.h >= 5;
+    const cell = (l: string, v: ReactNode) => <div className="c" key={l}><span className="lab">{l}</span>{large ? <span className="big">{v}</span> : <span className="mid">{v}</span>}</div>;
+    const bb = a.brake_bias != null ? <>{nf(a.brake_bias, 1)}{large ? <span className="u">%</span> : null}</> : NONE;
     return {
+      flush: true,
+      info: large ? [`LIGHTS ${(["off", "low", "high"][a.lights_stage | 0] ?? NONE).toUpperCase()}`, `WIPERS ${a.wiper ? nf(a.wiper, 0) : "OFF"}`] : [],
       body: (
-        <Kv className="cols2" rows={[
-          ["Brake bias", a.brake_bias != null ? <>{nf(a.brake_bias, 1)}<span className="u"> %</span></> : NONE], ["TC", nf(a.tc_level, 0)], ["TC cut", nf(s.tc_cut, 0)], ["ABS", nf(a.abs_level, 0)],
-          ["Engine map", nf(s.engine_map, 0)], ["Rain lights", a.rain_lights ? "on" : "off"], ["Lights", ["off", "low", "high"][a.lights_stage | 0] ?? NONE], ["Wiper", nf(a.wiper, 0)],
-        ]} />
+        <div className="cells" style={{ height: "100%" }}>
+          {cell(large ? "Brake bias" : "BB", bb)}{cell("TC", nf(a.tc_level, 0))}{cell("ABS", nf(a.abs_level, 0))}{cell(large ? "Engine map" : "Map", nf(s.engine_map, 0))}
+        </div>
       ),
     };
   },
@@ -275,80 +330,59 @@ export const electronics = defineModule({
 // ---------- damage & engine ----------
 export const ZONES = ["Front", "Rear", "Left", "Right", "Centre"];
 
-// A GT3 from above, nose up. Zones are rects clipped to the silhouette; the corners are the tyres (suspension damage).
-const BODY = "M120 22C142 22 152 28 158 44C164 58 168 74 168 96C168 118 160 130 158 150C158 170 168 190 170 220C172 250 168 280 160 300C154 312 142 316 120 316C98 316 86 312 80 300C72 280 68 250 70 220C72 190 82 170 82 150C80 130 72 118 72 96C72 74 76 58 82 44C88 28 98 22 120 22Z";
-const SPLIT = "M72 16Q120 6 168 16L164 26Q120 20 76 26Z", WING = "M60 316H180V332H60Z";
-
-function Zone({ i, x, y, w, h, tx, ty, an, v }: { i: number; x: number; y: number; w: number; h: number; tx: number; ty: number; an: "middle" | "end" | "start"; v: number }) {
+/** The nine zones as the car seen from above, front at the top; each card carries a bar and a state. */
+function DamageCards({ dmg, sus }: { dmg: number[]; sus: number[] }) {
+  const body = (i: number, label: string): [string, number, string] => { const v = dmg[i] ?? 0; return [label, v, bodyState(v)]; };
+  const susp = (i: number): [string, number, string] => { const v = sus[i] ?? 0; return ["Susp " + CORNERS[i], v, suspState(v)]; };
+  const cells = [susp(0), body(0, "Front"), susp(1), body(2, "Left"), body(4, "Roof"), body(3, "Right"), susp(2), body(1, "Rear"), susp(3)];
+  const K: Record<string, [string, string, string]> = { none: ["o", "", "ok"], ok: ["o", "", "ok"], warn: ["w", "wn", "wn"], bad: ["b", "up", "bd"] };
   return (
-    <g className={v > 0 ? "s-bad" : undefined}>
-      <rect className="dz" x={x} y={y} width={w} height={h} clipPath="url(#dm-clip)" style={{ fillOpacity: v > 0 ? +(0.3 + 0.5 * Math.min(v / 100, 1)).toFixed(2) : 0 }} />
-      <text x={tx} y={ty} textAnchor={an}>{nf(v, 1)}</text><text className="cn" x={tx} y={ty + 12} textAnchor={an}>{ZONES[i]!.toUpperCase()}</text>
-    </g>
-  );
-}
-
-function Wheel({ i, x, y, h, tx, an, v }: { i: number; x: number; y: number; h: number; tx: number; an: "end" | "start"; v: number }) {
-  return (
-    <g className={v > 0 ? "s-bad" : undefined}>
-      <rect className="dm-t" x={x} y={y} width="22" height={h} rx="6" />
-      <rect className="dz" x={x} y={y} width="22" height={h} rx="6" style={{ fillOpacity: v > 0 ? +(0.3 + 0.5 * Math.min(v / 100, 1)).toFixed(2) : 0 }} />
-      <text x={tx} y={y + h / 2 - 2} textAnchor={an}>{nf(v, 2)}</text><text className="cn" x={tx} y={y + h / 2 + 10} textAnchor={an}>{CORNERS[i]}</text>
-    </g>
-  );
-}
-
-function DamageCar({ dmg, sus, water, exhaust, ws }: { dmg: number[]; sus: number[]; water: ReactNode; exhaust: ReactNode; ws: State }) {
-  void ws;
-  return (
-    <div className="dm-car">
-      <svg viewBox="0 0 240 340" role="img" aria-label="Car damage by zone">
-        <defs><clipPath id="dm-clip"><path d={BODY} /><path d={SPLIT} /><path d={WING} /></clipPath></defs>
-        <Wheel i={0} x={56} y={62} h={46} tx={50} an="end" v={sus[0] || 0} /><Wheel i={1} x={162} y={62} h={46} tx={190} an="start" v={sus[1] || 0} />
-        <Wheel i={2} x={56} y={222} h={52} tx={50} an="end" v={sus[2] || 0} /><Wheel i={3} x={162} y={222} h={52} tx={190} an="start" v={sus[3] || 0} />
-        <path className="dm-b" d={BODY} /><path className="dm-b" d={SPLIT} /><path className="dm-b" d={WING} />
-        <Zone i={0} x={0} y={0} w={240} h={125} tx={120} ty={98} an="middle" v={dmg[0] || 0} /><Zone i={1} x={0} y={214} w={240} h={126} tx={120} ty={262} an="middle" v={dmg[1] || 0} />
-        <Zone i={2} x={0} y={125} w={98} h={89} tx={74} ty={170} an="end" v={dmg[2] || 0} /><Zone i={3} x={142} y={125} w={98} h={89} tx={166} ty={170} an="start" v={dmg[3] || 0} />
-        <Zone i={4} x={98} y={125} w={44} h={89} tx={120} ty={174} an="middle" v={dmg[4] || 0} />
-        <g className="dm-d">
-          <path d="M102 130H138L144 156H96ZM98 156H142V196H98ZM98 196H142L137 214H103Z" />
-          <path d="M98 54L114 62M142 54L126 62M120 30V70" /><path d="M92 37L106 32M148 37L134 32" /><path d="M90 306L106 308M150 306L134 308" />
-          <path d="M78 56C74 70 74 90 78 106M162 56C166 70 166 90 162 106M74 226C76 250 74 272 80 292M166 226C164 250 166 272 160 292" />
-          <ellipse cx="78" cy="134" rx="6" ry="3.5" /><ellipse cx="162" cy="134" rx="6" ry="3.5" /><path d="M60 316V332M180 316V332" />
-        </g>
-      </svg>
-      <div className="dm-chips"><span><Icon name="droplets" />Water <b className="dm-w n">{water}</b></span><span><Icon name="flame" />Exhaust <b className="dm-x n">{exhaust}</b></span></div>
+    <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gridTemplateRows: "repeat(3,1fr)", gap: 4, padding: 6, borderRight: "1px solid var(--ln)", minWidth: 0 }}>
+      {cells.map(([label, v, st]) => {
+        const [dk, tx, bar] = K[st]!, isS = label.startsWith("Susp");
+        return (
+          <div className={"dk " + dk} key={label}>
+            <div><span className="lab">{label}</span><span className={"v " + tx}>{st === "ok" || st === "none" ? "" : "▲ "}{isS ? v.toFixed(2) : nf(v, 0)}</span></div>
+            <div className={"bar " + bar}><i style={{ width: Math.min(100, isS ? v * 100 : v / 2) + "%" }} /></div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 export const damage = defineModule({
-  type: "damage", title: "Damage & engine", group: "Car", blurb: "Bodywork and suspension damage, water and exhaust temperature.",
+  type: "damage", title: "Damage and engine", group: "Car", blurb: "Bodywork and suspension damage, water and exhaust temperature.",
   size: { w: 4, h: 6, minW: 3, minH: 5 }, needs: ["reading", "config", "units"], requires: ["reading"],
-  options: [{ key: "view", label: "View", type: "select", choices: [["table", "Table"], ["car", "Car drawing"]], def: "table" }],
-  view({ ctx: c, opts }) {
+  options: [{ key: "view", label: "View", type: "select", choices: [["auto", "Auto"], ["cards", "Cards"], ["table", "Table"]], def: "auto" }],
+  view({ ctx: c, opts, size }) {
     const p = usePrefs(), u = p.units;
     const a = c.r!.car, dmg = ((a.damage as number[] | undefined) ?? []).slice(0, 5), sus = (a.suspension_damage as number[] | undefined) ?? [];
-    const any = dmg.some((v) => v > 0) || sus.some((v) => v > 0), ws = waterState(a.water_temp_c, sc(c));
-    const carView = opts.view === "car";
+    const bs = dmg.map((v) => bodyState(v)), ss = sus.map((v) => suspState(v)), any = [...bs, ...ss].some((s) => s === "warn" || s === "bad"), ws = waterState(a.water_temp_c, sc(c));
+    const mode = opts.view === "auto" ? (size.w >= 4 && size.h >= 6 ? "cards" : "table") : (opts.view as string);
     const tu = unit("temp", u).u;
     const water = <><span className={stCls(ws)}>{fv("temp", a.water_temp_c, u)}{stateGlyph(ws)}</span><span className="u"> {tu}</span></>;
     const exhaust = <>{fv("temp", a.exhaust_temp_c, u)}<span className="u"> {tu}</span></>;
+    const cls = (s: State) => (s === "bad" ? "up" : s === "warn" ? "wn" : "");
+    const zoneRows: [string, number, number][] = [["Front", dmg[0] ?? 0, sus[0] ?? 0], ["Rear", dmg[1] ?? 0, sus[2] ?? 0], ["Left", dmg[2] ?? 0, sus[1] ?? 0], ["Right", dmg[3] ?? 0, sus[3] ?? 0]];
     return {
-      alert: [any || ws === "bad" ? 2 : ws === "warn" ? 1 : 0],
-      body: (
-        <>
-          <div className="dm-ok" hidden={carView && !any}>
-            {any ? <span className="s-bad"><Icon name="octagon-alert" /><b>Damage</b> <span className="note">level (0 = none)</span></span> : <span className="s-ok"><Icon name="circle-check" /><b>No damage</b></span>}
-          </div>
-          {carView ? <DamageCar dmg={dmg} sus={sus} water={water} exhaust={exhaust} ws={ws} /> : (
-            // No damage: only the engine rows, not nine zeros repeating the headline.
-            <div className="dm-cols">
-              <Kv className="dm-body" rows={[...(any ? ZONES.map((z, i): [ReactNode, ReactNode, string] => [z, nf(dmg[i], 1), dmg[i]! > 0 ? "s-bad" : ""]) : []), ["Water", <>{fv("temp", a.water_temp_c, u)}<span className="u"> {tu}</span>{stateGlyph(ws)}</>, stCls(ws)]]} />
-              <Kv className="dm-sus" rows={[...(any ? CORNERS.map((z, i): [ReactNode, ReactNode, string] => [`Susp. ${z}`, nf(sus[i], 2), sus[i]! > 0 ? "s-bad" : ""]) : []), ["Exhaust", exhaust]]} />
-            </div>
-          )}
-        </>
+      flush: true,
+      alert: [Math.max(stateLevel(ws), ...bs.map(stateLevel), ...ss.map(stateLevel))],
+      info: mode === "cards" ? ["FRONT AT THE TOP"] : [],
+      body: mode === "cards" ? (
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          <DamageCards dmg={dmg} sus={sus} />
+          <div className="fc" style={{ width: 170, flex: "none", padding: 8 }}><span className="lab">Engine</span><div><div className="r"><span>Water</span><span>{water}</span></div><div className="r"><span>Exhaust</span><span>{exhaust}</span></div></div></div>
+        </div>
+      ) : (
+        <table className="t">
+          <thead><tr><th className="l">Zone</th><th>Body</th><th>Susp.</th></tr></thead>
+          <tbody>
+            {zoneRows.filter(([, b, sp]) => bodyState(b) !== "ok" || suspState(sp) !== "ok").map(([z, b, sp]) => <tr key={z}><td className="l">{z}</td><td className={cls(bodyState(b))}>{bodyState(b) === "ok" ? "" : "▲ "}{nf(b, 0)}</td><td className={cls(suspState(sp))}>{suspState(sp) === "ok" ? "" : "▲ "}{nf(sp, 2)}</td></tr>)}
+            {!any ? <tr><td className="l">Damage</td><td colSpan={2} className="dn">none</td></tr> : null}
+            <tr><td className="l">Water · exhaust</td><td colSpan={2}>{fv("temp", a.water_temp_c, u)} · {fv("temp", a.exhaust_temp_c, u)} {tu}</td></tr>
+          </tbody>
+        </table>
       ),
     };
   },

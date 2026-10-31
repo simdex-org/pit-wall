@@ -205,6 +205,46 @@ class Editor {
   select(id: string | null): void { this.set({ sel: id }); }
   setDrawer(open: boolean): void { this.set({ drawer: open }); }
 
+  /** The "Tests" workspace: every module, one band of rows per group, each row filling the 12 columns at one height. Opened by five clicks on the logo. */
+  openTests(): void {
+    if (this.s.active) { say("Leave editing first", 1); return; }
+    const old = this.cur.workspaces.find((w) => w.id === "w-tests");
+    if (!old && this.cur.workspaces.length >= 9) { say("Keep at most 8 workspaces to open Tests", 1); return; }
+    this.own();
+    const next = deep(this.cur), mods: ModuleInstance[] = [];
+    const order = ["Timing", "Strategy", "Pit", "Car", "Laps", "Analysis", "Log"];
+    const defs = [...registry.values()].sort((a, b) => (order.indexOf(a.group) + 1 || 99) - (order.indexOf(b.group) + 1 || 99));
+    let y = 0;
+    for (const g of new Set(defs.map((d) => d.group))) {
+      const rows: (typeof defs)[] = [];
+      let cur: typeof defs = [], sum = 0;
+      for (const d of defs.filter((q) => q.group === g)) {
+        if (cur.length && sum + d.size.w > 12) { rows.push(cur); cur = []; sum = 0; }
+        cur.push(d); sum += d.size.w;
+      }
+      if (cur.length) rows.push(cur);
+      for (const row of rows) {
+        const base = row.reduce((a, d) => a + d.size.w, 0), ws = row.map((d) => Math.max(d.size.minW, Math.floor((d.size.w * 12) / base)));
+        let total = ws.reduce((a, n) => a + n, 0);
+        for (let i = 0; total < 12; i = (i + 1) % row.length) { ws[i]!++; total++; }
+        while (total > 12) { const j = ws.reduce((m, n, i) => (n - row[i]!.size.minW > ws[m]! - row[m]!.size.minW ? i : m), 0); if (ws[j]! <= row[j]!.size.minW) break; ws[j]!--; total--; }
+        const h = Math.max(...row.map((d) => d.size.h));
+        let x = 0;
+        row.forEach((d, i) => {
+          mods.push({ id: uniqueModId(next, mods), type: d.type, x, y, w: ws[i]!, h, hidden: false, header: true, title: "", linked: false, options: sanitizeOptions(d, {}, () => {}) });
+          x += ws[i]!;
+        });
+        y += h;
+      }
+    }
+    const ws = { id: "w-tests", name: "Tests", modules: mods };
+    if (old) next.workspaces[next.workspaces.findIndex((w) => w.id === "w-tests")] = ws; else next.workspaces.push(ws);
+    templates.save(next);
+    this.commit(next);
+    this.set({});
+    nav.showWorkspace("w-tests");
+  }
+
   // ---------- workspaces ----------
   addWs(): void {
     if (this.cur.workspaces.length >= 9) return;
@@ -301,8 +341,8 @@ class Editor {
   }
 
   /** An options change: with the editor an undoable change; otherwise saved at once (forking a built-in first). */
-  setOpt(fn: (m: ModuleInstance, def: ReturnType<typeof registry.get>) => void): void {
-    const id = this.s.optId;
+  setOpt(fn: (m: ModuleInstance, def: ReturnType<typeof registry.get>) => void, forId?: string): void {
+    const id = forId ?? this.s.optId;
     if (!id) return;
     if (this.s.active) { this.change((t) => { const m = t.workspaces.flatMap((w) => w.modules).find((x) => x.id === id); if (!m) return false; fn(m, registry.get(m.type)); }, id); return; }
     this.own();

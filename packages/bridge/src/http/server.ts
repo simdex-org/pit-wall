@@ -1,4 +1,4 @@
-// The page, GET /events (SSE), /lap, /field/laps, /track and POST /pit, /config, /mfd/close.
+// The page, GET /events (SSE), /lap, /session, /field/laps, /track and POST /pit, /config, /mfd/close.
 import { timingSafeEqual } from "node:crypto";
 import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
 import { isIP } from "node:net";
@@ -138,8 +138,19 @@ function get(req: IncomingMessage, res: Res): void {
     const name = lap ? "n" : "car";
     const v = intParam(u.searchParams, name, lap ? 1 : 0, lap ? 99999 : 65535);
     if (v === null) return reply(res, 400, `${name} must be a whole number`);
-    if (lap) { const t = TEL.t?.lapTrace(v); return t ? replyJson(res, 200, t) : replyJson(res, 404, {}); }
+    if (lap) {
+      const s = u.searchParams.has("s") ? intParam(u.searchParams, "s", 1, 99999) : undefined;
+      if (s === null) return reply(res, 400, "s must be a whole number");
+      const t = TEL.t?.lapTrace(v, s);
+      return t ? replyJson(res, 200, t) : replyJson(res, 404, {});
+    }
     return replyJson(res, 200, { car: v, laps: FIELD.f ? FIELD.f.carLaps(v) : [] });
+  }
+  if (u.pathname === "/session") { // an earlier session's field: standings, slow fields, entries and every car's laps
+    const id = intParam(u.searchParams, "id", 1, 99999);
+    if (id === null) return reply(res, 400, "id must be a whole number");
+    const f = TEL.t?.vault.get(id)?.field;
+    return f ? replyJson(res, 200, f) : replyJson(res, 404, {});
   }
   if (u.pathname === "/track") { // the saved layout of the track being driven: the map needs no lap of its own
     const name = STATE.reading?.reading?.fixed?.track;
@@ -175,6 +186,7 @@ function events(req: IncomingMessage, res: Res, q: URLSearchParams): void {
       reading: s.reading,
       summary: s.t_summary !== sent.summary ? s.summary : null,
       laps: s.laps_ver !== sent.laps ? s.laps : null,
+      past: s.laps_ver !== sent.laps ? s.past : null,
       field,
       entries: s.entries_ver !== sent.entries ? s.entries : null,
       log: newLog.length ? newLog : null,

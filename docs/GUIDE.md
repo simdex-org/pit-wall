@@ -54,7 +54,7 @@ Keys typed into the MFD reach ACC as a second keyboard, and ACC then forgets the
 - Number keys **1–9** switch workspace, `[` and `]` step through them. Each browser tab keeps its own template and workspace in the address bar.
 - Press **E** to edit: drag modules by the header, resize from the corner (12-column grid), or use Tab / arrows / Delete / D / H / O from the keyboard. *+ Module* opens the catalogue. Ctrl+Z / Ctrl+Y undo and redo; Ctrl+S saves, Esc discards. The first change to a built-in makes your own copy.
 - **T** manages templates: duplicate, rename, delete, export and import `.pitwall.json`. Imports are rebuilt field by field and exports never contain the access key.
-- *Settings › Appearance*: four looks (Pit Wall, Broadcast, Night stint, Daylight) and every colour token, density, font scale, corner radius and panel style. Export and import as `.pitwall-theme.json`.
+- *Settings › Appearance*: four looks (Pit Wall, Broadcast, Night stint, Daylight) and every colour token, density (by default a module six columns or wider uses the roomier density and narrower ones the compact one), font scale, corner radius and panel style. Export and import as `.pitwall-theme.json`.
 - Click a car (or ↑ ↓ then Enter in a table) to make it the **focus car**; battle, the map and *You vs focus car* follow it. ✕, G or Esc goes back to your own car.
 
 **Modules**
@@ -65,8 +65,10 @@ Keys typed into the MFD reach ACC as a second keyboard, and ACC then forgets the
 | Strategy | Fuel, Fuel to the flag, Stint timeline, Stop options, Rejoin, Pit stops, Track & weather, Pace |
 | Pit | Pit stop (the plan), Pit sends, Pressure correction |
 | Car | Track map, Driver inputs, Lap, Tyres, Tyre history, Brakes, Electronics, Damage & engine, Car damage 3D, G-G, Live channels |
-| Laps / Analysis | Laps, Debrief, Lap picker, Traces, Where the time goes |
+| Laps / Analysis | Laps, Debrief, Lap picker, Traces, Lap map, Lap coach |
 | Log | Event log, Notes |
+
+The track map has a Labels button in its header: turn names, which cars are labelled (all, within 30 s, your class, the focus car), their size, and the label fields (position, race number, three letters, surname, gap to you), shown in that order. Changes are saved with the layout.
 
 ACC does not publish rival inputs, fuel or tyre wear, and the page never pretends it does. *Pace* shows what the tyres cost in lap time instead.
 
@@ -102,8 +104,9 @@ ACC does not publish rival inputs, fuel or tyre wear, and the page never pretend
 | `--vjoy [N]` | off | Press the MFD through vJoy device N instead of the keyboard. |
 | `--broadcast-port PORT` | from `broadcasting.json` | ACC's broadcasting port. `0` turns field timing off. |
 | `--broadcast-password PW` | from `broadcasting.json` | ACC's broadcasting password. |
-| `--simulate-acc` | off | A pretend session, field and pit page instead of the game. |
-| `--sim-session race\|quali` | `race` | With `--simulate-acc`. |
+| `--simulate-acc` | off | A pretend session instead of the game: a 20-car field with a start, traffic, pit stops, incidents and yellow flags, and a working pit page. |
+| `--sim-session race|quali|practice|weekend` | `race` | With `--simulate-acc`: one session, or `weekend` for practice, qualifying and the race in a row (the race starts in qualifying's order). A race has a start, a mandatory stop in the middle third, sometimes rain (wet tyres, and the pit page's compound choice is used for the driver's stop), a full course yellow after a wreck, penalties and a flag; the session then restarts. |
+| `--sim-minutes N` | per session | With `--simulate-acc`: the length of each session (race 60, practice 30, qualifying 12 or more). |
 | `--sim-track TRACK` | `demo` | With `--simulate-acc`: `demo`, `nordschleife` or a real layout. |
 | `--sim-speed N` | `1` | With `--simulate-acc`: run N times faster. |
 | `--no-browser` | off | Do not open the dashboard on this PC. |

@@ -19,7 +19,7 @@ function Field({ op, value }: { op: OptionDef; value: unknown }) {
     return <label className="fld"><span>{op.label}</span><input type="number" id={id} defaultValue={value as number} key={String(value)} min={op.min} max={op.max} step={op.step ?? 1} onChange={(e) => { const v = parseFloat(e.target.value); if (isFinite(v)) set(v); }} /></label>;
   }
   if (op.type === "toggle") {
-    return <label className="fld check"><input type="checkbox" id={id} checked={!!value} onChange={(e) => set(e.target.checked)} /><span>{op.label}</span></label>;
+    return <label className="fld check"><span>{op.label}</span><input type="checkbox" id={id} checked={!!value} onChange={(e) => set(e.target.checked)} /></label>;
   }
   if (op.type === "text") {
     return <label className="fld"><span>{op.label}</span><input type="text" id={id} maxLength={40} defaultValue={String(value ?? "")} onBlur={(e) => set(e.target.value)} /></label>;
@@ -67,8 +67,8 @@ export function ModuleOptions() {
           <header className="dlg-h"><h2>{m.title || def.title} <span className="note">options</span></h2><button className="btn icon" value="" aria-label="Close"><Icon name="x" /></button></header>
           <div className="dlg-scroll">
             <label className="fld"><span>Title</span><input type="text" maxLength={40} defaultValue={m.title} placeholder={def.title} key={m.id + "t"} onBlur={(e) => editor.setOpt((q) => { q.title = cleanText(e.target.value, 40); })} /></label>
-            <label className="fld check"><input type="checkbox" checked={m.header !== false} onChange={(e) => editor.setOpt((q) => { q.header = e.target.checked; })} /><span>Show header</span></label>
-            {def.options.map((op) => <Field key={op.key} op={op} value={m.options[op.key] !== undefined ? m.options[op.key] : op.def} />)}
+            <label className="fld check"><span>Show header</span><input type="checkbox" checked={m.header !== false} onChange={(e) => editor.setOpt((q) => { q.header = e.target.checked; })} /></label>
+            {def.options.filter((op) => !op.hidden).map((op) => <Field key={op.key} op={op} value={m.options[op.key] !== undefined ? m.options[op.key] : op.def} />)}
           </div>
           <div className="dlg-foot">
             <span className="note">{ed.active ? "Saved with the layout." : isBuiltin(tpl.id) ? "A change makes your own copy of this built-in template." : "Changes are saved at once."}</span>

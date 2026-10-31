@@ -69,18 +69,40 @@ describe("broadcasting.json", () => {
   });
 });
 
-describe("simulated field", () => {
-  const hint = (pages: FakePages): Rec => { const r = pages.read(); return { id: r.me, laps: r.laps, spl: r.track_pos, name: r.name, xyz: r.xyz, kmh: r.speed }; };
+describe("sessions ending", { timeout: 60000 }, () => {
+  test("the field files the finished session whole before it starts over", () => {
+    const now = [0];
+    const pages = new FakePages({ clock: () => now[0]!, weekend: true, minutes: 4 });
+    const ff = new FakeField(pages);
+    let seq = 0;
+    for (let k = 0; k < 25 * 60 * 4 && !seq; k++) { now[0]! += 0.25; ff.step(); seq = ff.endedSeq; }
+    expect(seq).toBe(1);
+    const e = ff.ended!;
+    expect(e.field.cars).toHaveLength(20);
+    expect(e.field.mode).toBe("best");
+    expect(Object.keys(e.entries.cars)).toHaveLength(20);
+    expect(Object.values(e.laps).some((l) => (l as Rec[]).length > 0)).toBe(true);
+    expect(Object.keys(e.slow)).toHaveLength(20);
+  });
+});
 
-  test("a 20-car race: order, gaps, pits, rel, net, rejoin", () => {
+describe("simulated field", { timeout: 60000 }, () => {
+  const hint = (pages: FakePages): Rec => { const r = pages.read(); return { id: r.me, laps: r.laps, spl: r.track_pos, name: r.name, xyz: r.xyz, kmh: r.speed, coords: r.coords }; };
+
+  test("a 20-car race: grid, order, gaps, pits, rel, net, rejoin", () => {
     const now = [0];
     const pages = new FakePages({ clock: () => now[0]! });
     const ff = new FakeField(pages);
-    let pitted = false;
-    for (let k = 0; k < 3 * 60 * 4; k++) { // three simulated minutes at 4 Hz
+    const phases: string[] = [];
+    let pitted = false, left = false, exit = false;
+    for (let k = 0; k < 34 * 60 * 4; k++) { // thirty-four simulated minutes at 4 Hz
       now[0]! += 0.25;
       ff.step();
+      if (k === 4 * 10) expect(ff.snapshot(hint(pages), 1, 25000).cars.every((c: Rec) => c.laps === 0)).toBe(true); // still on the grid
       pitted = pitted || [...ff.cars].some(([i, c]) => i !== 7 && PIT_LOCS.includes(c.loc));
+      exit = exit || ff.events.some(([, , text]) => text.includes("lane"));
+      left = left || ff.events.some(([, , text]) => text.includes("Session phase: green"));
+      for (const [, , text] of ff.events.splice(0)) if (text.startsWith("Session phase")) phases.push(text);
     }
     const snap = ff.snapshot(hint(pages), 1, 25000);
     const cars: Rec[] = snap.cars;
@@ -91,32 +113,41 @@ describe("simulated field", () => {
     expect(gaps.every(([, g]) => g !== null && g >= 0)).toBe(true);
     expect(gaps).toEqual([...gaps].sort((a, b) => a[0]! - b[0]! || a[1]! - b[1]!));
     expect(pitted).toBe(true);
+    expect(phases).toContain("Session phase: green");
     const me = ff.cars.get(7)!;
     const rel = [...ff.cars].filter(([i]) => i !== 7).map(([, c]) => [wrap(c.spl - me.spl), c.rel] as const).sort((a, z) => Math.abs(a[0]) - Math.abs(z[0]));
     const ahead = rel.find(([f]) => f > 0)![1]!, behind = rel.find(([f]) => f < 0)![1]!;
     expect(ahead).toBeGreaterThan(0); expect(behind).toBeLessThan(0);
     expect(cars.every((c) => c.net)).toBe(true);
     expect(ff.rejoin(7, 30000)!.pos).toBeGreaterThanOrEqual(1);
-    expect(ff.raceInfo()!.leader_dist).toBeGreaterThan(3);
+    expect(ff.raceInfo()!.leader_dist).toBeGreaterThan(15);
     const [slow, seq] = ff.slowSince(-1);
     expect(Object.keys(slow)).toHaveLength(20);
     expect(ff.slowSince(seq)[0]).toEqual({});
     expect(Object.keys(ff.entries().cars)).toHaveLength(20);
     expect([...ff.cars.keys()].some((i) => ff.carLaps(i).length)).toBe(true);
-    expect(snap.xz_ok).toBe(false);
+    expect([...ff.cars.values()].some((c) => c.pits > 0 && c.lane_ms > 30000)).toBe(true); // a stop is a whole trip down the lane
+    expect(snap.xz_ok).toBe(true); // shared memory has every car's position
+    expect(cars.every((c) => c.xz && Number.isFinite(c.xz[0]))).toBe(true);
+    expect(exit && left).toBe(true);
   });
 
-  test("qualifying is ordered by best lap and nobody pits", () => {
+  test("qualifying is ordered by best lap; the cars go out, set a time and come in", () => {
     const now = [0];
-    const pages = new FakePages({ clock: () => now[0]! });
-    const fq = new FakeField(pages, "quali");
-    for (let k = 0; k < 3 * 60 * 4; k++) { now[0]! += 0.25; fq.step(); }
+    const pages = new FakePages({ clock: () => now[0]!, session: 1 });
+    const fq = new FakeField(pages);
+    let pitted = false;
+    for (let k = 0; k < 8 * 60 * 4; k++) { now[0]! += 0.25; fq.step(); pitted = pitted || [...fq.cars].some(([i, c]) => PIT_LOCS.includes(c.loc) && c.laps > 1); }
     const q: Rec[] = fq.snapshot(hint(pages), null, null).cars;
+    expect(q).toHaveLength(20);
     const p1 = fq.cars.get(q[0]!.i)!.best;
+    expect(p1).toBeGreaterThan(0);
     expect(q.every((c) => !fq.cars.get(c.i)!.best || c.gap === fq.cars.get(c.i)!.best - p1)).toBe(true);
     const bests = q.map((c) => fq.cars.get(c.i)!.best as number | null).filter((x): x is number => !!x);
+    expect(bests.length).toBeGreaterThan(5);
     expect(bests).toEqual([...bests].sort((a, z) => a - z));
     expect(fq.rejoin(7, 30000)).toBeNull();
-    expect([...fq.cars.values()].some((c) => PIT_LOCS.includes(c.loc))).toBe(false);
+    expect(pitted).toBe(true);
+    expect(fq.mode()).toBe("best");
   });
 });

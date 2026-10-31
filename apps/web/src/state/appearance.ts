@@ -26,17 +26,17 @@ export const TOKENS: [key: string, cssVar: string, role: string, group: string][
 export const CONTRAST_KEYS = new Set(["text", "muted", "dim", "ok", "warn", "bad", "cold", "best", "pb", "slow", "me", "accent"]);
 
 export const BASE_TOKENS: Record<string, string> = {
-  bg: "#0a0b0d", panel: "#101216", raise: "#171a1f", line: "#262a31", line2: "#1b1e24", text: "#e6e8eb", muted: "#a1a7b0", dim: "#7a818b",
-  accent: "#2ad4c4", me: "#ffd400", best: "#c27aff", pb: "#3ddc84", slow: "#f5c518", invalid: "#6b717a", ok: "#3ddc84", warn: "#ff9f1a", bad: "#ff5468", cold: "#5aaeff",
+  bg: "#0a0b0d", panel: "#111316", raise: "#171a1e", line: "#272b32", line2: "#1b1e23", text: "#e9ebee", muted: "#a4aab2", dim: "#7f8690",
+  accent: "#2ad4c4", me: "#ffd400", best: "#c58bff", pb: "#3ddc84", slow: "#f5c518", invalid: "#6b717a", ok: "#3ddc84", warn: "#ff9f1a", bad: "#ff5c6c", cold: "#5aaeff",
   chSpeed: "#e6e8eb", chThr: "#3ecf7a", chBrk: "#ff5e57", chSteer: "#f2c230", chGear: "#a98bff", chRpm: "#8a929c", chRef: "#e6e8eb", chCmp: "#ff9f1a", chLap: "#5aaeff",
   chFL: "#35b9d6", chFR: "#3ecf7a", chRL: "#f2c230", chRR: "#f06ab8",
 };
 
 export const LAYOUT = {
-  density: ["compact", "comfortable"], fontScale: [0.9, 1, 1.1, 1.25], radius: [0, 2, 4, 8], panel: ["ruled", "boxed", "flat"], numFont: ["mono", "sans"], labels: ["upper", "sentence"],
+  density: ["auto", "compact", "comfortable"], fontScale: [0.9, 1, 1.1, 1.25], radius: [0, 2, 4, 8], panel: ["ruled", "boxed", "flat"], numFont: ["mono", "sans"], labels: ["upper", "sentence"],
 } as const;
 export type LayoutKey = keyof typeof LAYOUT;
-const DEF_LAYOUT: Pick<Theme, "density" | "fontScale" | "radius" | "panel" | "numFont" | "labels"> = { density: "compact", fontScale: 1, radius: 2, panel: "ruled", numFont: "mono", labels: "upper" };
+const DEF_LAYOUT: Pick<Theme, "density" | "fontScale" | "radius" | "panel" | "numFont" | "labels"> = { density: "auto", fontScale: 1, radius: 2, panel: "boxed", numFont: "mono", labels: "upper" };
 
 export interface Theme {
   format: "pitwall-theme"; schemaVersion: 1; id: string; name: string; base: string; tokens: Record<string, string>;
@@ -130,10 +130,10 @@ class AppearanceStore {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(tok.accent!.slice(i, i + 2), 16));
     s.setProperty("--acc-ink", 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 140 ? "#08090b" : "#ffffff"); // text on the accent
     const comf = t.density === "comfortable";
-    s.setProperty("--row", comf ? "32px" : "28px"); s.setProperty("--trow", comf ? "28px" : "24px"); s.setProperty("--pad", comf ? "12px" : "8px"); s.setProperty("--hh", comf ? "32px" : "28px");
+    s.setProperty("--row", comf ? "32px" : "28px"); s.setProperty("--trow", comf ? "28px" : "24px"); s.setProperty("--pad", comf ? "12px" : "8px"); s.setProperty("--hh", "26px");
     s.setProperty("--fs", String(t.fontScale)); s.setProperty("--r", t.radius + "px");
-    s.setProperty("--num", t.numFont === "sans" ? '"Barlow Semi Condensed", system-ui, sans-serif' : '"JetBrains Mono", ui-monospace, Consolas, monospace');
-    root.dataset.panel = t.panel; root.dataset.labels = t.labels; root.dataset.num = t.numFont;
+    s.setProperty("--num", t.numFont === "sans" ? '"IBM Plex Sans Condensed", system-ui, sans-serif' : '"IBM Plex Mono", ui-monospace, Consolas, monospace');
+    root.dataset.density = t.density; root.dataset.panel = t.panel; root.dataset.labels = t.labels; root.dataset.num = t.numFont;
     // A theme the editor would refuse: Settings keeps the default colours, so it can always be undone from there.
     const set = document.getElementById("settings"), safe = unreadable(t);
     if (set) for (const [k, v] of TOKENS) { if (safe) set.style.setProperty(v, BASE_TOKENS[k]!); else set.style.removeProperty(v); }

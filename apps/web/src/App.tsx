@@ -10,8 +10,11 @@ import { KpiStrip } from "./shell/KpiStrip";
 import { ModuleOptions } from "./shell/ModuleOptions";
 import { Settings } from "./shell/Settings";
 import { Templates } from "./shell/Templates";
+import { FocusPopup } from "./shell/FocusPopup";
+import { PitCall } from "./shell/PitCall";
+import { Toast } from "./shell/Toast";
 import { TopBar } from "./shell/TopBar";
-import { toggleEdit, useShortcuts } from "./shell/useShortcuts";
+import { useShortcuts } from "./shell/useShortcuts";
 import { Welcome } from "./shell/Welcome";
 
 export function App() {
@@ -28,7 +31,7 @@ export function App() {
       {welcome && <Welcome onEnter={() => setWelcome(false)} />}
       <div className="app" id="app">
         <TopBar onKeys={() => setKeys(true)} />
-        {prefs.kpiOn && <KpiStrip onEdit={toggleEdit} />}
+        {prefs.kpiOn && <KpiStrip />}
         <EditBar />
         <Workspace workspace={ws} />
         <EngineerBar open={drawerOpen} onToggle={toggleDrawer} />
@@ -39,6 +42,9 @@ export function App() {
       <Settings />
       <KeysDialog open={keys} onClose={() => setKeys(false)} />
       <ConfirmHost />
+      <Toast />
+      <FocusPopup />
+      <PitCall />
     </>
   );
 }

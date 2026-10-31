@@ -41,3 +41,5 @@ export function rnd<T>(o: T): T {
   if (isObj(o)) return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, rnd(v)])) as T;
   return o;
 }
+
+export const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));

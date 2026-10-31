@@ -20,7 +20,7 @@ export function tokens(): Tokens {
   const o: Record<string, string> = {};
   for (const [k, v] of Object.entries(TOKEN_VARS)) { p.style.color = ""; p.style.color = `var(${v})`; o[k] = getComputedStyle(p).color; }
   o.font = getComputedStyle(document.body).fontFamily;
-  o.num = getComputedStyle(document.documentElement).getPropertyValue("--num").trim() || '"JetBrains Mono", monospace';
+  o.num = getComputedStyle(document.documentElement).getPropertyValue("--num").trim() || '"IBM Plex Mono", monospace';
   cache = { ver, tk: o as Tokens };
   return cache.tk;
 }
