@@ -36,6 +36,7 @@ pnpm --filter @pitwall/bridge start --enable-broadcast            # once, ACC cl
 pnpm --filter @pitwall/bridge start --probe                       # live session: print the not-yet-verified shared-memory fields
 pnpm --filter @pitwall/web dev                                    # the page with hot reload; proxies the bridge on 127.0.0.1:8765
 pnpm --filter @pitwall/launcher package                           # PitWall installer (needs Rust and the MSVC build tools)
+pnpm --filter @pitwall/launcher package:portable                  # a single PitWall.exe, no install
 pnpm test; pnpm typecheck
 ```
 
@@ -68,7 +69,7 @@ Data flow: ACC shared memory --> `telemetry/pages.ts` (30 Hz; 60 while a page st
 
 ### Launcher (`apps/launcher`)
 
-Tauri v2. The Rust side (`src-tauri/src/main.rs`) exposes `bridge_start`, `bridge_stop`, `bridge_running`, `bridge_tool` and `quit_app`; the bundle carries `node.exe`, the bridge bundle and the built page as resources. The bridge runs with `--control-stdin`: Stop writes `quit` to its stdin and kills it after 3 s. The UI is React in `src/`.
+Tauri v2. The Rust side (`src-tauri/src/main.rs`) exposes `bridge_start`, `bridge_stop`, `bridge_running`, `bridge_tool` and `quit_app`; the bundle carries `node.exe`, the bridge bundle and the built page as resources. `build_root` prefers a downloaded build in the app data folder (`update/`, made by the bridge's `--update`, offered by `components/UpdateBar.tsx`) over the installed resources when its `app.json` is newer. The bridge runs with `--control-stdin`: Stop writes `quit` to its stdin and kills it after 3 s. The UI is React in `src/`.
 
 ## Notes
 

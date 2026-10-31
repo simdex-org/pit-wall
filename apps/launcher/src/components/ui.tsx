@@ -5,7 +5,7 @@ const base = "inline-flex items-center justify-center rounded-md border font-sem
 export function Button({ kind = "plain", className = "", ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { kind?: "primary" | "plain" | "danger" }) {
   const look = {
     primary: "h-12 w-full border-accent bg-accent text-bg text-[17px] hover:bg-accent-hover hover:border-accent-hover",
-    plain: "h-9 border-line bg-raise text-text hover:bg-line",
+    plain: "h-9 px-4 border-line bg-raise text-text hover:bg-line",
     danger: "h-8 border-bad bg-raise px-5 text-text hover:bg-bad",
   }[kind];
   return <button className={`${base} ${look} ${className}`} {...rest} />;

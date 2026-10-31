@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "package": "pnpm prepare:resources && tauri build",
     "test": "vitest run",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "package:portable": "node scripts/portable.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

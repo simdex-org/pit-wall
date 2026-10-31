@@ -18,7 +18,7 @@ The Python bridge, the plain-JS page and the customtkinter launcher were replace
 
 ## Not carried over
 
-- The launcher no longer updates itself from GitHub. The bridge ships inside the app, so an update is a new installer.
+- The launcher updates the bridge and the page from the latest build on GitHub (see development.md). The launcher window and Node only change with a new installer.
 - The vendored three.js file is gone: the page imports it from the `three` package and loads it only when a 3D module opens.
 
 ## What needs a real ACC session

@@ -38,6 +38,17 @@ Start a simulated bridge (above) in another terminal, then open the dev server's
 ## The launcher
 
 ```
-pnpm --filter @pitwall/launcher dev        # the UI alone, in a browser
-pnpm --filter @pitwall/launcher package    # bundles Node, the bridge and the page, then builds the installer
+pnpm --filter @pitwall/launcher dev              # the UI alone, in a browser
+pnpm --filter @pitwall/launcher package          # bundles Node, the bridge and the page, then builds the installer
+pnpm --filter @pitwall/launcher package:portable # one PitWall.exe in apps/launcher/dist-portable, no install
 ```
+
+The portable exe carries Node, the bridge and the page as a zip (`portable` cargo feature, `src-tauri/src/portable.rs`) and unpacks them into the app data folder on its first start. A new build unpacks beside the old one and removes it.
+
+### Updates
+
+Every push to `main` runs `.github/workflows/build.yml`: tests, then it builds the bridge and the page and publishes them as the `edge` pre-release (`app.zip` and `app.json`, replaced each time). No token or key is needed to download it.
+
+When the launcher opens it reads `app.json`. If that build is newer than the one it runs, it shows an Update button (disabled while the bridge runs). The button downloads `app.zip` into the app data folder; the launcher then starts the bridge and page from there instead of the installed copy, until a newer installer arrives. The launcher window itself and Node are not updated this way: for those, build and share a new installer.
+
+`--update-check` and `--update` do the same from a terminal. Both need a build that came from the installer or the workflow; from source there is nothing to update.

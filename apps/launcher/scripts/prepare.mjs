@@ -17,4 +17,5 @@ mkdirSync(join(out, "node"), { recursive: true });
 cpSync(process.execPath, join(out, "node", "node.exe"));
 cpSync(join(root, "packages/bridge/dist"), join(out, "bridge"), { recursive: true });
 cpSync(web, join(out, "web"), { recursive: true });
+execFileSync(process.execPath, [join(root, "packages/bridge/scripts/stamp.mjs"), out], { stdio: "inherit" });
 console.log(`resources ready in ${out}`);

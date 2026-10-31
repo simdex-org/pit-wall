@@ -7,6 +7,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+#[cfg(feature = "portable")]
+mod portable;
+
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 
 #[cfg(windows)]
@@ -26,6 +29,12 @@ fn clean(p: PathBuf) -> PathBuf {
     PathBuf::from(p.to_string_lossy().trim_start_matches(r"\\?\"))
 }
 
+#[cfg(feature = "portable")]
+fn resource(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
+    Ok(clean(portable::root(app)?.join(rel)))
+}
+
+#[cfg(not(feature = "portable"))]
 fn resource(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
     let installed = app.path().resource_dir().map_err(|e| e.to_string())?.join("resources").join(rel);
     if installed.exists() {
@@ -38,13 +47,30 @@ fn resource(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
     Err(format!("{rel} is missing, run pnpm prepare:resources"))
 }
 
+fn built_at(dir: &std::path::Path) -> Option<String> {
+    let stamp: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.join("app.json")).ok()?).ok()?;
+    stamp["time"].as_str().map(str::to_string)
+}
+
+/** The folder holding the bridge and the page: a downloaded build when it is newer than the installed one. */
+fn build_root(app: &AppHandle, data: &std::path::Path) -> Result<PathBuf, String> {
+    let installed = resource(app, "")?;
+    let downloaded = data.join("update");
+    match (built_at(&downloaded), built_at(&installed)) {
+        (Some(d), Some(i)) if d > i => Ok(downloaded),
+        _ => Ok(installed),
+    }
+}
+
 fn bridge_command(app: &AppHandle, args: &[String]) -> Result<Command, String> {
-    let tracks = app.path().app_data_dir().map_err(|e| e.to_string())?.join("tracks");
+    let data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let root = build_root(app, &data)?;
     let mut cmd = Command::new(resource(app, "node/node.exe")?);
-    cmd.arg(resource(app, "bridge/bridge.mjs")?)
+    cmd.arg(root.join("bridge").join("bridge.mjs"))
         .args(args)
-        .env("PITWALL_WEB", resource(app, "web")?)
-        .env("PITWALL_TRACKS", tracks);
+        .env("PITWALL_WEB", root.join("web"))
+        .env("PITWALL_TRACKS", data.join("tracks"))
+        .env("PITWALL_UPDATE", data.join("update"));
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     Ok(cmd)
@@ -122,6 +148,10 @@ fn bridge_running(state: State<Bridge>) -> bool {
 async fn bridge_tool(app: AppHandle, args: Vec<String>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let output = bridge_command(&app, &args)?.output().map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("failed").to_string());
+        }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     })
     .await

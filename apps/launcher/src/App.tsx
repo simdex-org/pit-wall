@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Running } from "./components/Running";
 import { Setup } from "./components/Setup";
 import { TitleBar } from "./components/TitleBar";
+import { UpdateBar } from "./components/UpdateBar";
 import { Button } from "./components/ui";
 import * as bridge from "./lib/bridge";
 import { bridgeArgs, linkFor, loadPrefs, Prefs, savePrefs, validate } from "./lib/settings";
@@ -90,6 +91,8 @@ export function App() {
             {failedStart && <pre className="select-text overflow-auto rounded-lg border border-line bg-panel p-3 font-mono text-[11px] text-muted">{lines.slice(-6).join("\n")}</pre>}
           </>
         )}
+
+        <div className="mt-auto"><UpdateBar running={running} /></div>
       </main>
     </div>
   );

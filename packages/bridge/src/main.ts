@@ -67,7 +67,7 @@ async function main(): Promise<void> {
         "pit-key": { type: "string", default: "p" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
         "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" },
-        "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, "bind-vjoy": { type: "string" },
+        "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
     }).values;
@@ -76,6 +76,10 @@ async function main(): Promise<void> {
 
   if (v.info) return void console.log(JSON.stringify(await info()));
   if (v["enable-broadcast"] !== undefined) return void console.log(enable(Number(v["enable-broadcast"])));
+  if (v["update-check"] || v.update) {
+    const u = await import("./update.js");
+    return void console.log(v.update ? JSON.stringify({ installed: await u.install() }) : JSON.stringify(await u.check()));
+  }
   if (v.probe) { const { probe } = await import("./telemetry/pages.js"); return void (await probe()); }
   if (v["bind-vjoy"] !== undefined) { const { bindVjoy } = await import("./pit/vjoy.js"); return void (await bindVjoy(Number(v["bind-vjoy"]))); }
 

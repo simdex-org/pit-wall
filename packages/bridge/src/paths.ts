@@ -7,3 +7,5 @@ export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".
 export const WEB_DIR = resolve(process.env.PITWALL_WEB ?? join(ROOT, "apps", "web", "dist"));
 /** Layouts learned from the driver's own laps, kept between sessions. */
 export const TRACK_DIR = resolve(process.env.PITWALL_TRACKS ?? join(ROOT, "data", "tracks"));
+/** Where a downloaded build is kept; the launcher prefers it over the one it was installed with. */
+export const UPDATE_DIR = resolve(process.env.PITWALL_UPDATE ?? join(ROOT, "data", "update"));
