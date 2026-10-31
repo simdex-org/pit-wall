@@ -28,3 +28,8 @@ describe("launch arguments", () => {
     for (let i = 0; i < 50; i++) expect(validate("8765", newKey())).toBeNull();
   });
 });
+
+describe("validate address", () => {
+  test("accepts an IPv4 address", () => expect(validate("8765", "abcd1234", "25.1.2.3")).toBeNull());
+  test.each(["", "25.1.2", "25.1.2.300", "host.name"])("rejects %j", (ip) => expect(validate("8765", "abcd1234", ip)).toMatch(/address/));
+});

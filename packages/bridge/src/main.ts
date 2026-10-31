@@ -156,13 +156,19 @@ async function main(): Promise<void> {
 async function info() {
   let broadcastPort = 0;
   try { broadcastPort = (await import("./broadcast/config.js")).readConfig().port; } catch { /* ACC has not written it yet */ }
-  return { addresses: myAddresses(), broadcastPort };
+  return { addresses: myAddresses(), hamachi: hamachiAddress(), broadcastPort };
 }
 
 /** This PC's IPv4 addresses, Hamachi's (25.x) first. */
 function myAddresses(): string[] {
   const ips = Object.values(networkInterfaces()).flat().filter((a) => a && a.family === "IPv4" && !a.internal).map((a) => a!.address);
   return [...new Set(ips)].sort((a, b) => Number(!a.startsWith("25.")) - Number(!b.startsWith("25.")));
+}
+
+/** The address of the Hamachi adapter: found by its name, else by the 25.x range. */
+function hamachiAddress(): string {
+  const all = Object.entries(networkInterfaces()).flatMap(([name, list]) => (list ?? []).filter((a) => a.family === "IPv4").map((a) => ({ name, ip: a.address })));
+  return (all.find((a) => /hamachi/i.test(a.name)) ?? all.find((a) => a.ip.startsWith("25.")))?.ip ?? "";
 }
 
 import { FIELD } from "./state.js";

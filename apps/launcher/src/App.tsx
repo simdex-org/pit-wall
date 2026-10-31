@@ -12,6 +12,7 @@ const MAX_LINES = 300;
 
 export function App() {
   const [addresses, setAddresses] = useState<string[]>([]);
+  const [hamachi, setHamachi] = useState("");
   const [fieldTiming, setFieldTiming] = useState(false);
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs([]));
   const [running, setRunning] = useState(false);
@@ -24,8 +25,9 @@ export function App() {
   useEffect(() => {
     bridge.info().then((i) => {
       setAddresses(i.addresses);
+      setHamachi(i.hamachi);
       setFieldTiming(i.broadcastPort > 0);
-      setPrefs(loadPrefs(i.addresses));
+      setPrefs(loadPrefs(i.hamachi ? [i.hamachi, ...i.addresses] : i.addresses));
     }).catch((e) => setMessage({ text: `The bridge did not answer: ${e}`, tone: "bad" }));
   }, []);
 
@@ -48,7 +50,7 @@ export function App() {
   }, []);
 
   const startBridge = useCallback(async () => {
-    const problem = validate(prefs.port, prefs.key);
+    const problem = validate(prefs.port, prefs.key, prefs.ip);
     if (problem) return setMessage({ text: problem, tone: "bad" });
     savePrefs(prefs);
     setMessage(null);
@@ -86,7 +88,7 @@ export function App() {
           <Running address={`${prefs.ip}:${prefs.port.trim()}`} link={linkFor(prefs)} lines={lines} stopping={stopping} onStop={stopBridge} />
         ) : (
           <>
-            <Setup prefs={prefs} onChange={setPrefs} addresses={addresses} fieldTiming={fieldTiming}
+            <Setup prefs={prefs} onChange={setPrefs} addresses={addresses} hamachi={hamachi} fieldTiming={fieldTiming}
               onFieldTiming={() => setFieldTiming(true)} onStart={startBridge} message={message} />
             {failedStart && <pre className="select-text overflow-auto rounded-lg border border-line bg-panel p-3 font-mono text-[11px] text-muted">{lines.slice(-6).join("\n")}</pre>}
           </>

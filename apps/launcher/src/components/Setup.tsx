@@ -7,6 +7,7 @@ interface Props {
   prefs: Prefs;
   onChange: (p: Prefs) => void;
   addresses: string[];
+  hamachi: string;
   fieldTiming: boolean;
   onFieldTiming: () => void;
   onStart: () => void;
@@ -15,7 +16,7 @@ interface Props {
 
 const tone = { bad: "text-bad", ok: "text-ok", muted: "text-muted" } as const;
 
-export function Setup({ prefs, onChange, addresses, fieldTiming, onFieldTiming, onStart, message }: Props) {
+export function Setup({ prefs, onChange, addresses, hamachi, fieldTiming, onFieldTiming, onStart, message }: Props) {
   const [note, setNote] = useState<Props["message"]>(null);
   const [binding, setBinding] = useState(false);
   const shown = note ?? message;
@@ -49,13 +50,15 @@ export function Setup({ prefs, onChange, addresses, fieldTiming, onFieldTiming, 
     <div className="flex flex-col gap-4">
       <Card className="p-5">
         <Label>VPN address</Label>
-        <select value={prefs.ip} onChange={(e) => set("ip", e.target.value)}
-          className="h-10 w-full rounded-md border border-line bg-raise px-3 text-[15px] text-text">
-          {(addresses.length ? addresses : ["127.0.0.1"]).map((ip) => (
-            <option key={ip} value={ip}>{ip}{vpnName(ip) ? `   ${vpnName(ip)}` : ""}</option>
-          ))}
-        </select>
-        <p className="mt-1 text-[12px] text-dim">Your Hamachi address (25.x) is picked for you. Change it if your engineer connects another way.</p>
+        <TextInput value={prefs.ip} onChange={(e) => set("ip", e.target.value)} list="pw-ips" spellCheck={false} inputMode="decimal" />
+        <datalist id="pw-ips">
+          {addresses.map((ip) => <option key={ip} value={ip}>{vpnName(ip)}</option>)}
+        </datalist>
+        <p className="mt-1 text-[12px] text-dim">
+          {hamachi
+            ? <>Your Hamachi address is <button type="button" className="text-text underline" onClick={() => set("ip", hamachi)}>{hamachi}</button>. Type another address if your engineer connects another way.</>
+            : "No Hamachi address found. Open Hamachi and power it on, or type the address your engineer connects to."}
+        </p>
 
         <div className="mt-4 grid grid-cols-[110px_1fr] gap-3">
           <div><Label>Port</Label><TextInput value={prefs.port} onChange={(e) => set("port", e.target.value)} inputMode="numeric" /></div>
