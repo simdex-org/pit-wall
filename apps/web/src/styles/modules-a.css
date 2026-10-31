@@ -1,0 +1,42 @@
+/* Geometry for the timing, strategy and pit modules. Tokens only; the shared classes are in base.css. */
+
+/* ---------- shared by the car tables: keyboard row cursor, sparklines ---------- */
+.tt tr.kcur>td{box-shadow:inset 0 1px 0 var(--acc),inset 0 -1px 0 var(--acc)}
+.tt tr.gaprow>td{height:16px;text-align:center;border-bottom-style:dashed}
+.tt td.drv{max-width:16ch}
+.tt td.car{max-width:24ch;color:var(--mut)}
+.tt td.tags{width:1%;white-space:nowrap}
+.spk{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
+svg.spark{flex:none;overflow:visible}
+svg.spark polyline{fill:none;stroke:var(--mut);stroke-width:1.5;stroke-linejoin:round}
+svg.spark circle{fill:var(--txt)}
+.spk .note{font-family:var(--num);font-size:var(--t-xs)}
+
+/* ---------- pace ---------- */
+.dg-sub{margin-bottom:4px}
+.dg-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
+.dg-wrap>svg{position:absolute;inset:0;display:block}
+.dg-grid{stroke:var(--line);stroke-width:1}
+.dg-dot{fill:var(--txt);stroke:var(--bg);stroke-width:1}
+.dg-dot.inv{fill:none;stroke:var(--inv);stroke-width:1.5}
+.dg-wrap text.dg-tag{font-size:9px;fill:var(--inv);letter-spacing:.06em}
+.dg-fit{stroke:var(--txt);stroke-width:1.5}
+.dg-prev{stroke:var(--dim);stroke-width:1.5;stroke-dasharray:4 3}
+.dg-wrap text{font:500 var(--t-xs) var(--num);fill:var(--dim)}
+
+/* ---------- fuel to the flag: the race as one line ---------- */
+.rl{display:block;width:100%;height:auto;margin:4px 0 8px}
+.rl text{font:500 12px var(--num);fill:var(--dim)}
+
+.rl-key{display:flex;flex-wrap:wrap;gap:4px 16px;font:400 11px var(--sans);color:var(--dim);margin-bottom:8px}
+.rl-key span{display:inline-flex;align-items:center;gap:6px}
+.rl-key b{font:600 11px var(--num);color:var(--txt)}
+.rl-key i{display:inline-block;width:14px;height:8px;flex:none}
+.rl-key .sw-done{background:var(--dim)}
+.rl-key .sw-win{border:1.5px dashed var(--warn);height:10px;box-sizing:border-box}
+.rl-key .sw-box{width:2px;height:12px;background:var(--acc)}
+.rl-warn{display:flex;flex-direction:column;gap:2px;margin:0 var(--pad) 8px;padding:6px 8px;border:1px solid var(--warn);border-left-width:3px;color:var(--warn);font:400 11.5px var(--sans)}
+.rl-warn b{font-weight:600;letter-spacing:.04em}
+.rl-warn span{color:var(--dim)}
+.dg-path{fill:none;stroke:var(--dim);stroke-width:1;opacity:.6}
+.dg-wrap text.dg-hint{fill:var(--dim);opacity:.7;font-size:10px}

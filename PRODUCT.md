@@ -7,13 +7,13 @@
 web
 
 ## Stack
-Static HTML/CSS/JS, no framework or build (existing: index.html, tracks.js, bridge.py).
+TypeScript: a Node bridge, a React and Tailwind page (Vite) and a Tauri launcher, in a pnpm workspace.
 
 ## Users
 A dedicated race engineer at a full PC, watching a driver in Assetto Corsa live, reading data and advice, and comparing laps between stints.
 
 ## Product Purpose
-Live browser dashboard for the engineer: track map with the car, car state, tyres and brakes, fuel and strategy, the engineer's advice, laps and debrief, and the next pit stop set straight into the driver's game. Fed by bridge.py over SSE, which reads ACC's shared memory on the driver's PC (30 Hz reading, 10 Hz summary).
+Live browser dashboard for the engineer: track map with the car, car state, tyres and brakes, fuel and strategy, the engineer's advice, laps and debrief, and the next pit stop set straight into the driver's game. Fed by the bridge over SSE, which reads ACC's shared memory on the driver's PC (30 Hz reading, 10 Hz summary).
 
 ## Capabilities and Constraints
 - No network dependency beyond Lucide icons; no build step.
