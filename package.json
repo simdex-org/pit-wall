@@ -1,6 +1,8 @@
 {
   "name": "pit-wall",
   "private": true,
+  "license": "MIT",
+  "author": "Simdex-org, Simplezes, William19D",
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @pitwall/web build && pnpm --filter @pitwall/bridge build",
