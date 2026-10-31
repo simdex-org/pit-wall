@@ -1,0 +1,24 @@
+/* Tailwind without its reset: base.css below has the page's own. The design tokens stay CSS variables on :root, so the
+   appearance settings can still change them at run time, and Tailwind's colour names point at them. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@import "./base.css";
+@import "./modules-a.css";
+@import "./modules-b.css";
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-raise: var(--raise);
+  --color-line: var(--line);
+  --color-text: var(--txt);
+  --color-muted: var(--mut);
+  --color-dim: var(--dim);
+  --color-accent: var(--acc);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font);
+  --font-mono: var(--num);
+}

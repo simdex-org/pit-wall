@@ -1,0 +1,17 @@
+{
+  "name": "pit-wall",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter @pitwall/web build && pnpm --filter @pitwall/bridge build",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "packageManager": "pnpm@10.30.1"
+}

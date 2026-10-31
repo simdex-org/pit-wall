@@ -1,9 +1,8 @@
-_design_tmp/
-__pycache__/
-pitwall-launcher.json
-.pitwall-version
-PitWall.exe
-build/
+node_modules/
 dist/
-*.spec
-server/tracks/
+target/
+*.tsbuildinfo
+graphify-out/
+data/tracks/
+apps/launcher/src-tauri/resources/
+apps/launcher/src-tauri/gen/
