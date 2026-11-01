@@ -152,8 +152,8 @@ function PitPlanBody({ c, confirmDefault, w, h }: { c: Ctx; confirmDefault: bool
         <Stepper cls="sm" value={toInput(planV, units)} step={pStep} label={`${CORNERS[i]} cold pressure`}
           onValue={(v) => { const q = plan.pressures.slice(); q[i] = +pu.b(v).toFixed(2); planStore.set({ ...plan, pressures: q }); }} />
         {d == null || Math.abs(d) < 0.05
-          ? <span className="v di" style={{ width: 104, flex: "none", boxSizing: "border-box", paddingRight: 10, textAlign: "right" }} title="The pressure you set is the same as the MFD shows now">unchanged</span>
-          : <span className={"v " + (d < 0 ? "dn" : "up")} style={{ width: 104, flex: "none", boxSizing: "border-box", paddingRight: 10, textAlign: "right", whiteSpace: "nowrap" }} title={`The MFD shows ${fv("press", now!, units)} now; you set ${Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)} ${pu.u} ${d < 0 ? "lower" : "higher"}`}>{d < 0 ? "▼" : "▲"} {Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)} {d < 0 ? "lower" : "higher"}</span>}
+          ? <span className="v di" style={{ flex: "0 1 104px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", boxSizing: "border-box", paddingRight: 10, textAlign: "right" }} title="The pressure you set is the same as the MFD shows now">unchanged</span>
+          : <span className={"v " + (d < 0 ? "dn" : "up")} style={{ flex: "0 1 104px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", boxSizing: "border-box", paddingRight: 10, textAlign: "right" }} title={`The MFD shows ${fv("press", now!, units)} now; you set ${Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)} ${pu.u} ${d < 0 ? "lower" : "higher"}`}>{d < 0 ? "▼" : "▲"} {Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)} {d < 0 ? "lower" : "higher"}</span>}
       </div>
     );
   };

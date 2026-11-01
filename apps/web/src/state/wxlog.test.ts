@@ -1,9 +1,10 @@
-import { expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 import { slopePerMin, WxSample } from "./wxlog";
 
-const at = (min: number, track: number): WxSample => ({ t: min * 60_000, rain: 0, wet: null, clouds: null, track, air: 20, wind: null });
+const s = (min: number, track: number): WxSample => ({ t: min * 60000, rain: 0, wet: null, clouds: null, track, air: 20, wind: null });
 
-test("the slope is per minute and needs a stretch of readings", () => {
-  expect(slopePerMin([at(0, 30), at(1, 31), at(2, 32)], (x) => x.track)).toBeCloseTo(1);
-  expect(slopePerMin([at(0, 30), at(0.1, 31), at(0.2, 32)], (x) => x.track)).toBeNull();
+describe("slopePerMin", () => {
+  it("is the change per minute", () => expect(slopePerMin([s(0, 30), s(5, 35)], (x) => x.track)).toBeCloseTo(1));
+  it("needs a minute of data", () => expect(slopePerMin([s(0, 30), s(0.5, 35)], (x) => x.track)).toBeNull());
+  it("ignores samples older than the window", () => expect(slopePerMin([s(0, 0), s(20, 30), s(25, 35)], (x) => x.track)).toBeCloseTo(1));
 });

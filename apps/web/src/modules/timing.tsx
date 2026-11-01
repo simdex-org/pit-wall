@@ -497,6 +497,9 @@ export const flags = defineModule({
 });
 
 // ---------- stint rules ----------
+/** The stint limit and the session clock are read a moment apart: a stint this close to the flag is not "past" it. */
+const FLAG_SLACK = 60000;
+
 export const rules = defineModule({
   type: "rules", title: "Stint rules", group: "Timing", blurb: "Mandatory stops, the pit window and the driver stint limits.",
   size: { w: 3, h: 4, minW: 3, minH: 4 }, needs: ["reading", "summary"], requires: ["reading"],
@@ -504,8 +507,12 @@ export const rules = defineModule({
     const s = c.r!.session, st = c.st, ml = st ? st.mandatory_left : null, w = st?.pit_window, lap = s.lap_number || s.completed_laps + 1;
     const total = s.total_laps > 0 ? s.total_laps : st && st.laps_to_go != null ? s.completed_laps + st.laps_to_go : 0;
     const left = s.session_time_left_ms;
-    const lim = (ms: number | null | undefined) => ms == null || !isFinite(ms) ? null : ms < 0 ? "no limit" : left > 0 && ms >= left ? "past the flag" : `${fmtClock(ms)} left`;
+    const lim = (ms: number | null | undefined) => ms == null || !isFinite(ms) ? null : ms < 0 ? "no limit" : left > 0 && ms > left + FLAG_SLACK ? "past the flag" : `${fmtClock(ms)} left`;
     const stint = lim(s.stint_time_left_ms);
+    // The stint's full length is the most time it has had left since it began (it jumps back up after a stop); the bar is the share used.
+    const top = useRef(0), sl: number = s.stint_time_left_ms;
+    if (sl > top.current) top.current = sl;
+    const used = sl >= 0 && top.current > 0 && !(left > 0 && sl > left + FLAG_SLACK) ? clamp((1 - sl / top.current) * 100, 0, 100) : 0;
     const win = !w || s.kind !== "Race" ? (s.kind !== "Race" ? "races only" : NONE) : lap < w.open_lap ? `opens lap ${w.open_lap} · closes lap ${w.close_lap}` : lap <= w.close_lap ? `open until lap ${w.close_lap}` : "closed";
     const done = ml === 0 ? "STOPS DONE" : ml != null && ml > 0 ? `${ml} STOP${ml > 1 ? "S" : ""} LEFT` : "";
     return {
@@ -516,7 +523,7 @@ export const rules = defineModule({
           <div className="fb"><span className="mu">Pit window</span><span className="v">{win}</span></div>
           <div className="bar tk ac"><i style={{ width: total && w ? clamp((lap / total) * 100, 0, 100) + "%" : "0%" }} /></div>
           <div className="fb"><span className="mu">Driver stint</span><span className="v">{stint ?? NONE}</span></div>
-          <div className="bar tk"><i style={{ width: stint && left > 0 && s.stint_time_left_ms >= 0 ? clamp(100 - (s.stint_time_left_ms / left) * 100, 0, 100) + "%" : "0%" }} /></div>
+          <div className="bar tk"><i style={{ width: used + "%" }} /></div>
         </>
       ),
     };

@@ -1,22 +1,23 @@
-// The last 15 minutes of weather readings, kept while the page is open, for the trends.
 export interface WxSample { t: number; rain: number; wet: number | null; clouds: number | null; track: number; air: number; wind: number | null }
 
-const KEEP_MS = 15 * 60_000, EVERY_MS = 2000;
-let log: WxSample[] = [];
+const EVERY_MS = 15000;
+export const KEEP_MS = 30 * 60000;
+const log: WxSample[] = [];
 
-/** Adds a reading (at most one every 2 s) and returns the log. */
-export function wxSample(s: WxSample): readonly WxSample[] {
+/** Adds a sample when the last one is old enough and drops what is past the window; the same list is shared by every weather module. */
+export function wxSample(s: WxSample): WxSample[] {
   const last = log[log.length - 1];
-  if (last && s.t < last.t) log = [];
-  if (!last || s.t - last.t >= EVERY_MS) log = [...log.filter((x) => s.t - x.t <= KEEP_MS), s];
+  if (!last || s.t - last.t >= EVERY_MS) log.push(s);
+  while (log.length && s.t - log[0]!.t > KEEP_MS) log.shift();
   return log;
 }
 
-/** Least squares slope of a value per minute; null with under 30 s of readings. */
-export function slopePerMin(samples: readonly WxSample[], pick: (x: WxSample) => number): number | null {
-  const pts = samples.map((x) => [x.t / 60_000, pick(x)] as const).filter(([, v]) => Number.isFinite(v));
-  if (pts.length < 3 || pts[pts.length - 1]![0] - pts[0]![0] < 0.5) return null;
-  const n = pts.length, mx = pts.reduce((a, p) => a + p[0], 0) / n, my = pts.reduce((a, p) => a + p[1], 0) / n;
-  const num = pts.reduce((a, p) => a + (p[0] - mx) * (p[1] - my), 0), den = pts.reduce((a, p) => a + (p[0] - mx) ** 2, 0);
-  return den ? num / den : null;
+/** Change per minute over the last `windowMin` minutes, or null with under a minute of data. */
+export function slopePerMin(samples: WxSample[], pick: (s: WxSample) => number | null, windowMin = 10): number | null {
+  const end = samples[samples.length - 1];
+  if (!end) return null;
+  const from = samples.find((s) => end.t - s.t <= windowMin * 60000 && pick(s) != null);
+  const a = from && pick(from), b = pick(end);
+  if (!from || a == null || b == null || end.t - from.t < 60000) return null;
+  return (b - a) / ((end.t - from.t) / 60000);
 }

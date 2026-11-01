@@ -73,6 +73,8 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
     expect(lt.ch.t).toHaveLength(NB);
     for (const k of LCH) expect(lt.ch[k]).toHaveLength(NB);
     expect(Math.max(...lt.ch.glat!.map(Math.abs))).toBeGreaterThan(0);
+    for (const k of LCH) expect(lt.ch[k]).toHaveLength(NB);
+    expect(Math.max(...lt.ch.glat!.map(Math.abs))).toBeGreaterThan(0);
     expect(Math.abs(lt.ch.t[NB - 1] - lt.ms)).toBeLessThan(0.01);
     expect(lt.line.length).toBeGreaterThan(1000);
     expect(tel.lapTrace(999)).toBeNull();

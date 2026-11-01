@@ -170,7 +170,7 @@ export function cornerNames(track: string): [number, number, string][] | null {
 /** One colour per label field when the map colours them. */
 export const FIELD_COLOUR: Record<string, string> = { pos: "#f5b942", num: "#6cb6ff", code: "#e8ecf1", name: "#c3a6ff", gap: "#5fd38d" };
 
-export interface MapOpts { field: boolean; fields: string[]; which: string; dim: boolean; colours: boolean; size: string; corners: boolean; sectors: boolean; sectorTint: boolean }
+export interface MapOpts { field: boolean; fields: string[]; which: string; dim: boolean; colours: boolean; size: string; corners: boolean; sectors: boolean; road: string }
 export interface MapHit { i: number; x: number; y: number }
 export interface MapOut { hits: MapHit[]; info: string; empty: boolean }
 
@@ -232,10 +232,10 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
     g.stroke();
   };
   g.lineJoin = g.lineCap = "round";
-  const rw = 8 + Math.min(view.zoom - 1, 3) * 2; // the road grows a little as you zoom in
+  const rw = (({ s: 8, l: 20 } as Record<string, number>)[o.road] ?? 13) + Math.min(view.zoom - 1, 3) * 3; // the road grows a little as you zoom in
   path(D.loop, rw, tk.dim); path(D.loop, rw - 2, tk.bg); // an outline on each edge, empty between
   const ends = (c.s?.sector_pos as number[] | undefined) ?? [];
-  if (o.sectors && ends.length && D.loop.length > 3) drawSectors(g, tk, c, o, D.loop, ends, X, Y, path);
+  if (o.sectors && ends.length && D.loop.length > 3) drawSectors(g, tk, o, D.loop, ends, X, Y, path, rw - 2);
   const avoid: number[][] = [];
   if (o.corners !== false) { // corner names; car labels keep clear of them
     const fz = Math.round(10 * mapScale(o));
@@ -243,7 +243,12 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
     for (const [x, z, n] of D.labels) { g.fillText(n, X(x), Y(z)); avoid.push([X(x), Y(z) - fz / 2, g.measureText(n).width, fz]); }
   }
   const sf = D.loop[0]!;
-  g.fillStyle = tk.text; g.fillRect(X(sf[0]) - 5, Y(sf[1]) - 1.5, 10, 3); // start/finish
+  { // start/finish: a two-row chequered strip across the road, turned to the direction of travel
+    const q = atFrac(D.loop, 0.002), ang = Math.atan2(Y(q[1]) - Y(sf[1]), X(q[0]) - X(sf[0])), sq = 2.5, n = Math.max(3, Math.round((rw + 4) / sq));
+    g.save(); g.translate(X(sf[0]), Y(sf[1])); g.rotate(ang);
+    for (let r = 0; r < 2; r++) for (let k = 0; k < n; k++) { g.fillStyle = (r + k) % 2 ? "#000" : "#fff"; g.fillRect(-sq + r * sq, (k - n / 2) * sq, sq, sq); }
+    g.restore();
+  }
   const mx = X(me[0]), my = Y(me[1]);
   drawField(g, tk, c, o, cars.map(([car, [x, z]]) => ({ car, sx: X(x), sy: Y(z) })), mx, my, foc ? foc[0] : null, r.session.in_pit_lane, w, h, out, avoid);
   if (c.me != null && !r.session.in_pit_lane) out.hits.push({ i: c.me, x: mx, y: my });
@@ -251,31 +256,19 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
   return out;
 }
 
-/** The sector boundaries across the road, each sector named where it starts; optionally the racing line tinted by the last lap's sectors. */
-function drawSectors(g: Ctx2D, tk: Tokens, c: Ctx, o: MapOpts, loop: Pt[], ends: number[], X: (x: number) => number, Y: (z: number) => number, path: (pts: ArrayLike<number[]>, width: number, color: string) => void): void {
-  const marks = [0, ...ends], n = marks.length;
-  if (o.sectorTint) {
-    const last = c.laps.slice().reverse().find((l) => l.valid !== false && Array.isArray(l.s) && l.s.length === n);
-    const ok = c.laps.filter((l) => l.valid !== false && Array.isArray(l.s) && l.s.length === n);
-    if (last) {
-      for (let i = 0; i < n; i++) {
-        const v = (last.s as number[])[i]!, pb = Math.min(...ok.map((l) => (l.s as number[])[i]!).filter((x) => x > 0)), sb = Math.min(...[...c.cars.values()].map((x) => (x.best_s ?? [])[i] ?? 0).filter((x) => x > 0), Infinity);
-        const a = marks[i]!, b = i + 1 < n ? marks[i + 1]! : 1, cum = cumOf(loop), tot = cum[cum.length - 1]!;
-        const seg: Pt[] = [atFrac(loop, a), ...loop.filter((_, j) => cum[j]! > a * tot && cum[j]! < b * tot), atFrac(loop, b === 1 ? 0.99999 : b)];
-        path(seg, 3, v <= sb ? tk.best : v <= pb ? tk.pb : tk.slow);
-      }
-    }
-  }
+/** Each sector's stretch of the road drawn in its own colour (S1 blue, S2 green, S3 red), named where it starts. */
+function drawSectors(g: Ctx2D, tk: Tokens, o: MapOpts, loop: Pt[], ends: number[], X: (x: number) => number, Y: (z: number) => number, path: (pts: ArrayLike<number[]>, width: number, color: string) => void, width: number): void {
+  const marks = [0, ...ends], n = marks.length, cum = cumOf(loop), tot = cum[cum.length - 1]!;
+  const colour = [tk.cold, tk.ok, tk.bad];
   const fz = Math.round(10 * mapScale(o));
   g.font = `600 ${fz}px ${tk.num}`; g.textBaseline = "middle"; g.textAlign = "center"; g.lineJoin = "round";
-  marks.forEach((f, i) => {
-    const a = atFrac(loop, f - 0.002), b = atFrac(loop, f + 0.002), px = X(b[0]) - X(a[0]), py = Y(b[1]) - Y(a[1]), len = Math.hypot(px, py) || 1;
-    const nx = -py / len, ny = px / len, cx = X(loop[0]![0]), cy = Y(loop[0]![1]);
-    const [x, y] = i ? [X(atFrac(loop, f)[0]), Y(atFrac(loop, f)[1])] : [cx, cy];
-    if (i) { g.beginPath(); g.moveTo(x - nx * 11, y - ny * 11); g.lineTo(x + nx * 11, y + ny * 11); g.strokeStyle = tk.text; g.lineWidth = 2; g.stroke(); }
-    const lx = x + nx * 20, ly = y + ny * 20, t = "S" + (i + 1);
-    g.strokeStyle = tk.bg; g.lineWidth = 3.5; g.strokeText(t, lx, ly); g.fillStyle = tk.text; g.fillText(t, lx, ly);
-  });
+  for (let i = 0; i < n; i++) {
+    const a = marks[i]!, b = i + 1 < n ? marks[i + 1]! : 1, col = colour[i % 3]!;
+    path([atFrac(loop, a), ...loop.filter((_, j) => cum[j]! > a * tot && cum[j]! < b * tot), atFrac(loop, b === 1 ? 0.99999 : b)], width, col);
+    const p = atFrac(loop, a), q = atFrac(loop, a + 0.004), px = X(q[0]) - X(p[0]), py = Y(q[1]) - Y(p[1]), len = Math.hypot(px, py) || 1;
+    const lx = X(p[0]) - (py / len) * 18, ly = Y(p[1]) + (px / len) * 18, t = "S" + (i + 1);
+    g.strokeStyle = tk.bg; g.lineWidth = 3.5; g.strokeText(t, lx, ly); g.fillStyle = col; g.fillText(t, lx, ly);
+  }
   g.textAlign = "left";
 }
 

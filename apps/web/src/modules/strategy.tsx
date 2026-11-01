@@ -338,11 +338,11 @@ export const rejoin = defineModule({
 /** One stop: the time in the pit lane as bars (lane, box), a planned stop dashed. */
 function StopRow({ k, lap, plan, lane, box, loss, big, fuelL, tyres }: { k: number; lap: number; plan?: boolean; lane: number; box: number; loss: number | null; big: boolean; fuelL?: number; tyres?: string }) {
   const rest = Math.max(0.1, lane - box);
-  const label = (t: string) => big ? t : "";
+  const label = (t: string) => t;
   return (
-    <div className={"pr" + (plan ? " pln" : "")} style={{ height: big ? 44 : 30, gridTemplateColumns: big ? "60px 1fr 56px 56px" + (fuelL != null ? " 64px 96px" : "") : "44px 1fr 52px 52px" }}>
-      {big ? <div className="fc" style={{ gap: 2 }}><span className="v" style={{ fontWeight: 500 }}>Stop {k}</span><span className="v di" style={{ fontSize: 10 }}>LAP {lap}{plan ? " · PLAN" : ""}</span></div> : <span className="v" style={{ fontWeight: 500 }}>S{k}</span>}
-      <div className={"pb" + (plan ? " pl" : "")}><i style={{ flex: rest }}>{label(`lane ${nf(rest, 1)}`)}</i><i className="bx" style={{ flex: box }}>{label(`box ${nf(box, 1)}${plan ? " est." : ""}`)}</i></div>
+    <div className={"pr" + (plan ? " pln" : "")} style={{ height: big ? 44 : 30, gridTemplateColumns: big ? "60px 1fr 56px 56px" + (fuelL != null ? " 64px 96px" : "") : "58px 1fr 44px 44px" }}>
+      {big ? <div className="fc" style={{ gap: 2 }}><span className="v" style={{ fontWeight: 500 }}>Stop {k}</span><span className="v di" style={{ fontSize: 10 }}>LAP {lap}{plan ? " · PLAN" : ""}</span></div> : <span className="v" style={{ fontWeight: 500 }}>S{k}<span className="di" style={{ fontSize: 10, fontWeight: 400 }}> L{lap}</span></span>}
+      <div className={"pb" + (plan ? " pl" : "")}><i style={{ flex: rest }}>{label(big ? `lane ${nf(rest, 1)}` : `lane ${nf(rest, 1)}`)}</i><i className="bx" style={{ flex: box }}>{label(`box ${nf(box, 1)}${plan ? " est." : ""}`)}</i></div>
       <span className="v r2">{nf(box, 1)}{big ? " s" : ""}</span>
       <span className={"v r2" + (!plan && loss != null ? " up" : "")}>{loss != null ? nf(loss, 1) + (big ? " s" : "") : NONE}</span>
       {big && fuelL != null ? <><span className="v r2">{fuelL > 0 ? "+" + nf(fuelL, 1) + " L" : NONE}</span><span className="v">{tyres}</span></> : null}
@@ -383,11 +383,11 @@ export const stops = defineModule({
               <div className="c"><span className="lab">Pace after</span><span className={"mid" + (pa != null ? (pa < 0 ? " dn" : " up") : "")}>{pa != null ? `${pa < 0 ? "▼" : "▲"} ${nf(Math.abs(pa), 2)}` : NONE}<span className="u">s/lap</span></span></div>
             </div>
           ) : null}
-          {big ? <div className="pr hd" style={{ gridTemplateColumns: full ? "60px 1fr 56px 56px 64px 96px" : "60px 1fr 56px 56px" }}><span>Stop</span><span>Time in the pit lane, seconds</span><span className="r2">Box</span><span className="r2">Loss</span>{full ? <><span className="r2">Fuel</span><span>Tyres</span></> : null}</div> : null}
+          <div className="pr hd" data-p="1" style={{ gridTemplateColumns: !big ? "58px 1fr 44px 44px" : full ? "60px 1fr 56px 56px 64px 96px" : "60px 1fr 56px 56px" }}><span>Stop</span><span>{big ? "Time in the pit lane, seconds" : "Lane · box (s)"}</span><span className="r2">Box</span><span className="r2">Loss</span>{full ? <><span className="r2">Fuel</span><span>Tyres</span></> : null}</div>
           {list.map((p, k) => <StopRow key={k} k={k + 1} lap={p.lap} lane={p.lane_ms / 1000} box={p.box_ms / 1000} loss={p.loss_ms != null ? p.loss_ms / 1000 : null} big={big} fuelL={full ? p.fuel_added_l : undefined} tyres={p.tyres ? `Set ${nf(p.set_before, 0)} → ${nf(p.set_after, 0)}` : "Kept"} />)}
           {planned.length ? planned.map((t, j) => <StopRow key={"p" + j} k={list.length + 1 + j} lap={t.from - 1} plan lane={Math.max(t.stat + (st?.drive_loss_s ?? 0) * 0.3, t.stat)} box={t.stat} loss={(st?.drive_loss_s ?? 0) + t.stat} big={big} fuelL={full ? t.add! : undefined} tyres={full ? (rp!.tyres ? "New set" : "Kept") : undefined} />)
             : plan ? <StopRow k={list.length + 1} lap={plan.lap} plan lane={Math.max(plan.stationary_s + (st!.drive_loss_s ?? 0) * 0.3, plan.stationary_s)} box={plan.stationary_s} loss={plan.loss_s} big={big} fuelL={full ? plan.add_l : undefined} tyres={full ? "Planned" : undefined} /> : null}
-          {!big ? <div className="f v di" data-p="3" style={{ padding: "0 var(--pad)", fontSize: 9.5, height: 20, gap: 12 }}><span>bar: lane · box</span><span className="sp" /><span>dashed = planned</span></div> : null}
+          {!big ? <div className="f v di" data-p="3" style={{ padding: "0 var(--pad)", fontSize: 9.5, height: 20, gap: 12 }}><span>S stop · L lap · grey lane · blue box · dashed planned</span></div> : null}
           {big ? <div className="f v di" data-p="3" style={{ padding: "var(--pad)", fontSize: 10.5, gap: 16 }}><span><i style={{ display: "inline-block", width: 10, height: 6, background: "#3a3f47", marginRight: 6 }} />pit lane</span><span><i style={{ display: "inline-block", width: 10, height: 6, background: "var(--ac)", marginRight: 6 }} />stationary in the box</span><span><i style={{ display: "inline-block", width: 10, height: 6, border: "1px dashed var(--t3)", marginRight: 6 }} />planned</span></div> : null}
         </div>
         {full && fieldOn(c) ? (

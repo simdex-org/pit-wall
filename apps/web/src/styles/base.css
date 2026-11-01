@@ -35,6 +35,9 @@
   --t-xs:.625rem;--t-sm:.6875rem;--t-md:.8125rem;--t-lg:.9375rem;--t-xl:1.25rem;--t-2xl:1.75rem;--t-3xl:2.75rem;
   /* the fill behind sticky table headers and overlays inside a module: the page in "ruled", the panel otherwise */
   --mbg:var(--bg);
+  /* the names design.css (from the design canvas) uses, pointing at the tokens above */
+  --p1:var(--panel);--p2:var(--raise);--p3:#1e2227;--ln:var(--line);--ln2:var(--line2);--tx:var(--txt);--t2:var(--mut);--t3:var(--dim);
+  --ac:var(--acc);--sans:var(--font);--mono:var(--num);
   color-scheme:dark;
 }
 :root[data-panel=boxed],:root[data-panel=flat]{--mbg:var(--panel)}

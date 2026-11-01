@@ -176,6 +176,42 @@ export const tyres = defineModule({
     const corr = (i: number) => (pl && Array.isArray(pl.psi) ? mid - (pl.psi as number[])[i]! : null);
     const setCold = (i: number) => { const cx = corr(i); return cx == null ? null : (a.tyre_pressure_psi as number[])[i]! + cx; };
     const alert: [number] = [worstOf(...ps, ...ts, ...(opts.brakes ? bs : []))];
+    if (!large && size.h >= 6) {
+      const num = (label: string, cls: string, v: string, unitS: string, tag?: string, centre?: boolean) => {
+        const extra = <><span className="u" style={{ fontSize: 10, marginLeft: 2 }}>{unitS}</span>{tag ? <span className="v" style={{ fontSize: 10.5, marginLeft: 4 }}>{tag}</span> : null}</>;
+        return (
+          <div className="fc" style={{ gap: 1, minWidth: 0, alignItems: centre ? "center" : "flex-start" }}>
+            <span className="v di" style={{ fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase" }}>{label}</span>
+            <span className={"big " + cls} style={{ fontSize: size.w < 4 ? 20 : 24, whiteSpace: "nowrap", position: "relative" }}>
+              {v}{centre ? <span style={{ position: "absolute", left: "100%", bottom: 1, whiteSpace: "nowrap", lineHeight: 1 }}>{extra}</span> : extra}
+            </span>
+          </div>
+        );
+      };
+      return {
+        flush: true, alert, info: [`SET ${r.session.tyre_set || NONE}`, `HOT ${fv("press", lo, u)}–${fv("press", hi, u)}`],
+        body: (
+          <div className="fc" style={{ flex: 1, minHeight: 0 }}>
+            {CORNERS.map((n, i) => {
+              const sc0 = setCold(i), cx = corr(i), dd = (a.tyre_pressure_psi as number[])[i]! - mid;
+              const pd = ps[i] === "ok" ? "" : `${dd > 0 ? "▲ +" : "▼ " + MINUS}${Math.abs(pu.f(dd) - pu.f(0)).toFixed(pu.d)}`;
+              return (
+                <div key={n} className="f" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "2px 12px", gap: 8, alignItems: "center", borderBottom: "1px solid var(--ln)" }}>
+                  <div className="fc" style={{ width: 52, gap: 2, flex: "none", whiteSpace: "nowrap" }}>
+                    <span className="v" style={{ fontWeight: 600 }}>{n}</span>
+                    {opts.corrections && size.h >= 7 && sc0 != null ? <span className="v ac" style={{ fontSize: 10.5 }}>set {fv("press", sc0, u)}</span> : null}
+                    {opts.corrections && size.h >= 8 && cx != null && Math.abs(cx) >= 0.05 ? <span className={"v " + (cx < 0 ? "dn" : "up")} style={{ fontSize: 10.5 }}>{cx < 0 ? "▼" : "▲"} {Math.abs(pu.f(cx) - pu.f(0)).toFixed(pu.d)}</span> : null}
+                  </div>
+                  <div style={{ flex: 1.9, minWidth: 0 }}>{num("Pressure", pcls(ps[i]!), fv("press", (a.tyre_pressure_psi as number[])[i], u), pu.u, pd)}</div>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>{num("Core", pcls(ts[i]!), fv("temp", coreT(a, i, cap), u), tu, ts[i] === "ok" ? "" : STATE_WORD[ts[i]!] ?? "", true)}</div>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>{opts.brakes ? num("Brake", pcls(bs[i]!), fv("temp", (a.brake_temp_c as number[])[i], u), tu, bs[i] === "ok" ? "" : STATE_WORD[bs[i]!] ?? "", true) : null}</div>
+                </div>
+              );
+            })}
+          </div>
+        ),
+      };
+    }
     if (!large) {
       return {
         flush: true, alert, info: [`SET ${r.session.tyre_set || NONE}`],

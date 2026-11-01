@@ -1,0 +1,37 @@
+/* The Weather module: a verdict, the chart, and the conditions beside it. Tokens only. */
+.mod .wx{overflow:hidden;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(250px,1fr);height:100%;min-height:0}
+.mod .wx.n{display:flex;flex-direction:column}
+.wx-main{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--ln)}
+.wx.n .wx-main{border-right:0;flex:1}
+.wx.n .wx-side{flex:none;display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));border-top:1px solid var(--ln)}
+.wx.n .wx-sec{border-bottom:1px solid var(--ln2)}
+.wx-head{display:flex;align-items:center;gap:14px;padding:calc(var(--pad) * 1.5);border-bottom:1px solid var(--ln)}
+.wx-head svg.lucide{width:34px;height:34px;stroke-width:1.5}
+.wx-head .hl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 calc(var(--big) * .85)/1.1 var(--sans);letter-spacing:-.01em}
+.wx-head .sub{margin-top:4px;color:var(--t2)}
+.wx-head .tags{margin-left:auto;display:flex;gap:6px;align-self:flex-start}
+.wx-note{padding:6px calc(var(--pad) * 1.5);border-top:1px solid var(--ln2);color:var(--t3);font-size:calc(var(--fs) - 1.5px)}
+.wx-side{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.wx-sec{padding:calc(var(--pad) * 1.25) calc(var(--pad) * 1.5);border-bottom:1px solid var(--ln);display:flex;flex-direction:column;gap:10px}
+.wx-sec:last-child{border-bottom:0}
+.wx-m{display:flex;flex-direction:column;gap:5px}
+.wx-m>.fb{align-items:baseline}
+.wx-m .bar{height:6px}
+.wx-scale{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.wx-scale i{height:6px;background:var(--ln)}
+.wx-scale i.on{background:var(--tx)}
+.wx-scale i.on.wn{background:var(--warn)}
+.wx-scale i.on.cd{background:var(--cold)}
+.wx-names{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;color:var(--t3);font-size:calc(var(--lab) - .5px);text-align:center;letter-spacing:.02em}
+.wx-names span.on{color:var(--tx)}
+.wx-temp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.wx-wind{display:flex;align-items:center;gap:14px}
+.wx-wind svg{flex:none}
+.wx-strip{display:flex;flex-wrap:wrap;gap:4px 14px;padding:var(--pad) calc(var(--pad) * 1.5);font:400 var(--fs)/1.2 var(--num);border-top:1px solid var(--ln2)}
+.wx-strip i{font:600 var(--lab)/1 var(--font);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-right:4px}
+.wx-tabs{display:flex;padding:6px calc(var(--pad) * 1.5) 0}
+.wx-tabs button{height:22px;padding:0 12px;border:1px solid var(--ln);margin-left:-1px;color:var(--t2);font:600 var(--lab)/1 var(--font);letter-spacing:.08em;text-transform:uppercase}
+.wx-tabs button:first-child{margin-left:0}
+.wx-tabs button:hover{color:var(--tx)}
+.wx-tabs button[aria-pressed=true]{background:var(--p3);color:var(--tx);border-color:var(--dim);position:relative}
+.wx:not(.n) .wx-sec{flex:1 1 auto;justify-content:center}
