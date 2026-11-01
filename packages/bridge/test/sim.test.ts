@@ -99,7 +99,7 @@ describe("simulated race", { timeout: 60000 }, () => {
 });
 
 describe("simulated qualifying", () => {
-  const w = new World("quali");
+  const w = new World("quali", { seed: 2 });
   const seen = new Set<string>();
   run(w, (x) => x.phase >= 7, (x) => { for (const c of x.cars) seen.add(`${c.id}:${c.kind}`); });
 
@@ -133,7 +133,7 @@ describe("the clock", { timeout: 60000 }, () => {
   });
 
   test("a stop takes the fuel the pit page asked for", () => {
-    const w = new World("race", { seed: 5 });
+    const w = new World("race", { seed: 3 });
     let seen: Box | null = null;
     w.customize = (box) => { box.add = 33; seen = box; };
     run(w, (x) => x.player.pits > 0 || x.t > 3500000);

@@ -60,6 +60,8 @@ export interface Spec {
   wetSkill: number;
   /** One-lap pace on a push lap. */
   quali: number;
+  /** Race pace against one-lap pace, as a fraction of the lap: a good qualifier can be a poor racer. */
+  race: number;
   /** Reaction at the lights. */
   start: number;
   /** The team's pit crew: a quick stop, or a slow one. */
@@ -96,7 +98,7 @@ export function roster(rnd: Rng, playerName: string, field: Field = DEFAULT_FIEL
       slip: rnd.uniform(0.01, 0.035) * (1 + cup * 0.2) * (1.5 - comp),
       trouble: player ? 0 : rnd.uniform(0.002, 0.007),
       aggr: rnd.uniform(0.2, 0.9), defence: trait(), comp, tyreMgmt: trait(), fuelSave: trait(), wetSkill: trait(0.5, 0.25),
-      quali: trait(0.5 + 0.3 * (skill - 0.5), 0.2), start: trait(),
+      quali: trait(0.5 + 0.3 * (skill - 0.5), 0.2), race: rnd.normal(0, 0.006), start: trait(),
       crew: player ? 0.5 : crews[id % TEAMS.length]! });
     if (!player) n++;
   }

@@ -69,7 +69,7 @@ export class SimCar {
   /** What a lap loses (+) or gains (-) against the reference tyres and fuel, as a fraction of the lap. */
   private loss(): number {
     const a = this.tyreDist / this.circuit.len, k = a / this.tyreLife;
-    const tyre = 0.012 * Math.exp(-a / 0.9) + 0.009 * k + 0.04 * Math.max(0, k - 0.85) ** 2; // cold at first, then wearing, then the cliff
+    const tyre = 0.012 * Math.exp(-a / 0.9) + 0.016 * (1.5 - this.spec.tyreMgmt) * k + 0.04 * Math.max(0, k - 0.85) ** 2; // cold at first, then wearing, then the cliff
     return tyre + (0.026 * (this.fuel - 40)) / this.lapSec + this.damageSum * 0.0003;
   }
 
@@ -79,7 +79,7 @@ export class SimCar {
     const q = this.st === "limp" ? 0.55 : this.st === "finished" ? 0.6 : this.kind === "push" ? 1.004 + 0.016 * this.spec.quali : KIND_Q[this.kind];
     // slicks on a wet track lose a lot; wets on a dry one lose some, and wear fast
     const water = (this.wetTyres ? 0.09 * (1 - wet) ** 1.5 : 0.16 * wet + 0.25 * Math.max(0, wet - 0.5)) * (1.3 - 0.6 * this.spec.wetSkill);
-    return (slip * q * this.qSec[this.sector]! * (1 + evo)) / ((1 + this.spec.delta) * (1 + this.loss() + water));
+    return (slip * q * this.qSec[this.sector]! * (1 + evo)) / ((1 + this.spec.delta + this.spec.race) * (1 + this.loss() + water));
   }
 
   /** Fresh sector form for the lap. */
@@ -96,7 +96,7 @@ export class SimCar {
 
   /** How hard the driver is pushing right now: 1 on a quiet lap, more on a push lap, in a pass, or hounded by the car behind. */
   pressure(): number {
-    return 1 + ((this.kind === "push" ? 1.5 : 0) + (this.pass ? 1 : 0) + (this.heldFor > 0 ? 0.6 : 0)) * (1.4 - this.spec.comp);
+    return 1 + ((this.kind === "push" ? 1.5 : 0) + (this.pass ? 1 : 0) + (this.heldFor > 0 ? 0.6 : 0) + (this.laps === 0 && this.kind === "race" ? 1.5 : 0)) * (1.4 - this.spec.comp); // the first lap is the worst
   }
 
   /** Brakes, tyres, water and exhaust for the car the engineer watches. */

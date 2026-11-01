@@ -143,7 +143,7 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
   });
 
   test("the driver's own stop: the lane, the box, the fuel and the tyres, measured from the pages", () => {
-    const tp = new FakePages({ clock, seed: 2 }), tt = new Telemetry(undefined, clock);
+    const tp = new FakePages({ clock, seed: 3 }), tt = new Telemetry(undefined, clock);
     const w = tp.world;
     w.rainAt = () => 0; // a dry race, so the one stop is the planned one
     run(tp, tt, 50 * 60, 10, () => {});

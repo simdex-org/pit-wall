@@ -105,7 +105,7 @@ export class World {
     this.leaderDone = false; this.overAt = this.doneAt = null; this.fcyOn = false; this.rain = this.wet = 0;
     this.front = [rnd.uniform(0, 2 * Math.PI), rnd.uniform(0, 2 * Math.PI), rnd.uniform(0, 2 * Math.PI)]; this.events = []; this.rankedAt = -1;
     this.cars = this.specs.map((s) => new SimCar(s, this.circuit, rnd, this.lpl));
-    const grid = this.cars.map((c) => [c, c.spec.delta + rnd.normal(0, 0.004)] as const).sort((a, b) => a[1] - b[1]).map(([c]) => c);
+    const grid = this.cars.map((c) => [c, c.spec.delta - 0.012 * (c.spec.quali - 0.5) + rnd.normal(0, 0.008)] as const).sort((a, b) => a[1] - b[1]).map(([c]) => c);
     const carry = this.kind === "race" ? this.carry : null;
     if (carry) grid.sort((a, b) => carry.indexOf(a.id) - carry.indexOf(b.id)); // the race starts in qualifying's order
     this.carry = null;
@@ -137,7 +137,7 @@ export class World {
   rainAt(t: number): number {
     const f = this.front, w = (ms: number, i: number) => Math.sin((2 * Math.PI * t) / ms + f[i]!);
     const front = 0.5 * w(3300000, 0) + 0.3 * w(1250000, 1) + 0.2 * w(480000, 2);
-    return Math.min(1, Math.max(0, (front - 0.4) / 0.45)) * 0.9 * Math.min(1, Math.max(0, t / 600000));
+    return Math.min(1, Math.max(0, (front - 0.3) / 0.45)) * 0.9 * Math.min(1, Math.max(0, t / 600000));
   }
 
   /** A wreck on the track: the field slows down behind it, and the teams use the time to make their stops. */

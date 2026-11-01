@@ -91,7 +91,7 @@ describe("simulated field", { timeout: 60000 }, () => {
 
   test("a 20-car race: grid, order, gaps, pits, rel, net, rejoin", () => {
     const now = [0];
-    const pages = new FakePages({ clock: () => now[0]! });
+    const pages = new FakePages({ clock: () => now[0]!, seed: 2 });
     const ff = new FakeField(pages);
     const phases: string[] = [];
     let pitted = false, left = false, exit = false;

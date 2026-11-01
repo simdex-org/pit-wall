@@ -121,7 +121,9 @@ export function seal(w: World, c: SimCar, box: Box): void {
   const fuelT = box.add > 0.05 ? SERVICE_START_MS + box.add * REFUEL_MS_PER_L : 0;
   const tyreT = box.tyres ? 10500 + (0.5 - c.spec.crew) * 2400 + w.rnd.normal(0, 900) : 0;
   const repairT = box.repair ? 5000 + c.damageSum * 400 : 0;
-  let svc = Math.max(fuelT, tyreT, 2500) + 1200 + repairT;
+  const fumble = box.tyres && w.rnd.random() < 0.05 * (1.5 - c.spec.crew) ? w.rnd.uniform(6000, 22000) : 0; // a stuck wheel nut, a late jack
+  let svc = Math.max(fuelT, tyreT, 2500) + 1200 + repairT + fumble;
+  if (fumble && c.id !== w.playerId) w.say(3, c, `#${c.spec.num} slow stop`);
   box.fuelEnd = box.fuel0 + box.add;
   if (w.kind !== "race" && !box.park) {
     const wait = w.rnd.uniform(8000, 60000);

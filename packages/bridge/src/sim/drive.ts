@@ -109,11 +109,11 @@ function traffic(w: World, c: SimCar, free: number, dt: number): number {
     const o = w.cars[c.pass.id - 1]!;
     const r = rel(len, c.d, o.d);
     const alongside = Math.abs(r) < CAR_LEN + 1 && Math.abs(w.circuit.curvature(c.d)) > 0.004; // side by side into a corner
-    if (alongside && w.rnd.random() < 0.001 * (1 + 3 * c.spec.aggr) * (1 + o.spec.defence) * (2 - c.grip(w.wet)) * (1 + 3 * w.wet) * dt) { contact(w, c, o); return free; }
+    if (alongside && w.rnd.random() < 0.001 * (1 + 3 * c.spec.aggr) * (1 + o.spec.defence) * (2 - c.grip(w.wet)) * (c.laps === 0 ? 3 : 1) * (1 + 3 * w.wet) * dt) { contact(w, c, o); return free; }
     if (r < -(CAR_LEN + 2) || t > c.pass.until || o.inLane !== c.inLane) { c.passCool = r < 0 ? 5 : 2.5; c.pass = null; }
   }
   c.passCool = Math.max(0, c.passCool - dt);
-  if (c.pass) free *= 1.025; // the run on the car being passed: late braking, the tow, the better exit
+  if (c.pass) free *= 1.04; // the run on the car being passed: late braking, the tow, the better exit
   if (!near) { c.heldFor = Math.max(0, c.heldFor - dt); return free; }
   const o = near, stuck = o.v < 8;
   if (gap < 0.3 && c.v > o.v + 2 && t >= c.hitUntil) collide(w, c, o);
@@ -125,10 +125,10 @@ function traffic(w: World, c: SimCar, free: number, dt: number): number {
   free = Math.min(free, cap);
   c.heldFor = held ? c.heldFor + dt : Math.max(0, c.heldFor - dt);
   if (held && !c.pass && c.passCool <= 0 && !w.fcyOn) {
-    const need = stuck ? 0 : c.kind === "push" && o.kind !== "push" ? 0.6 : 2;
+    const need = stuck ? 0 : c.kind === "push" && o.kind !== "push" ? 0.6 : 1.2;
     const faster = stuck || c.pace(t, w.evo, w.wet) * (1 + tw) > o.pace(t, w.evo, w.wet) * 1.002;
     const circ = w.circuit;
-    const open = Math.abs(circ.curvature(c.d)) < 0.0035 && Math.abs(circ.curvature(c.d + 90)) < 0.006;
+    const open = Math.abs(circ.curvature(c.d)) < 0.006 && Math.abs(circ.curvature(c.d + 90)) < 0.012; // a straight, or the braking zone into a corner
     if (faster && (open || stuck) && c.heldFor >= need && w.rnd.random() < (0.3 + 0.7 * c.spec.aggr) * (1 - 0.5 * o.spec.defence) * 1.5 * dt) {
       c.pass = { id: o.id, side: w.rnd.random() < 0.5 ? 1 : -1, until: t + 14000 };
     }
@@ -224,13 +224,18 @@ function mistakes(w: World, c: SimCar, dt: number, use: number): void {
   if (c.st !== "race" || c.inLane || w.t < 0) return;
   const grip = c.grip(w.wet), press = c.pressure(), rnd = w.rnd;
   // spec.slip is the chance of a moment in a lap; a lap has only a few seconds right at the limit
-  const slip = (c.spec.slip / 45) * use ** 4 * press * (1 + 6 * (1 - grip) + 2 * w.wet) * dt;
+  const slip = (c.spec.slip / 20) * use ** 4 * press * (1 + 6 * (1 - grip) + 2 * w.wet) * dt;
   if (w.t >= c.slipUntil && rnd.random() < slip) {
     c.slipUntil = w.t + 2200;
-    const spun = rnd.random() < Math.min(1, (c.v / 60) ** 2 * (0.1 + 2.5 * (1 - grip) + 0.15 * (press - 1)));
+    const spun = rnd.random() < Math.min(1, (c.v / 60) ** 2 * (0.15 + 2.5 * (1 - grip) + 0.15 * (press - 1)));
     if (spun) { spin(w, c); return; }
     c.valid = false;
     if (w.kind === "race" && ++c.cuts >= 2) { c.cuts = 0; penalize(w, c, 1, "track limits"); }
+  }
+  const worn = Math.max(0, c.wear - 0.85) / 0.15; // a set that is past its life can let go on a kerb
+  if (rnd.random() < worn * 0.0004 * use * dt * 60) {
+    c.tyreDist += c.circuit.len * c.tyreLife * 0.5; c.wantPit = c.wantStop = true; c.slipUntil = w.t + 4000;
+    w.say(3, c, `#${c.spec.num} puncture`);
   }
   if (rnd.random() < ((c.spec.trouble * 0.3) / c.lapSec) * (1 + c.damageSum / 25) * dt) {
     c.st = "limp"; c.wantPit = c.wantStop = true; w.say(3, c, `#${c.spec.num} slow with a problem`);
@@ -245,7 +250,7 @@ export function spin(w: World, c: SimCar): void {
   c.suspDamage[w.rnd.randint(0, 3)]! += 0.05 * hit;
   c.tyreDist += w.circuit.len * 0.04;
   c.pass = null; c.heldFor = 0;
-  if (w.kind === "race" && !w.fcyOn && hurt > 40) { // a hard hit: the car is wrecked and has to be recovered
+  if (w.kind === "race" && !w.fcyOn && hurt > 38) { // a hard hit: the car is wrecked and has to be recovered
     c.wrecked = true; c.until = w.t + 25000 + 30000 * hit;
     c.damage[w.rnd.randint(0, 4)]! += hurt * 1.2;
     w.startFcy(c.until - w.t);

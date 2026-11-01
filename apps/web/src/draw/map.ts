@@ -78,7 +78,8 @@ function alignLayout(name: string, t: TrackDrawing, pts: ArrayLike<number[]>): A
   const N = Math.min(200, pts.length), S: number[][] = [];
   for (let k = 0; k < N; k++) S.push(pts[Math.floor((k * pts.length) / N)]!);
   let fit: { e: number; sc: number; map: (p: Pt) => Pt; inv: (p: Pt) => Pt } | null = null;
-  for (let d = -0.05; d <= 0.0501; d += 0.0025) {
+  let bestD = 0;
+  const tryD = (d: number) => {
     for (const f of [1, -1]) {
       const a = S.map((q) => { const [x, y] = atFrac(t.loop, q[2]! + d); return [x, f * y] as Pt; });
       let ax = 0, ay = 0, bx = 0, bz = 0;
@@ -90,13 +91,21 @@ function alignLayout(name: string, t: TrackDrawing, pts: ArrayLike<number[]>): A
       let e = 0;
       a.forEach(([x, y], i) => { const u = x - ax, v = y - ay; e += (bx + co * u - si * v - S[i]![0]!) ** 2 + (bz + si * u + co * v - S[i]![1]!) ** 2; });
       const k2 = co * co + si * si;
-      if (!fit || e < fit.e) fit = { e, sc, map: ([x, y]) => { const u = x - ax, v = f * y - ay; return [bx + co * u - si * v, bz + si * u + co * v]; },
-        inv: ([x, z]) => { const dx = x - bx, dz = z - bz; return [(co * dx + si * dz) / k2 + ax, f * ((co * dz - si * dx) / k2 + ay)]; } };
+      if (!fit || e < fit.e) { bestD = d; fit = { e, sc, map: ([x, y]) => { const u = x - ax, v = f * y - ay; return [bx + co * u - si * v, bz + si * u + co * v]; },
+        inv: ([x, z]) => { const dx = x - bx, dz = z - bz; return [(co * dx + si * dz) / k2 + ax, f * ((co * dz - si * dx) / k2 + ay)]; } }; }
     }
-  }
+  };
+  // The drawings start wherever the source way did, so the real start line can be anywhere on them: coarse over the whole loop, then fine.
+  for (let d = -0.5; d < 0.5; d += 0.01) tryD(d);
+  const d0 = bestD;
+  for (let d = d0 - 0.01; d <= d0 + 0.0101; d += 0.0025) tryD(d);
   const len = fit!.sc * cumOf(t.loop)[t.loop.length - 1]!, ok = Math.sqrt(fit!.e / N) < Math.max(40, 0.03 * len); // a wrong layout or config: no drawing under the line
   const map = fit!.map;
-  const B: Aligned | null = ok ? { loop: [...t.loop, t.loop[0]!].map(map), pit: t.pit.map(map), labels: t.labels.map(([x, y, n]) => [...map([x, y]), n] as [number, number, string]), inv: fit!.inv } : null;
+  // Turn the loop so it starts at the fitted start line.
+  const open = t.loop, cum = cumOf(t.loop), tot = cum[cum.length - 1]!, s = (((bestD % 1) + 1) % 1) * tot;
+  const k = open.findIndex((_, i) => cum[i]! >= s);
+  const turned: Pt[] = k < 0 ? open : [atFrac(t.loop, bestD), ...open.slice(k), ...open.slice(0, k)];
+  const B: Aligned | null = ok ? { loop: [...turned, turned[0]!].map(map), pit: t.pit.map(map), labels: t.labels.map(([x, y, n]) => [...map([x, y]), n] as [number, number, string]), inv: fit!.inv } : null;
   if (B || !had || !had.B) ALIGN.set(name, { key, B }); else had.key = key;
   return B || (had?.B ?? null);
 }
