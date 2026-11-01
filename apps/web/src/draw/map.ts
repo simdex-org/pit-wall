@@ -273,6 +273,18 @@ function drawSectors(g: Ctx2D, tk: Tokens, o: MapOpts, loop: Pt[], ends: number[
   g.textAlign = "left"; g.lineCap = "round";
 }
 
+// ACC cup categories: Overall, Pro-Am, Am, Silver, National. Overall keeps the plain dot.
+const CUP_COLOUR = [null, "#f5b942", "#5fd38d", "#c3a6ff", "#6cb6ff"];
+
+// Shape by class: GT3 circle, GT4 square, GT2 diamond, TCX triangle.
+function classShape(g: Ctx2D, cls: string | undefined, x: number, y: number, r: number): void {
+  g.beginPath();
+  if (cls === "GT4") g.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7);
+  else if (cls === "GT2") { g.moveTo(x, y - r * 1.25); g.lineTo(x + r * 1.25, y); g.lineTo(x, y + r * 1.25); g.lineTo(x - r * 1.25, y); g.closePath(); }
+  else if (cls === "TCX") { g.moveTo(x, y - r * 1.2); g.lineTo(x + r * 1.1, y + r * 0.85); g.lineTo(x - r * 1.1, y + r * 0.85); g.closePath(); }
+  else g.arc(x, y, r, 0, 7);
+}
+
 const FIELD_ORDER = ["pos", "num", "code", "name", "gap"];
 
 interface Dot { car: Car; sx: number; sy: number }
@@ -287,8 +299,8 @@ function drawField(g: Ctx2D, tk: Tokens, c: Ctx, o: MapOpts, dots: Dot[], mx: nu
   // Other cars: one circle each (cars in the pit lane are not drawn); a ring on the focus car.
   for (const { car, sx, sy } of dots) {
     g.globalAlpha = o.dim && !(car.rel != null && Math.abs(car.rel) < NEAR_MS) ? 0.4 : 1;
-    g.beginPath(); g.arc(sx, sy, 5 * k, 0, 7);
-    g.fillStyle = tk.text; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1.5; g.stroke();
+    classShape(g, car.class, sx, sy, 5 * k);
+    g.fillStyle = CUP_COLOUR[car.cup ?? 0] ?? tk.text; g.fill(); g.strokeStyle = tk.bg; g.lineWidth = 1.5; g.stroke();
     g.globalAlpha = 1;
     if (lapped(car)) blueRing(sx, sy, 10 * k);
     if (car === foc) { g.beginPath(); g.arc(sx, sy, 10 * k, 0, 7); g.strokeStyle = tk.accent; g.lineWidth = 2; g.stroke(); }
