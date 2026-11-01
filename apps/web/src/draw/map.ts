@@ -237,7 +237,7 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
   const ends = (c.s?.sector_pos as number[] | undefined) ?? [];
   if (o.sectors && ends.length && D.loop.length > 3) drawSectors(g, tk, o, D.loop, ends, X, Y, path, rw - 2);
   const avoid: number[][] = [];
-  if (o.corners !== false) { // corner names; car labels keep clear of them
+  if (o.corners) { // corner names; car labels keep clear of them
     const fz = Math.round(10 * mapScale(o));
     g.font = `500 ${fz}px ${tk.font}`; g.fillStyle = tk.dim; g.textBaseline = "middle"; g.textAlign = "left";
     for (const [x, z, n] of D.labels) { g.fillText(n, X(x), Y(z)); avoid.push([X(x), Y(z) - fz / 2, g.measureText(n).width, fz]); }
