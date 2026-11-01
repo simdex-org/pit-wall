@@ -186,6 +186,10 @@ export class Field {
   private order(): [number, Rec][] {
     // ACC's positions come in per-car packets, so a snapshot can hold two P11s and no P26: a tie goes to whoever is further round
     const race = this.mode() === "race";
+    // ACC leaves Position at the grid order until the lights go out, so on the formation lap the order is who is further round
+    if (race && this.phase !== null && this.phase > 0 && this.phase < 5) {
+      return [...this.cars].sort(([ia, a], [ib, b]) => (b.dist ?? 0) - (a.dist ?? 0) || (a.pos || 999) - (b.pos || 999) || ia - ib);
+    }
     return [...this.cars].sort(([ia, a], [ib, b]) => (a.pos || 999) - (b.pos || 999) || (race ? (b.dist || 0) - (a.dist || 0) : 0) || ia - ib);
   }
 

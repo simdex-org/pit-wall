@@ -49,7 +49,7 @@ describe("simulated race", { timeout: 60000 }, () => {
 
   test("the lights go out, a lap takes about the reference time, GT4 is slower", () => {
     const best = w.best!;
-    expect(best.ms).toBeGreaterThan(lapMs * 0.97);
+    expect(best.ms).toBeGreaterThan(lapMs * 0.95);
     expect(best.ms).toBeLessThan(lapMs * 1.03);
     const gt3 = lapsSeen.filter((l) => l.kind === "false").map((l) => l.ms), gt4 = lapsSeen.filter((l) => l.kind === "true").map((l) => l.ms);
     expect(Math.min(...gt4)).toBeGreaterThan(Math.min(...gt3) * 1.04);

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { enable, readConfig } from "../src/broadcast/config.js";
 import { FakeField } from "../src/broadcast/fake-field.js";
-import { wrap } from "../src/broadcast/field.js";
+import { Field, wrap } from "../src/broadcast/field.js";
 import { PIT_LOCS } from "../src/broadcast/models.js";
 import { MAXI, packRegister, packRequest, parse, testing } from "../src/broadcast/wire.js";
 import { FakePages } from "../src/telemetry/fake-pages.js";
@@ -149,5 +149,14 @@ describe("simulated field", { timeout: 60000 }, () => {
     expect(fq.rejoin(7, 30000)).toBeNull();
     expect(pitted).toBe(true);
     expect(fq.mode()).toBe("best");
+  });
+
+  test("on the formation lap the order follows the track, not ACC's grid positions", () => {
+    const f = new Field();
+    f.on(2, { session_idx: 0, phase: 3, type: 10, time_ms: 1000 });
+    const last = { ms: 0, s: [0, 0, 0], valid: true, out: false, in: false };
+    const car = (i: number, pos: number, spl: number) => f.on(3, { i, pos, cpos: 0, laps: 0, spl, kmh: 80, gear: 3, loc: 1, cur: { ms: 0, out: false, in: false }, delta: 0, drv: 0, x: 0, y: 0, last, best: { ms: 0 } });
+    car(1, 1, 0.3); car(2, 2, 0.5); car(3, 3, 0.4);
+    expect(f.snapshot(null, null, null).cars.map((c: Rec) => c.i)).toEqual([2, 3, 1]);
   });
 });
