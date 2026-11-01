@@ -1,4 +1,4 @@
-import { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, useState } from "react";
 
 const base = "inline-flex items-center justify-center rounded-md border font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -17,6 +17,29 @@ export function Label({ children }: { children: ReactNode }) {
 
 export function TextInput({ className = "", ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input spellCheck={false} className={`h-10 w-full rounded-md border border-line bg-raise px-3 text-[15px] text-text ${className}`} {...rest} />;
+}
+
+export function ComboInput({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; hint: string }[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative" onBlur={() => setOpen(false)}>
+      <TextInput value={value} onChange={(e) => onChange(e.target.value)} onFocus={() => setOpen(true)} onClick={() => setOpen(true)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)} inputMode="decimal" className="pr-9" />
+      <button type="button" tabIndex={-1} aria-label="Show addresses" onMouseDown={(e) => { e.preventDefault(); setOpen(!open); }}
+        className="absolute right-0 top-0 h-10 w-9 text-[11px] text-muted hover:text-text">▾</button>
+      {open && options.length > 0 && (
+        <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-line bg-panel py-1 shadow-lg">
+          {options.map((o) => (
+            <li key={o.value}>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); onChange(o.value); setOpen(false); }}
+                className={`flex w-full items-center justify-between px-3 py-2 text-left text-[15px] hover:bg-line ${o.value === value ? "text-accent" : "text-text"}`}>
+                {o.value}<span className="text-[12px] text-muted">{o.hint}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {

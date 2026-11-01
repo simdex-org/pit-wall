@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as bridge from "../lib/bridge";
 import { Prefs, vpnName } from "../lib/settings";
-import { Button, Card, Label, Switch, TextInput } from "./ui";
+import { Button, Card, ComboInput, Label, Switch, TextInput } from "./ui";
 
 interface Props {
   prefs: Prefs;
@@ -50,10 +50,7 @@ export function Setup({ prefs, onChange, addresses, hamachi, fieldTiming, onFiel
     <div className="flex flex-col gap-4">
       <Card className="p-5">
         <Label>VPN address</Label>
-        <TextInput value={prefs.ip} onChange={(e) => set("ip", e.target.value)} list="pw-ips" spellCheck={false} inputMode="decimal" />
-        <datalist id="pw-ips">
-          {addresses.map((ip) => <option key={ip} value={ip}>{vpnName(ip)}</option>)}
-        </datalist>
+        <ComboInput value={prefs.ip} onChange={(v) => set("ip", v)} options={addresses.map((ip) => ({ value: ip, hint: vpnName(ip) }))} />
         <p className="mt-1 text-[12px] text-dim">
           {hamachi
             ? <>Your Hamachi address is <button type="button" className="text-text underline" onClick={() => set("ip", hamachi)}>{hamachi}</button>. Type another address if your engineer connects another way.</>
