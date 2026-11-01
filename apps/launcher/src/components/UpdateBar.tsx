@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { checkForUpdate, installUpdate, type UpdateCheck } from "../lib/updates";
 import { Button } from "./ui";
 
-type State = "checking" | "none" | "current" | "available" | "installing" | "done" | "failed";
+type State = "checking" | "none" | "current" | "available" | "installing" | "failed";
 
 export function UpdateBar({ running }: { running: boolean }) {
   const [state, setState] = useState<State>("checking");
@@ -14,7 +14,7 @@ export function UpdateBar({ running }: { running: boolean }) {
     try {
       const c = await checkForUpdate();
       setFound(c);
-      setState(c.latest === null ? "none" : c.available ? "available" : "current");
+      setState(c.latestVersion === null ? "none" : c.available ? "available" : "current");
     } catch (e) {
       setError(String(e));
       setState("failed");
@@ -27,7 +27,6 @@ export function UpdateBar({ running }: { running: boolean }) {
     setState("installing");
     try {
       await installUpdate();
-      setState("done");
     } catch (e) {
       setError(String(e));
       setState("failed");
@@ -36,11 +35,10 @@ export function UpdateBar({ running }: { running: boolean }) {
 
   const text = {
     checking: "Checking for updates.",
-    none: "No update has been published yet.",
+    none: "No release has been published yet.",
     current: "Pit Wall is up to date.",
     available: `${found?.latestVersion ? `Version ${found.latestVersion} is` : "A newer version is"} available.${running ? " Stop Pit Wall to update." : ""}`,
-    installing: "Downloading the update.",
-    done: "Updated. Start Pit Wall to use it.",
+    installing: "Downloading the update. Pit Wall will restart.",
     failed: `Update failed: ${error}`,
   }[state];
 

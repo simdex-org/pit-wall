@@ -5,10 +5,8 @@ on:
     branches: [main]
 
 jobs:
-  publish:
+  check:
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -20,19 +18,3 @@ jobs:
       - run: pnpm test
       - run: pnpm typecheck
       - run: pnpm build
-      - name: Pack the build
-        shell: bash
-        run: |
-          mkdir stage
-          cp -r packages/bridge/dist stage/bridge
-          cp -r apps/web/dist stage/web
-          node packages/bridge/scripts/stamp.mjs stage
-          tar -a -c -f app.zip -C stage bridge web app.json
-          cp stage/app.json app.json
-      - name: Publish as the edge release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete edge --cleanup-tag --yes || true
-          gh release create edge app.zip app.json --prerelease --target "$GITHUB_SHA" --title "Latest build" --notes "The newest build of the bridge and the page. The launcher downloads it from here."

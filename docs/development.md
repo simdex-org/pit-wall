@@ -47,8 +47,8 @@ The portable exe carries Node, the bridge and the page as a zip (`portable` carg
 
 ### Updates
 
-Every push to `main` runs `.github/workflows/build.yml`: tests, then it builds the bridge and the page and publishes them as the `edge` pre-release (`app.zip` and `app.json`, replaced each time). No token or key is needed to download it.
+Every push to `main` runs `.github/workflows/build.yml`: tests, typecheck and build. Releases are made by hand: publish a GitHub release with the installer (`Pit.Wall_x.y.z_x64-setup.exe`) and the portable exe (`PitWall.exe`) attached.
 
-When the launcher opens it reads `app.json`. If that build is newer than the one it runs, it shows an Update button (disabled while the bridge runs). The button downloads `app.zip` into the app data folder; the launcher then starts the bridge and page from there instead of the installed copy, until a newer installer arrives. The launcher window itself and Node are not updated this way: for those, build and share a new installer.
+The launcher asks GitHub for the latest release. If its version is higher than the one it runs, it shows an Update button (disabled while the bridge runs). The button downloads the installer or the portable exe, whichever the launcher is (the portable build sets `PITWALL_PORTABLE=1` for the bridge), into the app data folder. The launcher then closes and runs the installer, or for the portable build swaps its own exe for the new one and starts it.
 
-`--update-check` and `--update` do the same from a terminal. Both need a build that came from the installer or the workflow; from source there is nothing to update.
+`--update-check` and `--update` do the same download from a terminal. Both need a build that came from the installer or the portable exe; from source there is nothing to update.

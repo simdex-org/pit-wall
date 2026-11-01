@@ -80,7 +80,7 @@ async function main(): Promise<void> {
   if (v["update-check"] || v.update) {
     const u = await import("./update.js");
     try {
-      return void console.log(v.update ? JSON.stringify({ installed: await u.install() }) : JSON.stringify(await u.check()));
+      return void console.log(v.update ? JSON.stringify({ file: await u.download() }) : JSON.stringify(await u.check()));
     } catch (e) {
       const cause = (e as { cause?: { message?: string } }).cause?.message;
       console.error([(e as Error).message, cause].filter(Boolean).join(": "));

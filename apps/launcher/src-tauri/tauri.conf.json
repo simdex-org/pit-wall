@@ -28,6 +28,8 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "Simdex",
+    "copyright": "Simdex",
     "targets": [
       "nsis"
     ],
