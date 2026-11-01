@@ -6,6 +6,7 @@ import { IN_LANE } from "../lib/enums";
 import { clamp, fmtRel } from "../lib/format";
 import { recorder } from "../state/recorder";
 import { Ctx2D, fitCanvas, Tokens, tokens } from "./canvas";
+import { lapSpan } from "./lapspan.js";
 
 type Pt = [number, number];
 export interface TrackDrawing { box: number[]; loop: Pt[]; pit: Pt[]; labels: [number, number, string][] }
@@ -70,9 +71,7 @@ const ALIGN = new Map<string, { key: string; B: Aligned | null }>();
 function alignLayout(name: string, t: TrackDrawing, pts: ArrayLike<number[]>): Aligned | null {
   const had = ALIGN.get(name);
   if (!pts || pts.length < 30 || pts[0]!.length < 3) return had ? had.B : null;
-  let q0 = 1, q1 = 0;
-  for (let i = 0; i < pts.length; i++) { const q = pts[i]![2]!; if (q < q0) q0 = q; if (q > q1) q1 = q; }
-  if (q1 - q0 < 0.3) return had ? had.B : null;
+  if (lapSpan(pts) < 0.3) return had ? had.B : null; // a short stretch across the start line, as a race starts, fits the drawing almost anywhere
   const key = `${Math.floor(pts.length / 50)}:${pts[0]![0]}`;
   if (had && had.key === key) return had.B;
   const N = Math.min(200, pts.length), S: number[][] = [];
