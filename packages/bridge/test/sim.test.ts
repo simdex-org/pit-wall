@@ -173,14 +173,18 @@ describe("weather, flags and penalties", { timeout: 120000 }, () => {
   const messages: string[] = [];
   const fcySpeeds: number[] = [];
   let wetCars = 0, wetPeak = 0, fcyRuns = 0, wasFcy = false, rainSeen = false;
-  const rain = new World("race", { seed: 7, minutes: 40 });
-  const say = rain.say.bind(rain);
-  rain.say = (type, c, msg) => { say(type, c, msg); if (msg) messages.push(msg); };
-  run(rain, (x) => x.phase >= 7, (x) => {
-    rainSeen = rainSeen || x.rain > 0.2;
-    wetPeak = Math.max(wetPeak, x.wet);
-    wetCars = Math.max(wetCars, x.cars.filter((c) => c.wetTyres).length);
-  });
+  let rain = new World("race");
+  for (let seed = 1; seed <= 16 && wetCars < 15; seed++) { // the first race the weather turns wet in
+    rain = new World("race", { seed, minutes: 40 });
+    messages.length = 0; rainSeen = false; wetPeak = wetCars = 0;
+    const say = rain.say.bind(rain);
+    rain.say = (type, c, msg) => { say(type, c, msg); if (msg) messages.push(msg); };
+    run(rain, (x) => x.phase >= 7, (x) => {
+      rainSeen = rainSeen || x.rain > 0.2;
+      wetPeak = Math.max(wetPeak, x.wet);
+      wetCars = Math.max(wetCars, x.cars.filter((c) => c.wetTyres).length);
+    });
+  }
 
   let fcy = new World("race");
   for (let seed = 1; seed <= 16 && !fcyRuns; seed++) { // the first race with a wreck
@@ -253,5 +257,46 @@ describe("flags", () => {
   test("no yellow on the grid or in a clean start", () => {
     const w = new World("race", { seed: 2 });
     run(w, (x) => x.t > 15000, (x) => { expect(x.yellow.some((u) => u > x.t)).toBe(false); });
+  });
+});
+
+describe("the drivers", () => {
+  test("every driver has their own traits, and the player is no better placed than the rest", () => {
+    const ranks = new Set<number>();
+    for (let seed = 1; seed <= 12; seed++) {
+      const w = new World("race", { seed });
+      const specs = w.cars.map((c) => c.spec);
+      for (const k of ["aggr", "defence", "comp", "tyreMgmt", "fuelSave", "wetSkill", "quali", "start", "crew"] as const) {
+        expect(new Set(specs.map((x) => x[k])).size).toBeGreaterThan(5);
+        expect(Math.min(...specs.map((x) => x[k]))).toBeGreaterThanOrEqual(0);
+        expect(Math.max(...specs.map((x) => x[k]))).toBeLessThanOrEqual(1);
+      }
+      ranks.add(specs.filter((x) => x.delta < w.player.spec.delta).length);
+    }
+    expect(ranks.size).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe("a bigger, mixed field", { timeout: 60000 }, () => {
+  const w = new World("race", { track: "nurburgring", field: { cars: 40, mix: { GT3: 60, GT4: 20, GTC: 10, GT2: 10 } } });
+  run(w, (x) => x.t > 6 * 60000);
+
+  test("the classes add up, each at its own pace, with their own cars and numbers", () => {
+    const by = (cls: string) => w.cars.filter((c) => c.spec.cls === cls);
+    expect(w.cars).toHaveLength(40);
+    expect(["GT3", "GT4", "GTC", "GT2"].map((k) => by(k).length)).toEqual([24, 8, 4, 4]);
+    expect(w.player.spec.cls).toBe("GT3");
+    expect(new Set(w.cars.map((c) => c.spec.num)).size).toBe(40);
+    const mean = (cls: string) => by(cls).reduce((a, c) => a + c.spec.delta, 0) / by(cls).length;
+    expect(mean("GT2")).toBeLessThan(mean("GT3"));
+    expect(mean("GT3")).toBeLessThan(mean("GT4"));
+    expect(mean("GT4")).toBeLessThan(mean("GTC"));
+  });
+
+  test("every pit box is inside the lane and nobody is stuck", () => {
+    expect(w.cars.every((c) => c.boxLp > -240 && c.boxLp < 210)).toBe(true);
+    expect(new Set(w.cars.map((c) => c.boxLp)).size).toBe(40);
+    expect(w.cars.every((c) => Number.isFinite(c.d) && c.fuel >= 0)).toBe(true);
+    expect(w.cars.filter((c) => c.laps >= 2).length).toBeGreaterThan(30);
   });
 });

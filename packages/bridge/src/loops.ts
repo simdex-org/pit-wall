@@ -151,5 +151,5 @@ export function startField(args: FieldArgs, pages: FakePages | null): void {
   }
   FIELD.f = f; FIELD.src = src; STATE.bc = src.state;
   src.start(makeSink(f));
-  console.log("Field timing: " + (args.simulateAcc ? `simulated 20-car field${args.simSession === "race" ? "" : ` (${args.simSession === "quali" ? "qualifying" : args.simSession})`}` : `listening to ACC's broadcasting on 127.0.0.1:${(src as Client).state.port}`));
+  console.log("Field timing: " + (args.simulateAcc ? `simulated ${pages?.world.cars.length ?? 20}-car field${args.simSession === "race" ? "" : ` (${args.simSession === "quali" ? "qualifying" : args.simSession})`}` : `listening to ACC's broadcasting on 127.0.0.1:${(src as Client).state.port}`));
 }

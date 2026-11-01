@@ -33,21 +33,21 @@ export class SimCar {
   last: Lap | null = null; best: Lap | null = null; lastSector = 0;
   finishT: number | null = null; finishRank = 0;
   // pits and plan
-  pits = 0; stopTimes: number[] = []; releaseAt = 0; mandatoryDone = false;
+  pits = 0; pitAt = -1e12; stopTimes: number[] = []; releaseAt = 0; mandatoryDone = false;
   runLap = 0; pushes = 1; runsLeft = 0;
   // pace
   wrecked = false; slot = 0; giveWay = false;
   wetTyres = false; cuts = 0; timePen = 0; penalty: { id: number; due: number } | null = null;
   fuel = 0; used = 0; tyreDist = 0; tyreSet = 3; tyreLife: number; qSec: number[] = [1, 1, 1];
-  slipAt: number | null = null; slipUntil = 0; troubleAt: number | null = null; troubleKind = ""; until = 0;
+  slipUntil = 0; hitUntil = 0; until = 0;
   launch = 0; heldFor = 0; passCool = 0; pass: { id: number; side: number; until: number } | null = null;
   damage = [0, 0, 0, 0, 0]; suspDamage = [0, 0, 0, 0];
   // the instruments only the driver's car needs
   tyreT = [58, 58, 58, 58]; brakeT = [180, 180, 150, 150]; pad = [24.1, 24.0, 25.2, 25.3]; disc = 31.8; water = 90; exhaust = 450;
 
   constructor(readonly spec: Spec, readonly circuit: Circuit, readonly rnd: Rng, readonly lpl: number) {
-    this.tyreLife = rnd.uniform(190000, 260000) / circuit.len;
-    this.lpl = lpl * (1 + spec.delta * 0.6) * rnd.uniform(0.97, 1.03);
+    this.tyreLife = rnd.uniform(215000, 240000) / circuit.len;
+    this.lpl = lpl * (1 + spec.delta * 0.6) * rnd.uniform(0.97, 1.03) * (1.03 - 0.06 * spec.fuelSave);
   }
 
   get id(): number { return this.spec.id; }
@@ -76,21 +76,27 @@ export class SimCar {
   /** The speed multiplier on the ideal profile right now. evo is the track's gain over the session. */
   pace(t: number, evo: number, wet = 0): number {
     const slip = t < this.slipUntil ? 0.82 : 1;
-    const q = this.st === "limp" ? 0.55 : this.st === "finished" ? 0.6 : KIND_Q[this.kind];
+    const q = this.st === "limp" ? 0.55 : this.st === "finished" ? 0.6 : this.kind === "push" ? 1.004 + 0.016 * this.spec.quali : KIND_Q[this.kind];
     // slicks on a wet track lose a lot; wets on a dry one lose some, and wear fast
-    const water = this.wetTyres ? 0.09 * (1 - wet) ** 1.5 : 0.16 * wet + 0.25 * Math.max(0, wet - 0.5);
+    const water = (this.wetTyres ? 0.09 * (1 - wet) ** 1.5 : 0.16 * wet + 0.25 * Math.max(0, wet - 0.5)) * (1.3 - 0.6 * this.spec.wetSkill);
     return (slip * q * this.qSec[this.sector]! * (1 + evo)) / ((1 + this.spec.delta) * (1 + this.loss() + water));
   }
 
-  /** Fresh sector form and this lap's mistakes. */
-  newLap(wet = 0): void {
+  /** Fresh sector form for the lap. */
+  newLap(): void {
     const sd = this.spec.sd / Math.SQRT2;
     this.qSec = [1, 1, 1].map(() => 1 + this.rnd.normal(0, sd));
-    const len = this.circuit.len;
-    const risk = 1 + 4 * wet * (this.wetTyres ? 0.3 : 1);
-    this.slipAt = this.rnd.random() < this.spec.slip * risk * (this.kind === "push" ? 2.5 : 1) ? this.rnd.uniform(0, len) : null;
-    this.troubleAt = this.rnd.random() < this.spec.trouble * risk ? this.rnd.uniform(0, len) : null;
-    this.troubleKind = this.rnd.random() < 0.7 ? "spin" : "break";
+  }
+
+  /** The grip left, 1 for a fresh set on a dry track: wear, the wrong tyre for the water, damage. */
+  grip(wet: number): number {
+    const k = this.wear, water = (this.wetTyres ? 0.12 * (1 - wet) ** 1.5 : 0.35 * wet) * (1.3 - 0.6 * this.spec.wetSkill);
+    return clamp(1 - 0.1 * k - 0.5 * Math.max(0, k - 0.85) - water - 0.002 * this.damageSum, 0.4, 1);
+  }
+
+  /** How hard the driver is pushing right now: 1 on a quiet lap, more on a push lap, in a pass, or hounded by the car behind. */
+  pressure(): number {
+    return 1 + ((this.kind === "push" ? 1.5 : 0) + (this.pass ? 1 : 0) + (this.heldFor > 0 ? 0.6 : 0)) * (1.4 - this.spec.comp);
   }
 
   /** Brakes, tyres, water and exhaust for the car the engineer watches. */
@@ -118,14 +124,15 @@ export class SimCar {
 
   freshTyres(wet = false): void {
     this.wetTyres = wet; this.tyreDist = 0; this.tyreSet++; this.tyreT = [55, 55, 55, 55];
-    this.tyreLife = this.rnd.uniform(190000, 260000) / this.circuit.len;
+    this.tyreLife = this.rnd.uniform(215000, 240000) / this.circuit.len;
   }
 
-  burn(ds: number, wet = 0): void {
+  /** use is the share of the cornering grip in use: the tyres wear with the load they carry, and faster when pushed. */
+  burn(ds: number, wet: number, use: number): void {
     const per = (this.lpl / this.circuit.len) * ds * (0.9 + 0.2 * this.gas);
     this.fuel = Math.max(0, this.fuel - per); this.used += per;
     if (this.fuel === 0 && this.st === "race") { this.st = "limp"; this.wantPit = this.wantStop = true; } // dry: crawls to the box
-    this.tyreDist += ds * (this.wetTyres ? 1 + 2.5 * (1 - wet) ** 2 : 1);
+    this.tyreDist += ds * (0.75 + 0.9 * use * use) * (1 + 0.08 * (this.pressure() - 1)) * (1.12 - 0.25 * this.spec.tyreMgmt) * (this.wetTyres ? 1 + 2.5 * (1 - wet) ** 2 : 1);
   }
 }
 

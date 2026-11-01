@@ -21,7 +21,7 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
   if (c.st === "garage" || c.st === "retired") { parked(w, c, dt); return; }
   if (c.st === "grid") {
     if (t < c.launch) return;
-    c.st = "race"; c.lapStart = 0; lapStarted(w, c); c.newLap(w.wet);
+    c.st = "race"; c.lapStart = 0; lapStarted(w, c); c.newLap();
   }
   if (c.st === "stopped" && t >= c.until) {
     if (c.wrecked) { tow(w, c); return; }
@@ -31,7 +31,7 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
 
   if (!c.inLane && c.wantPit && c.p > len / 2 && c.lane >= LANE_IN) {
     c.inLane = true; c.stopHere = c.wantStop; c.servingPen = !c.wantStop && c.penalty !== null;
-    if (c.stopHere && c.id !== w.playerId && w.rnd.random() < 0.008) penalize(w, c, 7, "speeding in the pit lane");
+    if (c.stopHere && c.id !== w.playerId && w.rnd.normal() * (0.5 + c.spec.aggr) * (1.4 - c.spec.comp) > 2.2) penalize(w, c, 7, "speeding in the pit lane"); // misjudging the limiter
   }
 
   // the speed this car could hold, then what the others and the pit lane leave of it
@@ -58,14 +58,15 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
   c.a += (a - c.a) * clamp(dt * 15, 0, 1);
   const v0 = c.v;
   c.v = Math.max(0, c.v + a * dt);
-  const ds = ((v0 + c.v) / 2) * dt, d0 = c.d, p0 = c.p;
+  const ds = ((v0 + c.v) / 2) * dt, d0 = c.d;
   c.d += ds;
-  if (c.finishT === null) c.burn(ds, w.wet);
-  const grip = latMax(u) * k * k * 1.03; // past this the tyres slide: the car cannot pull more
+  const lat = latMax(u) * k * k, grip = lat * 1.03; // past this the tyres slide: the car cannot pull more
   c.ay += (clamp(c.v * c.v * circ.curvature(c.d), -grip, grip) - c.ay) * clamp(dt * 8, 0, 1);
+  const use = Math.min(1, Math.abs(c.ay) / lat);
+  if (c.finishT === null) c.burn(ds, w.wet, use);
   // Drag slows the car by itself: below that it is a lift, not the brake. Only a real braking zone gets the pedal,
   // and the throttle is full except where the corner asks for the grip.
-  const coast = drag(u) * k * k, use = Math.min(1, Math.abs(c.ay) / (latMax(u) * k * k));
+  const coast = drag(u) * k * k;
   const g = c.a > 0.5 ? 1 : c.a >= -coast ? 1 - 1.6 * Math.max(0, use - 0.5) ** 2 : 0;
   const b = -c.a - coast > 1.2 ? clamp((-c.a - coast) / 13, 0, 1) : 0;
   c.gas += (g - c.gas) * clamp(dt * 12, 0, 1);
@@ -82,7 +83,7 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
   const i0 = Math.floor(d0 / len), i1 = Math.floor(c.d / len);
   if (i1 > i0) crossLine(w, c, i1);
   else sectors(w, c);
-  mistakes(w, c, p0);
+  mistakes(w, c, dt, use);
   if (c.st === "limp" && !c.inLane) w.yellow[c.sector] = t + 1500;
 }
 
@@ -107,13 +108,15 @@ function traffic(w: World, c: SimCar, free: number, dt: number): number {
   if (c.pass) {
     const o = w.cars[c.pass.id - 1]!;
     const r = rel(len, c.d, o.d);
+    const alongside = Math.abs(r) < CAR_LEN + 1 && Math.abs(w.circuit.curvature(c.d)) > 0.004; // side by side into a corner
+    if (alongside && w.rnd.random() < 0.001 * (1 + 3 * c.spec.aggr) * (1 + o.spec.defence) * (2 - c.grip(w.wet)) * (1 + 3 * w.wet) * dt) { contact(w, c, o); return free; }
     if (r < -(CAR_LEN + 2) || t > c.pass.until || o.inLane !== c.inLane) { c.passCool = r < 0 ? 5 : 2.5; c.pass = null; }
   }
   c.passCool = Math.max(0, c.passCool - dt);
   if (c.pass) free *= 1.025; // the run on the car being passed: late braking, the tow, the better exit
   if (!near) { c.heldFor = Math.max(0, c.heldFor - dt); return free; }
   const o = near, stuck = o.v < 8;
-  if (gap < 0.3 && c.v > o.v + 2) collide(w, c, o);
+  if (gap < 0.3 && c.v > o.v + 2 && t >= c.hitUntil) collide(w, c, o);
   const tw = gap > 3 && gap < 40 && free > 35 && c.st === "race" ? 0.03 * (1 - gap / 40) : 0; // slipstream: up to ~3 % at 3 m, fading out by 40 m
   free *= 1 + tw;
   const brake = 0.7 * brakeCap(c.v / w.circuit.k) * w.circuit.k ** 2; // can always stop behind it if it brakes flat out
@@ -126,9 +129,8 @@ function traffic(w: World, c: SimCar, free: number, dt: number): number {
     const faster = stuck || c.pace(t, w.evo, w.wet) * (1 + tw) > o.pace(t, w.evo, w.wet) * 1.002;
     const circ = w.circuit;
     const open = Math.abs(circ.curvature(c.d)) < 0.0035 && Math.abs(circ.curvature(c.d + 90)) < 0.006;
-    if (faster && (open || stuck) && c.heldFor >= need && w.rnd.random() < (0.3 + 0.7 * c.spec.aggr) * 1.5 * dt) {
+    if (faster && (open || stuck) && c.heldFor >= need && w.rnd.random() < (0.3 + 0.7 * c.spec.aggr) * (1 - 0.5 * o.spec.defence) * 1.5 * dt) {
       c.pass = { id: o.id, side: w.rnd.random() < 0.5 ? 1 : -1, until: t + 14000 };
-      if (w.rnd.random() < 0.0025) contact(w, c, o);
     }
   }
   return free;
@@ -155,7 +157,7 @@ function parked(w: World, c: SimCar, dt: number): void {
   if (w.durMs - w.t < c.lapSec * 1000 * 1.2) { c.releaseAt = Infinity; return; }
   w.lastRelease = w.t;
   c.st = "race"; c.stopHere = false; c.wantPit = c.wantStop = false; c.runLap = 0;
-  if (c.boxLp >= 0) { c.lapStart = w.t; c.out = true; c.secIdx = c.sector; lapStarted(w, c); c.newLap(w.wet); }
+  if (c.boxLp >= 0) { c.lapStart = w.t; c.out = true; c.secIdx = c.sector; lapStarted(w, c); c.newLap(); }
 }
 
 function servicing(w: World, c: SimCar, dt: number): void {
@@ -167,7 +169,7 @@ function servicing(w: World, c: SimCar, dt: number): void {
   c.fuel = b.fuelEnd;
   if (b.tyres) c.freshTyres(b.wet);
   if (b.repair) { c.damage = [0, 0, 0, 0, 0]; c.suspDamage = [0, 0, 0, 0]; }
-  c.pits++; c.box = null; c.stopHere = false; c.wantPit = c.wantStop = false;
+  c.pits++; c.pitAt = w.t; c.box = null; c.stopHere = false; c.wantPit = c.wantStop = false;
   afterStop(w, c, b);
   if (b.park || (w.kind !== "race" && w.durMs - w.t < c.lapSec * 1000 * 0.9)) { c.st = "garage"; c.releaseAt = Infinity; }
 }
@@ -208,7 +210,7 @@ function crossLine(w: World, c: SimCar, idx: number): void {
   c.lapStart = w.t; c.splits = []; c.secIdx = 0; c.valid = true; c.out = c.inLane;
   if (w.ending(c)) { finish(w, c); return; }
   lapStarted(w, c);
-  c.newLap(w.wet);
+  c.newLap();
 }
 
 /** The chequered flag: one more lap in, then to the box. */
@@ -217,28 +219,35 @@ function finish(w: World, c: SimCar): void {
   c.st = "finished"; c.wantPit = c.wantStop = true; c.kind = "race";
 }
 
-function mistakes(w: World, c: SimCar, p0: number): void {
-  const p1 = c.p, crossed = (at: number | null) => at !== null && p1 >= p0 && p0 <= at && at < p1;
-  if (crossed(c.slipAt)) {
-    c.slipAt = null; c.slipUntil = w.t + 2200;
-    if (w.rnd.random() < 0.55) { c.valid = false; if (w.kind === "race" && ++c.cuts >= 2) { c.cuts = 0; penalize(w, c, 1, "track limits"); } }
+/** Errors come from the state of the car: the cornering load it carries, the grip left, the water and how hard the driver pushes. */
+function mistakes(w: World, c: SimCar, dt: number, use: number): void {
+  if (c.st !== "race" || c.inLane || w.t < 0) return;
+  const grip = c.grip(w.wet), press = c.pressure(), rnd = w.rnd;
+  // spec.slip is the chance of a moment in a lap; a lap has only a few seconds right at the limit
+  const slip = (c.spec.slip / 45) * use ** 4 * press * (1 + 6 * (1 - grip) + 2 * w.wet) * dt;
+  if (w.t >= c.slipUntil && rnd.random() < slip) {
+    c.slipUntil = w.t + 2200;
+    const spun = rnd.random() < Math.min(1, (c.v / 60) ** 2 * (0.1 + 2.5 * (1 - grip) + 0.15 * (press - 1)));
+    if (spun) { spin(w, c); return; }
+    c.valid = false;
+    if (w.kind === "race" && ++c.cuts >= 2) { c.cuts = 0; penalize(w, c, 1, "track limits"); }
   }
-  if (crossed(c.troubleAt) && c.st === "race") {
-    c.troubleAt = null;
-    if (c.troubleKind === "spin") spin(w, c);
-    else { c.st = "limp"; c.wantPit = c.wantStop = true; w.say(3, c, `#${c.spec.num} slow with a problem`); }
+  if (rnd.random() < ((c.spec.trouble * 0.3) / c.lapSec) * (1 + c.damageSum / 25) * dt) {
+    c.st = "limp"; c.wantPit = c.wantStop = true; w.say(3, c, `#${c.spec.num} slow with a problem`);
   }
 }
 
+/** The car goes round. How hard it hits depends on the speed it had. */
 export function spin(w: World, c: SimCar): void {
-  c.st = "stopped"; c.until = w.t + w.rnd.uniform(4000, 9000); c.valid = false;
-  c.damage[w.rnd.randint(0, 4)]! += w.rnd.uniform(3, 28);
-  c.suspDamage[w.rnd.randint(0, 3)]! += w.rnd.uniform(0, 0.05);
+  const hit = (c.v / 60) ** 2 * w.rnd.uniform(0.7, 1.3), hurt = 6 + 40 * hit;
+  c.st = "stopped"; c.until = w.t + 3000 + 6000 * hit; c.valid = false;
+  c.damage[w.rnd.randint(0, 4)]! += hurt;
+  c.suspDamage[w.rnd.randint(0, 3)]! += 0.05 * hit;
   c.tyreDist += w.circuit.len * 0.04;
   c.pass = null; c.heldFor = 0;
-  if (w.kind === "race" && !w.fcyOn && w.rnd.random() < 0.2) { // a hard hit: the car is wrecked and has to be recovered
-    c.wrecked = true; c.until = w.t + w.rnd.uniform(35000, 60000);
-    c.damage[w.rnd.randint(0, 4)]! += w.rnd.uniform(40, 90);
+  if (w.kind === "race" && !w.fcyOn && hurt > 40) { // a hard hit: the car is wrecked and has to be recovered
+    c.wrecked = true; c.until = w.t + 25000 + 30000 * hit;
+    c.damage[w.rnd.randint(0, 4)]! += hurt * 1.2;
     w.startFcy(c.until - w.t);
   }
   w.yellow[c.sector] = c.until + 8000;
@@ -270,6 +279,7 @@ function yielding(w: World, c: SimCar): boolean {
 
 /** Ran into the back of a slower car: both are hurt, and the car behind goes round. */
 function collide(w: World, c: SimCar, o: SimCar): void {
+  c.hitUntil = w.t + 4000; // one bump is one collision, however many steps the cars stay in contact
   c.v = o.v + (c.v - o.v) * 0.3;
   if (w.kind === "race") { c.timePen += 5000; w.say(3, c, `#${c.spec.num} +5 s: causing a collision`); }
   o.damage[w.rnd.randint(0, 4)]! += w.rnd.uniform(2, 14);
@@ -283,6 +293,6 @@ function contact(w: World, c: SimCar, o: SimCar): void {
   o.damage[w.rnd.randint(0, 4)]! += w.rnd.uniform(2, 12);
   c.damage[w.rnd.randint(0, 4)]! += w.rnd.uniform(2, 12);
   c.valid = false;
-  if (w.rnd.random() < 0.5) spin(w, c);
+  if (w.rnd.random() < 0.3 + 2 * (1 - c.grip(w.wet))) spin(w, c);
   else w.say(4, c, "");
 }

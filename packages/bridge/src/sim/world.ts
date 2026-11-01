@@ -6,7 +6,7 @@ import { Circuit, DEMO_LOOP, scaleLoop } from "./circuit.js";
 import { stepCar } from "./drive.js";
 import { setupQuali, setupRace } from "./plan.js";
 import { Rng, rng } from "./rng.js";
-import { PLAYER, roster, Spec } from "./roster.js";
+import { Field, PLAYER, roster, Spec } from "./roster.js";
 
 export const STEP_S = 1 / 60;
 const STEP_MS = STEP_S * 1000;
@@ -19,8 +19,6 @@ export interface Best { ms: number; car: number; s: (number | null)[] }
 
 /** ACC's rain levels (0 dry, 1 drizzle ... 5 storm) for an intensity 0 to 1. */
 export const rainLevel = (r: number): number => (r < 0.05 ? 0 : r < 0.2 ? 1 : r < 0.4 ? 2 : r < 0.65 ? 3 : r < 0.85 ? 4 : 5);
-
-interface Shower { start: number; up: number; hold: number; down: number; peak: number }
 
 export const DEMO = { id: "demo_circuit", name: "Demo circuit", metres: 4600, lapMs: 98000, lpl: 2.9 };
 
@@ -53,7 +51,8 @@ export class World {
   /** Rain intensity and how wet the track is, 0 to 1. */
   rain = 0;
   wet = 0;
-  private shower: Shower | null = null;
+  /** Phases of the slow waves the weather is made of. */
+  private front: number[] = [];
   /** Full course yellow: every car on the track holds 80 km/h until the wreck is cleared. */
   fcyOn = false;
   private fcyUntil = 0;
@@ -71,14 +70,14 @@ export class World {
   private rankedAt = -1;
   stepN = 0;
 
-  constructor(kind: SessionKind, { track, seed = 7, player = "Daniel", minutes, sequence }: { track?: string; seed?: number; player?: string; minutes?: number; sequence?: SessionKind[] } = {}) {
+  constructor(kind: SessionKind, { track, seed = 7, player = "Daniel", minutes, sequence, field }: { track?: string; seed?: number; player?: string; minutes?: number; sequence?: SessionKind[]; field?: Field } = {}) {
     this.kind = kind; this.sequence = sequence ?? [kind];
     this.seed = seed; this.minutes = minutes;
     const st = track ? SIM_TRACKS[track] : undefined;
     const [id, name, metres, lapMs, lpl] = st ?? [DEMO.id, DEMO.name, DEMO.metres, DEMO.lapMs, DEMO.lpl];
     this.trackId = id; this.name = name; this.lpl = lpl;
     this.circuit = new Circuit(st ? trackLoop(id, metres) : scaleLoop(DEMO_LOOP, metres), metres, lapMs);
-    this.specs = roster(rng(seed), player);
+    this.specs = roster(rng(seed), player, field);
     this.start();
   }
 
@@ -104,17 +103,18 @@ export class World {
     this.t = this.kind === "race" ? -20000 : -6000;
     this.evo = 0; this.laps = 0; this.best = null; this.yellow = [-1e12, -1e12, -1e12]; this.lastRelease = -1e9; this.finished = 0;
     this.leaderDone = false; this.overAt = this.doneAt = null; this.fcyOn = false; this.rain = this.wet = 0;
-    this.shower = rnd.random() < 0.45 ? { start: this.durMs * rnd.uniform(0.12, 0.6), up: rnd.uniform(120000, 240000), hold: rnd.uniform(300000, 840000), down: rnd.uniform(240000, 420000), peak: rnd.uniform(0.3, 0.9) } : null; this.events = []; this.rankedAt = -1;
+    this.front = [rnd.uniform(0, 2 * Math.PI), rnd.uniform(0, 2 * Math.PI), rnd.uniform(0, 2 * Math.PI)]; this.events = []; this.rankedAt = -1;
     this.cars = this.specs.map((s) => new SimCar(s, this.circuit, rnd, this.lpl));
     const grid = this.cars.map((c) => [c, c.spec.delta + rnd.normal(0, 0.004)] as const).sort((a, b) => a[1] - b[1]).map(([c]) => c);
     const carry = this.kind === "race" ? this.carry : null;
     if (carry) grid.sort((a, b) => carry.indexOf(a.id) - carry.indexOf(b.id)); // the race starts in qualifying's order
     this.carry = null;
-    this.cars.forEach((c) => { c.boxLp = -130 + 12.5 * (c.id - 1); });
+    const n = this.cars.length, gap = n <= 20 ? 12.5 : 380 / (n - 1); // the boxes along the pit lane
+    this.cars.forEach((c) => { c.boxLp = (n <= 20 ? -130 : -190) + gap * (c.id - 1); });
     if (this.kind === "race") {
       grid.forEach((c, k) => {
         c.d = -(10 + GRID_GAP * k); c.lat = k % 2 ? 2.4 : -2.4;
-        c.launch = rnd.uniform(150, 650); c.tyreSet = 3;
+        c.launch = 150 + 400 * (1 - c.spec.start) + rnd.uniform(0, 150); c.tyreSet = 3;
         setupRace(this, c);
       });
     } else {
@@ -133,15 +133,11 @@ export class World {
     while (this.done < want) { this.done++; this.step(); }
   }
 
-  /** Rain intensity at session time t: a shower that builds, holds and fades. */
+  /** Rain intensity at session time t: where the slow waves of the weather add up high enough, none in the first minutes. */
   rainAt(t: number): number {
-    const s = this.shower;
-    if (!s || t < s.start) return 0;
-    const x = t - s.start, wobble = 0.93 + 0.07 * Math.sin(t / 70000);
-    if (x < s.up) return s.peak * (x / s.up) * wobble;
-    if (x < s.up + s.hold) return s.peak * wobble;
-    if (x < s.up + s.hold + s.down) return s.peak * (1 - (x - s.up - s.hold) / s.down) * wobble;
-    return 0;
+    const f = this.front, w = (ms: number, i: number) => Math.sin((2 * Math.PI * t) / ms + f[i]!);
+    const front = 0.5 * w(3300000, 0) + 0.3 * w(1250000, 1) + 0.2 * w(480000, 2);
+    return Math.min(1, Math.max(0, (front - 0.4) / 0.45)) * 0.9 * Math.min(1, Math.max(0, t / 600000));
   }
 
   /** A wreck on the track: the field slows down behind it, and the teams use the time to make their stops. */

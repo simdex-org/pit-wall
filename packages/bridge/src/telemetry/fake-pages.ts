@@ -2,6 +2,7 @@
 import type { FakeMfd } from "../pit/fake-mfd.js";
 import { clamp, mod, Rec } from "../util.js";
 import { gearAt, rpmAt, TANK } from "../sim/car.js";
+import type { Field } from "../sim/roster.js";
 import { rainLevel, World } from "../sim/world.js";
 
 const MAX_RPM = 8000;
@@ -11,9 +12,9 @@ export class FakePages {
   readonly clock: () => number;
 
   /** session: ACC's kind, 2 race, 1 qualifying, 0 practice. clock is in seconds. */
-  constructor({ clock = () => performance.now() / 1000, session = 2, track, mfd, minutes, weekend, seed }: { clock?: () => number; session?: number; track?: string; mfd?: FakeMfd; minutes?: number; weekend?: boolean; seed?: number } = {}) {
+  constructor({ clock = () => performance.now() / 1000, session = 2, track, mfd, minutes, weekend, seed, field }: { clock?: () => number; session?: number; track?: string; mfd?: FakeMfd; minutes?: number; weekend?: boolean; seed?: number; field?: Field } = {}) {
     this.clock = clock;
-    this.world = new World(weekend || session === 0 ? "practice" : session === 1 ? "quali" : "race", { track, minutes, seed, sequence: weekend ? ["practice", "quali", "race"] : undefined });
+    this.world = new World(weekend || session === 0 ? "practice" : session === 1 ? "quali" : "race", { track, minutes, seed, field, sequence: weekend ? ["practice", "quali", "race"] : undefined });
     this.world.sync(clock());
     if (mfd) this.mfd = mfd;
   }

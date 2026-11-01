@@ -32,8 +32,8 @@ export function setupRace(w: World, c: SimCar): void {
 
 /** Qualifying: when the car first leaves the garage, how many runs it makes, and the fuel for the first. */
 export function setupQuali(w: World, c: SimCar, slot: number): void {
-  c.runsLeft = (w.rnd.random() < 0.7 ? 2 : 3) - 1;
-  c.pushes = w.rnd.random() < 0.35 ? 2 : 1;
+  c.runsLeft = (c.spec.aggr > 0.62 ? 3 : 2) - 1;
+  c.pushes = c.spec.tyreMgmt > 0.55 ? 2 : 1;
   c.releaseAt = 6000 + slot * 3500 * w.rnd.uniform(0.2, 1.4) + w.rnd.uniform(0, 90000) * w.rnd.random();
   c.fuel = runFuel(c);
   c.runLap = 0;
@@ -65,8 +65,18 @@ export function lapStarted(w: World, c: SimCar): void {
   const short = c.fuel < c.lpl * Math.min(2.2, left / lm + 1.2);
   const worn = c.wear > 0.88 && left > 4 * 60000; // stops before the cliff, not at the bottom of it
   const weather = c.laps >= 1 && left > 3 * lm && wrongTyres(w, c);
-  c.wantStop = due || short || worn || weather || c.damageSum > 60 || c.st === "limp";
+  c.wantStop = due || short || worn || weather || c.damageSum > 60 || c.st === "limp" || rivalStop(w, c, lm);
   c.wantPit = c.wantStop || c.penalty !== null;
+}
+
+/** Close to a planned stop, a rival's stop decides it: cover a car behind that has pitted, or jump a car ahead by going first. */
+function rivalStop(w: World, c: SimCar, lm: number): boolean {
+  if (!c.stopTimes.length || w.t < w.pitOpen + 20000 || w.t > w.pitClose - 2 * lm || c.stopTimes[0]! - w.t > 0.4 * c.slot || c.wear < 0.3) return false;
+  const r = w.rank(), i = r.indexOf(c), gap = (o: SimCar) => Math.abs(o.d - c.d) / Math.max(c.v, 25);
+  const behind = r[i + 1], ahead = r[i - 1];
+  const cover = behind !== undefined && behind.pits > c.pits && w.t - behind.pitAt < 2 * lm && gap(behind) < 25;
+  const under = ahead !== undefined && !ahead.inLane && ahead.pits === c.pits && gap(ahead) < 1.5 && c.wear > 0.4 && c.spec.aggr > 0.5;
+  return cover || under;
 }
 
 /** The planned stops still to come after one made now. */
@@ -91,14 +101,14 @@ export function service(w: World, c: SimCar): Box {
     const lm = avgLapMs(c);
     const left = next !== undefined ? next - t0 + lm : w.durMs - t0 + 1.5 * lm;
     box.add = clamp(fuelFor(c, left) - c.fuel, 0, TANK - c.fuel);
-    box.tyres = wet !== c.wetTyres || c.wear > 0.5 || w.rnd.random() < 0.85 || c.id === w.playerId;
+    box.tyres = wet !== c.wetTyres || c.wear > 0.5 || c.spec.tyreMgmt < 0.75 || c.id === w.playerId;
   } else {
     box.park = !(c.runsLeft > 0 && w.durMs - t0 > c.lapSec * 1000 * 1.6);
     if (!box.park) {
       c.runsLeft--;
-      c.pushes = w.rnd.random() < 0.4 ? 2 : 1;
+      c.pushes = c.spec.tyreMgmt > 0.55 ? 2 : 1;
       box.add = clamp(runFuel(c) - c.fuel, 0, TANK - c.fuel);
-      box.tyres = wet !== c.wetTyres || w.rnd.random() < 0.6;
+      box.tyres = wet !== c.wetTyres || c.spec.tyreMgmt < 0.6;
     }
   }
   if (c.id === w.playerId) w.customize?.(box, c);
@@ -109,7 +119,7 @@ export function service(w: World, c: SimCar): Box {
 /** Sets the end of the stop and the fuel at its end from what is to be done. */
 export function seal(w: World, c: SimCar, box: Box): void {
   const fuelT = box.add > 0.05 ? SERVICE_START_MS + box.add * REFUEL_MS_PER_L : 0;
-  const tyreT = box.tyres ? 10500 + w.rnd.normal(0, 900) : 0;
+  const tyreT = box.tyres ? 10500 + (0.5 - c.spec.crew) * 2400 + w.rnd.normal(0, 900) : 0;
   const repairT = box.repair ? 5000 + c.damageSum * 400 : 0;
   let svc = Math.max(fuelT, tyreT, 2500) + 1200 + repairT;
   box.fuelEnd = box.fuel0 + box.add;

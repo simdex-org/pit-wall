@@ -14,6 +14,7 @@ import { accLoop, startField } from "./loops.js";
 import { FakeMfd } from "./pit/fake-mfd.js";
 import { PIT, STATE, TEL } from "./state.js";
 import { FakePages } from "./telemetry/fake-pages.js";
+import { CLASSES, DEFAULT_FIELD, Field, MAX_FIELD, MIN_FIELD } from "./sim/roster.js";
 import { SIM_TRACKS } from "./telemetry/sim-tracks.js";
 import { Telemetry } from "./telemetry/telemetry.js";
 
@@ -33,6 +34,8 @@ const HELP = `Usage: pitwall-bridge [options]
   --sim-minutes N            with --simulate-acc: the session's length (race 60, practice 30, qualifying 12 or more by default)
   --sim-track TRACK          with --simulate-acc: the made-up circuit (default: demo) or a real layout at a GT3's pace:
                              ${Object.keys(SIM_TRACKS).join(", ")}
+  --sim-cars N               with --simulate-acc: how many cars in the field, ${MIN_FIELD} to ${MAX_FIELD} (default ${DEFAULT_FIELD.cars})
+  --sim-classes MIX          with --simulate-acc: the share of each class, e.g. GT3=60,GT4=25,GTC=10,GT2=5 (classes: ${CLASSES.join(", ")}; default GT3=80,GT4=20)
   --sim-speed N              with --simulate-acc: run the pretend session N times faster (e.g. 8)
   --control-stdin            exit cleanly when a line "quit" arrives on stdin (the launcher stops the bridge this way)
 
@@ -67,7 +70,7 @@ async function main(): Promise<void> {
         http: { type: "string", default: "127.0.0.1:8765" }, "no-browser": { type: "boolean" }, key: { type: "string" },
         "pit-key": { type: "string", default: "p" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
-        "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" },
+        "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-classes": { type: "string" },
         "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
@@ -96,7 +99,16 @@ async function main(): Promise<void> {
   const simSession = v["sim-session"];
   if (simSession !== "race" && simSession !== "quali" && simSession !== "practice" && simSession !== "weekend") return fail("--sim-session must be race, quali, practice or weekend");
   const simMinutes = v["sim-minutes"] === undefined ? undefined : Number(v["sim-minutes"]);
-  if (simMinutes !== undefined && !(simMinutes >= 3 && simMinutes <= 600)) return fail("--sim-minutes must be 3 to 600");
+  if (simMinutes !== undefined && !(simMinutes >= 3 && simMinutes <= 1440)) return fail("--sim-minutes must be 3 to 1440");
+  const cars = v["sim-cars"] === undefined ? DEFAULT_FIELD.cars : Number(v["sim-cars"]);
+  if (!Number.isInteger(cars) || cars < MIN_FIELD || cars > MAX_FIELD) return fail(`--sim-cars must be ${MIN_FIELD} to ${MAX_FIELD}`);
+  const mix: Record<string, number> = {};
+  for (const part of (v["sim-classes"] ?? "").split(/[,\s]+/).filter(Boolean)) {
+    const [cls, share] = part.split("=");
+    if (!CLASSES.includes(cls!.toUpperCase()) || !(Number(share) > 0)) return fail(`--sim-classes: "${part}" is not CLASS=SHARE with a class of ${CLASSES.join(", ")}`);
+    mix[cls!.toUpperCase()] = Number(share);
+  }
+  const field: Field = { cars, mix: Object.keys(mix).length ? mix : DEFAULT_FIELD.mix };
   const simTrack = v["sim-track"]!;
   if (simTrack !== "demo" && !(simTrack in SIM_TRACKS)) return fail(`--sim-track must be demo or one of ${Object.keys(SIM_TRACKS).join(", ")}`);
   const key = v.key ?? randomBytes(16).toString("base64url");
@@ -113,7 +125,7 @@ async function main(): Promise<void> {
     const t0 = performance.now() / 1000, k = Math.max(0.1, Number(v["sim-speed"]));
     const clock = simulate ? () => t0 + (performance.now() / 1000 - t0) * k : () => performance.now() / 1000; // the pretend session's own time
     let src;
-    if (simulate) src = pages = new FakePages({ session: simSession === "quali" ? 1 : simSession === "practice" ? 0 : 2, minutes: simMinutes, weekend: simSession === "weekend", clock, track: simTrack === "demo" ? undefined : simTrack, mfd: fakeMfd });
+    if (simulate) src = pages = new FakePages({ session: simSession === "quali" ? 1 : simSession === "practice" ? 0 : 2, minutes: simMinutes, weekend: simSession === "weekend", clock, track: simTrack === "demo" ? undefined : simTrack, mfd: fakeMfd, field });
     else { const { AccPages } = await import("./telemetry/pages.js"); src = new AccPages(); }
     TEL.t = new Telemetry(STATE.config, clock);
     void accLoop(src, TEL.t, simulate);
