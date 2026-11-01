@@ -47,7 +47,7 @@ export function UpdateBar({ running }: { running: boolean }) {
   return (
     <div role="status" className="flex items-center gap-3 text-xs text-muted">
       <span className="flex-1">{text}</span>
-      {state === "available" && <Button disabled={running} onClick={install}>Update</Button>}
+      {state === "available" && <Button disabled={running} onClick={install} className="border-warn! bg-warn! text-bg! hover:bg-warn/80!">Update</Button>}
       {(state === "none" || state === "current" || state === "failed") && <Button onClick={check}>Check for updates</Button>}
     </div>
   );

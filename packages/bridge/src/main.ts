@@ -79,7 +79,13 @@ async function main(): Promise<void> {
   if (v["enable-broadcast"] !== undefined) return void console.log(enable(Number(v["enable-broadcast"])));
   if (v["update-check"] || v.update) {
     const u = await import("./update.js");
-    return void console.log(v.update ? JSON.stringify({ installed: await u.install() }) : JSON.stringify(await u.check()));
+    try {
+      return void console.log(v.update ? JSON.stringify({ installed: await u.install() }) : JSON.stringify(await u.check()));
+    } catch (e) {
+      const cause = (e as { cause?: { message?: string } }).cause?.message;
+      console.error([(e as Error).message, cause].filter(Boolean).join(": "));
+      process.exit(1);
+    }
   }
   if (v.probe) { const { probe } = await import("./telemetry/pages.js"); return void (await probe()); }
   if (v["bind-vjoy"] !== undefined) { const { bindVjoy } = await import("./pit/vjoy.js"); return void (await bindVjoy(Number(v["bind-vjoy"]))); }

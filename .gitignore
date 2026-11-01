@@ -4,6 +4,7 @@ target/
 *.tsbuildinfo
 graphify-out/
 data/tracks/
+data/update/
 apps/launcher/src-tauri/resources/
 apps/launcher/src-tauri/gen/
 apps/launcher/src-tauri/resources.zip

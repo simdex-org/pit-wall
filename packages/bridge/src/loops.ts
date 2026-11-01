@@ -138,11 +138,11 @@ export function startField(args: FieldArgs, pages: FakePages | null): void {
     let cfg = { port: 0, password: "", command_password: "" };
     try { cfg = { ...cfg, ...readConfig() }; } catch (e) {
       if (args.broadcastPort === undefined) {
-        return off(`Field timing off: could not read broadcasting.json (${(e as Error).message}). In PitWall click Turn on field timing (or run  pitwall --enable-broadcast), then restart ACC.`);
+        return off(`Field timing off: could not read broadcasting.json (${(e as Error).message}). Restart ACC and Pit Wall, or run pitwall --enable-broadcast with ACC closed.`);
       }
     }
     const port = args.broadcastPort ?? cfg.port;
-    if (!port) return off("Field timing off: broadcasting.json has updListenerPort 0. In PitWall click Turn on field timing (or run  pitwall --enable-broadcast), then restart ACC.");
+    if (!port) return off("Field timing off: broadcasting.json has updListenerPort 0. Restart ACC and Pit Wall, or run pitwall --enable-broadcast with ACC closed.");
     const pw = args.broadcastPassword ?? cfg.password;
     src = new Client(port, pw); f = new Field(); // no command password: Pit Wall only reads
   }

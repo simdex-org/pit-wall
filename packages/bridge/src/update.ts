@@ -47,7 +47,7 @@ export async function install(): Promise<string> {
   rmSync(staging, { recursive: true, force: true });
   mkdirSync(staging, { recursive: true });
   writeFileSync(zip, Buffer.from(await (await get("app.zip")).arrayBuffer()));
-  const tar = join(process.env.SystemRoot ?? "C:\Windows", "System32", "tar.exe");
+  const tar = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
   execFileSync(existsSync(tar) ? tar : "tar", ["-xf", zip, "-C", staging]);
   rmSync(zip, { force: true });
   const stamp = parseStamp(JSON.parse(readFileSync(join(staging, "app.json"), "utf8")));

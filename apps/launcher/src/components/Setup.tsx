@@ -8,30 +8,17 @@ interface Props {
   onChange: (p: Prefs) => void;
   addresses: string[];
   hamachi: string;
-  fieldTiming: boolean;
-  onFieldTiming: () => void;
   onStart: () => void;
   message: { text: string; tone: "bad" | "ok" | "muted" } | null;
 }
 
 const tone = { bad: "text-bad", ok: "text-ok", muted: "text-muted" } as const;
 
-export function Setup({ prefs, onChange, addresses, hamachi, fieldTiming, onFieldTiming, onStart, message }: Props) {
+export function Setup({ prefs, onChange, addresses, hamachi, onStart, message }: Props) {
   const [note, setNote] = useState<Props["message"]>(null);
   const [binding, setBinding] = useState(false);
   const shown = note ?? message;
   const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => onChange({ ...prefs, [k]: v });
-
-  async function enableField() {
-    if (fieldTiming) return setNote({ text: "Field timing is on. The other cars come from ACC's broadcasting port.", tone: "ok" });
-    try {
-      const text = await bridge.enableFieldTiming();
-      setNote({ text, tone: text.startsWith("Broadcasting") ? "ok" : "bad" });
-      onFieldTiming();
-    } catch (e) {
-      setNote({ text: `Could not turn field timing on: ${e}`, tone: "bad" });
-    }
-  }
 
   async function bind() {
     setBinding(true);
@@ -64,10 +51,7 @@ export function Setup({ prefs, onChange, addresses, hamachi, fieldTiming, onFiel
 
         <div className="mt-4"><Switch checked={prefs.vjoy} onChange={(on) => set("vjoy", on)}>Press the pit page through vJoy</Switch></div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <Button onClick={enableField} className={fieldTiming ? "text-ok" : ""}>{fieldTiming ? "Field timing on" : "Turn on field timing"}</Button>
-          <Button onClick={bind} disabled={!prefs.vjoy || binding}>{binding ? "Binding..." : "Bind vJoy in ACC"}</Button>
-        </div>
+        <Button onClick={bind} disabled={!prefs.vjoy || binding} className="mt-4 w-full">{binding ? "Binding..." : "Bind vJoy in ACC"}</Button>
       </Card>
 
       {shown && <p className={`min-h-5 text-[13px] leading-snug ${tone[shown.tone]}`} role="status">{shown.text}</p>}
