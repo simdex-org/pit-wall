@@ -1,7 +1,7 @@
 // The two feeders of STATE: the telemetry loop (ACC's pages, 30 or 60 times a second) and the field (broadcasting messages).
 import type { FieldSource } from "./broadcast/client.js";
 import { Client } from "./broadcast/client.js";
-import { readConfig } from "./broadcast/config.js";
+import { enable, readConfig } from "./broadcast/config.js";
 import { FakeField } from "./broadcast/fake-field.js";
 import { Field } from "./broadcast/field.js";
 import { CTX, FAST, FIELD, fieldErr, log, STATE } from "./state.js";
@@ -136,13 +136,16 @@ export function startField(args: FieldArgs, pages: FakePages | null): void {
     src = ff; f = ff;
   } else {
     let cfg = { port: 0, password: "", command_password: "" };
-    try { cfg = { ...cfg, ...readConfig() }; } catch (e) {
-      if (args.broadcastPort === undefined) {
-        return off(`Field timing off: could not read broadcasting.json (${(e as Error).message}). Restart ACC and Pit Wall, or run pitwall --enable-broadcast with ACC closed.`);
+    const load = () => { cfg = { ...cfg, ...readConfig() }; };
+    try { load(); } catch { /* switched on below */ }
+    if (args.broadcastPort === undefined && !cfg.port) {
+      console.log(enable());
+      try { load(); } catch (e) {
+        return off(`Field timing off: could not read broadcasting.json (${(e as Error).message}). Open ACC once, to the main menu, then restart Pit Wall.`);
       }
     }
     const port = args.broadcastPort ?? cfg.port;
-    if (!port) return off("Field timing off: broadcasting.json has updListenerPort 0. Restart ACC and Pit Wall, or run pitwall --enable-broadcast with ACC closed.");
+    if (!port) return off("Field timing off: broadcasting.json has updListenerPort 0.");
     const pw = args.broadcastPassword ?? cfg.password;
     src = new Client(port, pw); f = new Field(); // no command password: Pit Wall only reads
   }

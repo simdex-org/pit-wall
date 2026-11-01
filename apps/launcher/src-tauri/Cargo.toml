@@ -1,6 +1,6 @@
 [package]
 name = "pitwall-launcher"
-version = "1.0.0"
+version = "1.0.1"
 description = "Starts the Pit Wall bridge without a terminal"
 edition = "2021"
 
