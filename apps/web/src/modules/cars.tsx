@@ -1,4 +1,4 @@
-import { Fragment, KeyboardEvent, ReactNode, useState } from "react";
+import { Fragment, KeyboardEvent, ReactNode, useLayoutEffect, useRef, useState } from "react";
 import type { Ctx } from "../feed/store";
 import { feed } from "../feed/store";
 import type { Car } from "../feed/types";
@@ -51,9 +51,22 @@ export function useRowCursor(order: number[]): { cursor: number | null; onKey: (
 export function CarTr({ car, c, cursor, extra, p, children }: { car: Car; c: Ctx; cursor?: number | null; extra?: string; p?: number; children: ReactNode }) {
   const me = car.i === c.me, foc = c.focus !== "self" && car.i === c.focus;
   const cls = [me && "own", foc && "foc", cursor === car.i && "kcur", extra].filter(Boolean).join(" ");
+  const row = useRef<HTMLTableRowElement | null>(null), last = useRef(car.pos);
+  useLayoutEffect(() => {
+    const was = last.current;
+    last.current = car.pos;
+    const el = row.current;
+    if (!el || !was || !car.pos || was === car.pos || matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+    const gain = car.pos < was, rows = Math.min(Math.abs(was - car.pos), 6) * el.offsetHeight;
+    const tint = `color-mix(in srgb,var(${gain ? "--ok" : "--bad"}) 28%,transparent)`;
+    el.animate(
+      [{ transform: `translateY(${gain ? rows : -rows}px)`, backgroundColor: tint }, { transform: "none", backgroundColor: tint, offset: 0.45 }, { transform: "none", backgroundColor: "transparent" }],
+      { duration: 1100, easing: "cubic-bezier(.2,.8,.2,1)" },
+    );
+  }, [car.pos]);
   return (
     <tr data-i={car.i} data-p={p} data-loc={carLoc(car)} className={cls || undefined} aria-selected={foc || undefined}
-      ref={(el) => { if (el && cursor === car.i) el.scrollIntoView({ block: "nearest" }); }} onClick={() => feed.setFocus(car.i)}>
+      ref={(el) => { row.current = el; if (el && cursor === car.i) el.scrollIntoView({ block: "nearest" }); }} onClick={() => feed.setFocus(car.i)}>
       {children}
     </tr>
   );
