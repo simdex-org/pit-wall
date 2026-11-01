@@ -30,6 +30,7 @@ export class World {
   private readonly lpl: number;
   private readonly seed: number;
   private readonly minutes: number | undefined;
+  private readonly field: Field | undefined;
   cars: SimCar[] = [];
   rnd!: Rng;
   idx = 0;
@@ -72,7 +73,7 @@ export class World {
 
   constructor(kind: SessionKind, { track, seed = 7, player = "Daniel", minutes, sequence, field }: { track?: string; seed?: number; player?: string; minutes?: number; sequence?: SessionKind[]; field?: Field } = {}) {
     this.kind = kind; this.sequence = sequence ?? [kind];
-    this.seed = seed; this.minutes = minutes;
+    this.seed = seed; this.minutes = minutes; this.field = field;
     const st = track ? SIM_TRACKS[track] : undefined;
     const [id, name, metres, lapMs, lpl] = st ?? [DEMO.id, DEMO.name, DEMO.metres, DEMO.lapMs, DEMO.lpl];
     this.trackId = id; this.name = name; this.lpl = lpl;
@@ -109,6 +110,11 @@ export class World {
     const carry = this.kind === "race" ? this.carry : null;
     if (carry) grid.sort((a, b) => carry.indexOf(a.id) - carry.indexOf(b.id)); // the race starts in qualifying's order
     this.carry = null;
+    const slot = this.kind === "race" && !carry ? this.field?.grid : undefined; // a weekend's race starts where qualifying left the driver
+    if (slot !== undefined) {
+      grid.splice(grid.indexOf(this.player), 1);
+      grid.splice((slot === "random" ? rnd.randint(1, grid.length + 1) : Math.min(slot, grid.length + 1)) - 1, 0, this.player);
+    }
     const n = this.cars.length, gap = n <= 20 ? 12.5 : 380 / (n - 1); // the boxes along the pit lane
     this.cars.forEach((c) => { c.boxLp = (n <= 20 ? -130 : -190) + gap * (c.id - 1); });
     if (this.kind === "race") {

@@ -13,8 +13,10 @@ export const PLAYER = 7;
 export const MAX_FIELD = 60;
 export const MIN_FIELD = 8;
 
-/** How many cars, and the share of each class among them. */
-export interface Field { cars: number; mix: Record<string, number> }
+/** How many cars, and the share of each class among them. The player's own pace (1 slowest to 5 fastest) and grid slot are fixed only when given. */
+export interface Field { cars: number; mix: Record<string, number>; pace?: number; grid?: number | "random" }
+/** The player's lap against the reference GT3 for each pace level, as a fraction: from the back of the Am cup to the front of the Pro cup. */
+const PACE_DELTA = [0.04, 0.026, 0.012, 0.003, -0.004];
 export const DEFAULT_FIELD: Field = { cars: 20, mix: { GT3: 80, GT4: 20 } };
 export const CLASSES = ["GT3", "GT4", "GTC", "TCX", "GT2"];
 
@@ -93,12 +95,12 @@ export function roster(rnd: Rng, playerName: string, field: Field = DEFAULT_FIEL
     const team = player ? "Pit Wall Demo" : TEAMS[id % TEAMS.length]!;
     const [first, last] = player ? [playerName, ""] : [FIRST[(n * 7 + Math.floor(n / LAST.length)) % FIRST.length]!, LAST[n % LAST.length]!];
     out.push({ id, num: player ? 7 : numbers[n]!, model, team, cup, first, last, gt4: cls === "GT4", cls,
-      delta: base + lo + (hi - lo) * (1 - skill),
+      delta: player && field.pace ? PACE_DELTA[field.pace - 1]! : base + lo + (hi - lo) * (1 - skill),
       sd: rnd.uniform(0.0025, 0.0055) * (1 + cup * 0.15) * (1.35 - 0.7 * comp),
       slip: rnd.uniform(0.01, 0.035) * (1 + cup * 0.2) * (1.5 - comp),
       trouble: player ? 0 : rnd.uniform(0.002, 0.007),
       aggr: rnd.uniform(0.2, 0.9), defence: trait(), comp, tyreMgmt: trait(), fuelSave: trait(), wetSkill: trait(0.5, 0.25),
-      quali: trait(0.5 + 0.3 * (skill - 0.5), 0.2), race: rnd.normal(0, 0.006), start: trait(),
+      quali: trait(0.5 + 0.3 * (skill - 0.5), 0.2), race: player && field.pace ? 0 : rnd.normal(0, 0.006), start: trait(),
       crew: player ? 0.5 : crews[id % TEAMS.length]! });
     if (!player) n++;
   }

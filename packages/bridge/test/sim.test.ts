@@ -300,3 +300,24 @@ describe("a bigger, mixed field", { timeout: 60000 }, () => {
     expect(w.cars.filter((c) => c.laps >= 2).length).toBeGreaterThan(30);
   });
 });
+
+describe("the driver's own pace and grid slot", { timeout: 60000 }, () => {
+  const mix = { GT3: 100 };
+  test("pace 1 to 5 sets how fast the player is, and grid picks the slot", () => {
+    const deltas = [1, 2, 3, 4, 5].map((pace) => new World("race", { field: { cars: 20, mix, pace } }).player.spec.delta);
+    expect(deltas).toEqual([...deltas].sort((a, b) => b - a));
+    expect(new Set(deltas).size).toBe(5);
+    const slotOf = (grid: number | "random", seed = 7) => {
+      const w = new World("race", { seed, field: { cars: 20, mix, grid } });
+      return [...w.cars].sort((a, b) => b.d - a.d).indexOf(w.player) + 1;
+    };
+    expect([1, 9, 20].map((g) => slotOf(g))).toEqual([1, 9, 20]);
+    expect(new Set([1, 2, 3, 4, 5, 6].map((seed) => slotOf("random", seed))).size).toBeGreaterThan(2);
+  });
+
+  test("a fast driver from the back of the grid works through the field", () => {
+    const w = new World("race", { seed: 4, minutes: 20, field: { cars: 20, mix, pace: 5, grid: 20 } });
+    run(w, (x) => x.t > 18 * 60000);
+    expect(w.rank().indexOf(w.player)).toBeLessThan(10);
+  });
+});

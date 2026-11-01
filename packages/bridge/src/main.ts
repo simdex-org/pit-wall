@@ -36,6 +36,8 @@ const HELP = `Usage: pitwall-bridge [options]
                              ${Object.keys(SIM_TRACKS).join(", ")}
   --sim-cars N               with --simulate-acc: how many cars in the field, ${MIN_FIELD} to ${MAX_FIELD} (default ${DEFAULT_FIELD.cars})
   --sim-classes MIX          with --simulate-acc: the share of each class, e.g. GT3=60,GT4=25,GTC=10,GT2=5 (classes: ${CLASSES.join(", ")}; default GT3=80,GT4=20)
+  --sim-pace N               with --simulate-acc: how fast your driver is, 1 (back of the field) to 5 (front); default: random like the rest
+  --sim-grid N|random        with --simulate-acc: your grid slot in a race (1 is pole); default: where your pace puts you. Not used in a weekend race
   --sim-speed N              with --simulate-acc: run the pretend session N times faster (e.g. 8)
   --control-stdin            exit cleanly when a line "quit" arrives on stdin (the launcher stops the bridge this way)
 
@@ -70,7 +72,7 @@ async function main(): Promise<void> {
         http: { type: "string", default: "127.0.0.1:8765" }, "no-browser": { type: "boolean" }, key: { type: "string" },
         "pit-key": { type: "string", default: "p" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
-        "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-classes": { type: "string" },
+        "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" },
         "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
@@ -108,7 +110,12 @@ async function main(): Promise<void> {
     if (!CLASSES.includes(cls!.toUpperCase()) || !(Number(share) > 0)) return fail(`--sim-classes: "${part}" is not CLASS=SHARE with a class of ${CLASSES.join(", ")}`);
     mix[cls!.toUpperCase()] = Number(share);
   }
-  const field: Field = { cars, mix: Object.keys(mix).length ? mix : DEFAULT_FIELD.mix };
+  const pace = v["sim-pace"] === undefined ? undefined : Number(v["sim-pace"]);
+  if (pace !== undefined && !(Number.isInteger(pace) && pace >= 1 && pace <= 5)) return fail("--sim-pace must be 1 to 5");
+  const gridArg = v["sim-grid"];
+  const grid = gridArg === undefined ? undefined : gridArg === "random" ? "random" : Number(gridArg);
+  if (grid !== undefined && grid !== "random" && !(Number.isInteger(grid) && grid >= 1 && grid <= cars)) return fail(`--sim-grid must be random or 1 to ${cars}`);
+  const field: Field = { cars, mix: Object.keys(mix).length ? mix : DEFAULT_FIELD.mix, pace, grid };
   const simTrack = v["sim-track"]!;
   if (simTrack !== "demo" && !(simTrack in SIM_TRACKS)) return fail(`--sim-track must be demo or one of ${Object.keys(SIM_TRACKS).join(", ")}`);
   const key = v.key ?? randomBytes(16).toString("base64url");

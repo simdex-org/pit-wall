@@ -40,7 +40,7 @@ pnpm --filter @pitwall/launcher package:portable                  # a single Pit
 pnpm test; pnpm typecheck
 ```
 
-Node 22+, Windows for the game side. The bridge serves `apps/web/dist` (override with `PITWALL_WEB`), so run `pnpm --filter @pitwall/web build` after changing the page, or use the dev server. Bridge flags: `--http`, `--key`, `--pit-key`, `--key-ms`, `--vjoy [N]`, `--broadcast-port` (0 = field timing off), `--broadcast-password`, `--sim-session race|quali`, `--sim-track demo|nordschleife|monza|spa|…` (`sim-tracks.ts`), `--sim-speed N`, `--no-browser`, `--control-stdin` (the launcher stops the bridge by writing `quit`), `--bind-vjoy [N]`.
+Node 22+, Windows for the game side. The bridge serves `apps/web/dist` (override with `PITWALL_WEB`), so run `pnpm --filter @pitwall/web build` after changing the page, or use the dev server. Bridge flags: `--http`, `--key`, `--pit-key`, `--key-ms`, `--vjoy [N]`, `--broadcast-port` (0 = field timing off), `--broadcast-password`, `--sim-session race|quali`, `--sim-track demo|nordschleife|monza|spa|…` (`sim-tracks.ts`), `--sim-cars N`, `--sim-classes GT3=60,GT4=20,...`, `--sim-pace 1-5` (the driver's speed), `--sim-grid N|random` (the driver's grid slot), `--sim-speed N`, `--no-browser`, `--control-stdin` (the launcher stops the bridge by writing `quit`), `--bind-vjoy [N]`.
 
 ## Architecture
 
