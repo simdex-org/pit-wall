@@ -114,7 +114,8 @@ function traffic(w: World, c: SimCar, free: number, dt: number): number {
   if (!near) { c.heldFor = Math.max(0, c.heldFor - dt); return free; }
   const o = near, stuck = o.v < 8;
   if (gap < 0.3 && c.v > o.v + 2) collide(w, c, o);
-  if (gap > 3 && gap < 32 && free > 35 && c.st === "race") free *= 1 + 0.025 * (1 - gap / 32);
+  const tw = gap > 3 && gap < 40 && free > 35 && c.st === "race" ? 0.03 * (1 - gap / 40) : 0; // slipstream: up to ~3 % at 3 m, fading out by 40 m
+  free *= 1 + tw;
   const brake = 0.7 * brakeCap(c.v / w.circuit.k) * w.circuit.k ** 2; // can always stop behind it if it brakes flat out
   const cap = Math.max(0, Math.min(o.v + (gap - (1.5 + 0.06 * o.v)) * 0.9, Math.sqrt(o.v * o.v + 2 * brake * Math.max(0, gap - 0.5))));
   const held = cap < free && (gap < 10 || (stuck && gap < 45));
@@ -122,7 +123,7 @@ function traffic(w: World, c: SimCar, free: number, dt: number): number {
   c.heldFor = held ? c.heldFor + dt : Math.max(0, c.heldFor - dt);
   if (held && !c.pass && c.passCool <= 0 && !w.fcyOn) {
     const need = stuck ? 0 : c.kind === "push" && o.kind !== "push" ? 0.6 : 2;
-    const faster = stuck || c.pace(t, w.evo, w.wet) > o.pace(t, w.evo, w.wet) * 1.002;
+    const faster = stuck || c.pace(t, w.evo, w.wet) * (1 + tw) > o.pace(t, w.evo, w.wet) * 1.002;
     const circ = w.circuit;
     const open = Math.abs(circ.curvature(c.d)) < 0.0035 && Math.abs(circ.curvature(c.d + 90)) < 0.006;
     if (faster && (open || stuck) && c.heldFor >= need && w.rnd.random() < (0.3 + 0.7 * c.spec.aggr) * 1.5 * dt) {

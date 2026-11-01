@@ -264,12 +264,13 @@ function drawSectors(g: Ctx2D, tk: Tokens, o: MapOpts, loop: Pt[], ends: number[
   g.font = `600 ${fz}px ${tk.num}`; g.textBaseline = "middle"; g.textAlign = "center"; g.lineJoin = "round";
   for (let i = 0; i < n; i++) {
     const a = marks[i]!, b = i + 1 < n ? marks[i + 1]! : 1, col = colour[i % 3]!;
+    g.lineCap = "butt";
     path([atFrac(loop, a), ...loop.filter((_, j) => cum[j]! > a * tot && cum[j]! < b * tot), atFrac(loop, b === 1 ? 0.99999 : b)], width, col);
     const p = atFrac(loop, a), q = atFrac(loop, a + 0.004), px = X(q[0]) - X(p[0]), py = Y(q[1]) - Y(p[1]), len = Math.hypot(px, py) || 1;
     const lx = X(p[0]) - (py / len) * 18, ly = Y(p[1]) + (px / len) * 18, t = "S" + (i + 1);
     g.strokeStyle = tk.bg; g.lineWidth = 3.5; g.strokeText(t, lx, ly); g.fillStyle = col; g.fillText(t, lx, ly);
   }
-  g.textAlign = "left";
+  g.textAlign = "left"; g.lineCap = "round";
 }
 
 const FIELD_ORDER = ["pos", "num", "code", "name", "gap"];
