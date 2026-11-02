@@ -52,7 +52,7 @@ const TIPS: Record<string, string> = {
 
 export const fuelCalc = defineModule({
   type: "fuel-calc", title: "Fuel & stints", group: "Strategy", blurb: "Plan the race: fuel to start with, stops, stint lengths and the fuel at each stop, from race length, lap time and consumption.",
-  size: { w: 6, h: 20, minW: 4, minH: 10 }, needs: ["summary", "reading", "config", "laps"], rate: 2,
+  size: { w: 6, h: 20, minW: 4, minH: 10, maxH: 22 }, needs: ["summary", "reading", "config", "laps"], rate: 2,
   view({ ctx: c, size }) {
     const [state, setState] = useState(load);
     const [sel, setSel] = useState<number | null>(null);

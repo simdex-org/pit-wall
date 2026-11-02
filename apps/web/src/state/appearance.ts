@@ -27,16 +27,16 @@ export const CONTRAST_KEYS = new Set(["text", "muted", "dim", "ok", "warn", "bad
 
 export const BASE_TOKENS: Record<string, string> = {
   bg: "#0a0b0d", panel: "#111316", raise: "#171a1e", line: "#272b32", line2: "#1b1e23", text: "#e9ebee", muted: "#a4aab2", dim: "#7f8690",
-  accent: "#2ad4c4", me: "#ffd400", best: "#c58bff", pb: "#3ddc84", slow: "#f5c518", invalid: "#6b717a", ok: "#3ddc84", warn: "#ff9f1a", bad: "#ff5c6c", cold: "#5aaeff",
+  accent: "#4a8cf2", me: "#ffd400", best: "#c58bff", pb: "#3ddc84", slow: "#f5c518", invalid: "#6b717a", ok: "#3ddc84", warn: "#ff9f1a", bad: "#ff5c6c", cold: "#5aaeff",
   chSpeed: "#e6e8eb", chThr: "#3ecf7a", chBrk: "#ff5e57", chSteer: "#f2c230", chGear: "#a98bff", chRpm: "#8a929c", chRef: "#e6e8eb", chCmp: "#ff9f1a", chLap: "#5aaeff",
-  chFL: "#35b9d6", chFR: "#3ecf7a", chRL: "#f2c230", chRR: "#f06ab8",
+  chFL: "#4b9be0", chFR: "#3ecf7a", chRL: "#f2c230", chRR: "#f06ab8",
 };
 
 export const LAYOUT = {
   density: ["auto", "compact", "comfortable"], fontScale: [0.9, 1, 1.1, 1.25], radius: [0, 2, 4, 8], panel: ["ruled", "boxed", "flat"], numFont: ["mono", "sans"], labels: ["upper", "sentence"],
 } as const;
 export type LayoutKey = keyof typeof LAYOUT;
-const DEF_LAYOUT: Pick<Theme, "density" | "fontScale" | "radius" | "panel" | "numFont" | "labels"> = { density: "auto", fontScale: 1, radius: 2, panel: "boxed", numFont: "mono", labels: "upper" };
+const DEF_LAYOUT: Pick<Theme, "density" | "fontScale" | "radius" | "panel" | "numFont" | "labels"> = { density: "auto", fontScale: 1, radius: 4, panel: "flat", numFont: "sans", labels: "upper" };
 
 export interface Theme {
   format: "pitwall-theme"; schemaVersion: 1; id: string; name: string; base: string; tokens: Record<string, string>;
@@ -46,9 +46,9 @@ export interface Theme {
 const BUILTIN_SRC: [string, string, Record<string, string>, Partial<typeof DEF_LAYOUT>][] = [
   ["pitwall", "Pit Wall", {}, {}],
   ["broadcast", "Broadcast", { bg: "#050608", panel: "#0e1014", line: "#23272e", accent: "#ffffff", me: "#ff8ad8" }, { radius: 4, panel: "boxed", labels: "sentence" }],
-  ["night", "Night stint", { bg: "#000000", panel: "#07080a", raise: "#101215", line: "#1a1d22", line2: "#121418", text: "#c9ccd1", muted: "#8a9099", dim: "#646a73", accent: "#5fb3a6", me: "#c9ccd1", ok: "#36b56e", warn: "#d9892a", bad: "#d9475a", best: "#a46ad8" }, {}],
+  ["night", "Night stint", { bg: "#000000", panel: "#07080a", raise: "#101215", line: "#1a1d22", line2: "#121418", text: "#c9ccd1", muted: "#8a9099", dim: "#646a73", accent: "#6f9fe0", me: "#c9ccd1", ok: "#36b56e", warn: "#d9892a", bad: "#d9475a", best: "#a46ad8" }, {}],
   ["daylight", "Daylight", {
-    bg: "#f3f4f6", panel: "#ffffff", raise: "#e9ebee", line: "#d3d7dd", line2: "#e6e8ec", text: "#111418", muted: "#4a515b", dim: "#6b727c", accent: "#007b76", me: "#111418",
+    bg: "#f3f4f6", panel: "#ffffff", raise: "#e9ebee", line: "#d3d7dd", line2: "#e6e8ec", text: "#111418", muted: "#4a515b", dim: "#6b727c", accent: "#1b5fc0", me: "#111418",
     best: "#7b2fbe", pb: "#0d7e3d", slow: "#8c6900", ok: "#0d7e3d", warn: "#ab5800", bad: "#c8102e", cold: "#1565c0", chSpeed: "#111418", chRef: "#111418", chCmp: "#b55d00",
     chLap: "#1565c0", chThr: "#0f8a43", chBrk: "#c8102e", chSteer: "#9a7400", chRpm: "#6b727c",
   }, {}],
@@ -130,9 +130,9 @@ class AppearanceStore {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(tok.accent!.slice(i, i + 2), 16));
     s.setProperty("--acc-ink", 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 140 ? "#08090b" : "#ffffff"); // text on the accent
     const comf = t.density === "comfortable";
-    s.setProperty("--row", comf ? "32px" : "28px"); s.setProperty("--trow", comf ? "28px" : "24px"); s.setProperty("--pad", comf ? "12px" : "8px"); s.setProperty("--hh", "26px");
+    s.setProperty("--row", comf ? "32px" : "28px"); s.setProperty("--trow", comf ? "28px" : "24px"); s.setProperty("--pad", comf ? "12px" : "8px"); s.setProperty("--hh", "32px");
     s.setProperty("--fs", String(t.fontScale)); s.setProperty("--r", t.radius + "px");
-    s.setProperty("--num", t.numFont === "sans" ? '"IBM Plex Sans Condensed", system-ui, sans-serif' : '"IBM Plex Mono", ui-monospace, Consolas, monospace');
+    s.setProperty("--num", t.numFont === "sans" ? '"Barlow Semi Condensed", system-ui, sans-serif' : "ui-monospace, Consolas, monospace");
     root.dataset.density = t.density; root.dataset.panel = t.panel; root.dataset.labels = t.labels; root.dataset.num = t.numFont;
     // A theme the editor would refuse: Settings keeps the default colours, so it can always be undone from there.
     const set = document.getElementById("settings"), safe = unreadable(t);

@@ -105,7 +105,7 @@ function looseOptions(raw: unknown): Record<string, any> { // eslint-disable-lin
 }
 
 function sanitizeModule(m: Record<string, any>, def: ModuleDef | undefined, mids: Set<string>, fix: () => void): ModuleInstance { // eslint-disable-line @typescript-eslint/no-explicit-any
-  const size = def ? def.size : { w: 4, h: 6, minW: 1, minH: 1 };
+  const size: { w: number; h: number; minW: number; minH: number; maxW?: number; maxH?: number } = def ? def.size : { w: 4, h: 6, minW: 1, minH: 1 };
   const int = (v: unknown, lo: number, hi: number, d: number): number => {
     if (v === undefined) return d;
     const n = Number.isInteger(v) ? (v as number) : (fix(), Math.round(+(v as number)) || 0);
@@ -119,13 +119,13 @@ function sanitizeModule(m: Record<string, any>, def: ModuleDef | undefined, mids
   const minW = Math.min(size.minW, 12);
   let x = x0;
   if (x + minW > 12) { x = 12 - minW; fix(); } // too far right for its minimum width: moved left, not squeezed
-  const w = Math.min(int(m.w, minW, 12 - x, size.w), 12 - x);
+  const w = Math.min(int(m.w, minW, Math.min(12 - x, size.maxW ?? 12), size.w), 12 - x);
   const title = cleanText(m.title, 40);
   if (m.title !== undefined && title !== m.title) fix();
   if (m.hidden !== undefined && typeof m.hidden !== "boolean") fix();
   if (m.header !== undefined && typeof m.header !== "boolean") fix();
   return {
-    id, type: m.type, x, y: int(m.y, 0, 199, 0), w, h: int(m.h, size.minH, 60, size.h),
+    id, type: m.type, x, y: int(m.y, 0, 199, 0), w, h: int(m.h, size.minH, size.maxH ?? 60, size.h),
     hidden: m.hidden === true, header: m.header !== false, title, linked: false,
     options: def ? sanitizeOptions(def, m.options, fix) : looseOptions(m.options),
   };

@@ -52,7 +52,7 @@ function Connection() {
       </dl>
       <label className="fld"><span>Live rate</span>
         <select value={p.hz} onChange={(e) => { prefs.update({ hz: +e.target.value as (typeof HZ)[number] }); link.connect(+e.target.value); setMsg(`Live rate ${e.target.value} Hz.`); }}>
-          {HZ.map((v) => <option key={v} value={v}>{v} Hz{v === 60 ? " (about 2 Mbit/s from the driver's PC)" : ""}</option>)}
+          {HZ.map((v) => <option key={v} value={v}>{v} Hz{v === 60 ? " (about 2 Mbit/s)" : ""}</option>)}
         </select>
       </label>
       <p className="note">Lower rates use less of the VPN. Laps, strategy and timing are unaffected.</p>
@@ -179,7 +179,7 @@ function Strategy() {
       ))}
       <label className="fld"><span>Fuel and tyres at a stop</span>
         <select data-st="fuel_and_tyres" defaultValue={st.fuel_and_tyres} disabled={dis}>
-          <option value="parallel">At the same time (longest counts)</option><option value="sequential">One after the other (added)</option>
+          <option value="parallel">At once (longest counts)</option><option value="sequential">One by one (added)</option>
         </select>
       </label>
       <p className="note">Pit window: both or neither. Empty fields mean "not set": the bridge uses what ACC reports.</p>
@@ -245,7 +245,7 @@ const About = () => (
   <>
     <h3 className="mt">About</h3>
     <p><b>Pit Wall</b>: race engineering for Assetto Corsa Competizione.</p>
-    <ul className="note"><li>IBM Plex Sans Condensed and IBM Plex Mono: SIL Open Font License 1.1.</li><li>Lucide icons: ISC License.</li><li>three.js: MIT License.</li><li>Track outlines: © OpenStreetMap contributors, ODbL 1.0 (openstreetmap.org/copyright). The Nürburgring 24h layout is traced from Wikimedia Commons, CC BY-SA 3.0.</li></ul>
+    <ul className="note"><li>Barlow Semi Condensed: SIL Open Font License 1.1.</li><li>Lucide icons: ISC License.</li><li>three.js: MIT License.</li><li>Track outlines: © OpenStreetMap contributors, ODbL 1.0 (openstreetmap.org/copyright). The Nürburgring 24h layout is traced from Wikimedia Commons, CC BY-SA 3.0.</li></ul>
   </>
 );
 

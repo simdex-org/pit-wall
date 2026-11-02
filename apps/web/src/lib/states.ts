@@ -49,7 +49,6 @@ export const waterState = (t: number, c: StateCtx): State => {
 };
 
 /** Colour is never the only cue: every non-ok state also has a glyph and a word. */
-export const stateGlyph = (s: State): string => ({ cold: " ▼", warn: " ▲", bad: " ■" } as Record<string, string>)[s] ?? "";
 export const STATE_WORD: Record<string, string> = { cold: "COLD", warn: "HIGH", bad: "CRIT" };
 
 /** ACC's damage readings: body zones run 0 to 100+ (a few points is a scuff), suspension 0 to 1 (a trace is sensor noise). */

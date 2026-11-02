@@ -1,10 +1,10 @@
-import { ReactNode } from "react";
+import { Fragment, ReactNode, useState } from "react";
 import { defineModule } from "../engine/registry";
 import type { Ctx } from "../feed/store";
 import type { Json } from "../feed/types";
 import { Icon } from "../lib/icons";
 import { clamp, fmtLap, fmtSector, MINUS, nf, NONE, okMs, plural } from "../lib/format";
-import { bodyState, brakeState, padState, pressState, State, STATE_WORD, stateGlyph, stateLevel, suspState, tyreState, waterState } from "../lib/states";
+import { bodyState, brakeState, padState, pressState, State, stateLevel, suspState, tyreState, waterState } from "../lib/states";
 import { fv, unit } from "../lib/units";
 import { usePrefs } from "../state/prefs";
 import { CORNERS } from "../state/plan";
@@ -24,7 +24,7 @@ const pct = (v: number) => (clamp(v, 0, 1) * 100).toFixed(0);
 
 export const carStatus = defineModule({
   type: "car-status", title: "Driver inputs", group: "Car", blurb: "Gear, speed, RPM, pedals, steering and the car's state flags, live.",
-  size: { w: 3, h: 7, minW: 3, minH: 4 }, needs: ["reading"], requires: ["reading"], rate: 60,
+  size: { w: 3, h: 7, minW: 3, minH: 4, maxW: 5, maxH: 8 }, needs: ["reading"], requires: ["reading"], rate: 60,
   view({ ctx: c, size }) {
     const p = usePrefs();
     const a = c.r!.car, s = c.r!.session, max = c.r!.fixed.max_rpm || 8000, rp = clamp(a.rpm / max, 0, 1);
@@ -90,7 +90,7 @@ export const carStatus = defineModule({
 // ---------- lap timer ----------
 export const lapTimer = defineModule({
   type: "lap-timer", title: "Lap", group: "Car", blurb: "The lap in progress, live delta, last, best and the game's estimate.",
-  size: { w: 3, h: 6, minW: 3, minH: 4 }, needs: ["reading", "summary", "laps", "field"], requires: ["reading"], rate: 15,
+  size: { w: 3, h: 5, minW: 3, minH: 4, maxW: 4, maxH: 5 }, needs: ["reading", "summary", "laps", "field"], requires: ["reading"], rate: 15,
   view({ ctx: c, size }) {
     const s = c.r!.session, a = c.r!.car, inv = !s.lap_is_valid;
     const best = c.s && c.s.best_ms != null ? c.s.best_ms : okMs(s.best_lap_ms) ? s.best_lap_ms : null;
@@ -155,13 +155,15 @@ const NAMES = ["Front left", "Front right", "Rear left", "Rear right"];
 
 export const tyres = defineModule({
   type: "tyres", title: "Tyres", group: "Car", blurb: "Pressures, core temperatures and brakes at each corner, and the next stop's correction.",
-  size: { w: 4, h: 9, minW: 3, minH: 6 }, needs: ["reading", "summary", "config", "units"], requires: ["reading"], rate: 5,
+  size: { w: 4, h: 9, minW: 2, minH: 3, maxW: 6, maxH: 10 }, needs: ["reading", "summary", "config", "units", "laps"], requires: ["reading"], rate: 5,
   options: [
+    { key: "focus", label: "Big figure", hint: "By session shows temperature in qualifying and pressure in a race.", type: "select", choices: [["auto", "By session"], ["press", "Pressure"], ["temp", "Core temperature"]], def: "auto" },
     { key: "corrections", label: "Show the next stop's correction", type: "toggle", def: true },
     { key: "brakes", label: "Show brakes", type: "toggle", def: true },
   ],
   view({ ctx: c, opts, size }) {
     const p = usePrefs(), u = p.units;
+    const [pick, setPick] = useState(0);
     const r = c.r!, a = r.car, pl = c.s?.press_line, cap = r.capabilities ?? {}, ctx = sc(c);
     const [lo, hi] = psiWindow(c), mid = (lo + hi) / 2;
     const [tlo, thi] = c.th.tyre_c;
@@ -170,41 +172,41 @@ export const tyres = defineModule({
     const bs = (a.brake_temp_c as number[]).map((t, i) => brakeState(t, i < 2 ? "front" : "rear", ctx));
     const pu = unit("press", u), tu = unit("temp", u).u;
     const worstOf = (...x: State[]) => (x.includes("bad") ? 2 : x.some((y) => y === "warn" || y === "cold") ? 1 : 0);
-    const large = size.w >= 4 && size.h >= 8;
+    const large = size.w >= 3 && size.h >= 8;
     const lapsOn = c.s ? c.s.stint_laps : null;
     const pcls = (s: State) => (s === "ok" ? "" : s === "bad" ? "up" : s === "cold" ? "cd" : "wn");
     const corr = (i: number) => (pl && Array.isArray(pl.psi) ? mid - (pl.psi as number[])[i]! : null);
     const setCold = (i: number) => { const cx = corr(i); return cx == null ? null : (a.tyre_pressure_psi as number[])[i]! + cx; };
     const alert: [number] = [worstOf(...ps, ...ts, ...(opts.brakes ? bs : []))];
-    if (!large && size.h >= 6) {
-      const num = (label: string, cls: string, v: string, unitS: string, tag?: string, centre?: boolean) => {
-        const extra = <><span className="u" style={{ fontSize: 10, marginLeft: 2 }}>{unitS}</span>{tag ? <span className="v" style={{ fontSize: 10.5, marginLeft: 4 }}>{tag}</span> : null}</>;
-        return (
-          <div className="fc" style={{ gap: 1, minWidth: 0, alignItems: centre ? "center" : "flex-start" }}>
-            <span className="v di" style={{ fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase" }}>{label}</span>
-            <span className={"big " + cls} style={{ fontSize: size.w < 4 ? 20 : 24, whiteSpace: "nowrap", position: "relative" }}>
-              {v}{centre ? <span style={{ position: "absolute", left: "100%", bottom: 1, whiteSpace: "nowrap", lineHeight: 1 }}>{extra}</span> : extra}
-            </span>
-          </div>
-        );
-      };
+    const bigFirst = opts.focus === "auto" ? (c.mode === "best" ? "temp" : "press") : (opts.focus as string);
+    if (!large) {
+      const line = size.h < 5, fs = size.h >= 7 ? (size.w >= 4 ? 24 : 22) : size.h >= 5 ? 20 : 16;
+      const hist = c.laps.filter((l) => Array.isArray(l.psi) && !!l.wet === !!c.wet).slice(-4);
+      const trend = (i: number) => (hist.length >= 2 ? ((hist[hist.length - 1]!.psi as number[])[i]! - (hist[0]!.psi as number[])[i]!) / (hist.length - 1) : null);
       return {
-        flush: true, alert, info: [`SET ${r.session.tyre_set || NONE}`, `HOT ${fv("press", lo, u)}–${fv("press", hi, u)}`],
+        flush: true, alert, info: size.w < 3 ? [] : [`SET ${r.session.tyre_set || NONE}`, `${fv("press", lo, u)}–${fv("press", hi, u)} ${pu.u}`],
         body: (
-          <div className="fc" style={{ flex: 1, minHeight: 0 }}>
-            {CORNERS.map((n, i) => {
-              const sc0 = setCold(i), cx = corr(i), dd = (a.tyre_pressure_psi as number[])[i]! - mid;
-              const pd = ps[i] === "ok" ? "" : `${dd > 0 ? "▲ +" : "▼ " + MINUS}${Math.abs(pu.f(dd) - pu.f(0)).toFixed(pu.d)}`;
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: line ? "1fr 1fr" : "auto auto", alignContent: line ? "stretch" : "start", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
+            {[0, 1, 2, 3].map((i) => {
+              const pr = (a.tyre_pressure_psi as number[])[i]!, cx = corr(i), sc0 = setCold(i), tr = trend(i);
+              const m: Record<string, { st: State; v: string; unit: string; tag: string; name: string }> = {
+                press: { st: ps[i]!, v: fv("press", pr, u), unit: pu.u, tag: tr != null && Math.abs(tr) >= 0.05 ? `${tr > 0 ? "+" : "−"}${Math.abs(pu.f(tr) - pu.f(0)).toFixed(pu.d)}/lap` : "", name: "press" },
+                temp: { st: ts[i]!, v: fv("temp", coreT(a, i, cap), u), unit: tu, tag: "", name: "core" },
+                brake: { st: bs[i]!, v: fv("temp", (a.brake_temp_c as number[])[i], u), unit: tu, tag: "", name: "brake" },
+              };
+              let ord = bigFirst === "temp" ? ["temp", "press"] : ["press", "temp"];
+              if (opts.brakes) ord.push("brake");
+              if (pick) ord = [...ord.slice(pick % ord.length), ...ord.slice(0, pick % ord.length)];
+              const [first, ...rest] = ord.map((x) => m[x]!);
+              const k = first!.st === "bad" || rest.some((x) => x.st === "bad") ? "b" : [first!, ...rest].some((x) => x.st === "warn" || x.st === "cold") ? "w" : "o";
               return (
-                <div key={n} className="f" style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "2px 12px", gap: 8, alignItems: "center", borderBottom: "1px solid var(--ln)" }}>
-                  <div className="fc" style={{ width: 52, gap: 2, flex: "none", whiteSpace: "nowrap" }}>
-                    <span className="v" style={{ fontWeight: 600 }}>{n}</span>
-                    {opts.corrections && size.h >= 7 && sc0 != null ? <span className="v ac" style={{ fontSize: 10.5 }}>set {fv("press", sc0, u)}</span> : null}
-                    {opts.corrections && size.h >= 8 && cx != null && Math.abs(cx) >= 0.05 ? <span className={"v " + (cx < 0 ? "dn" : "up")} style={{ fontSize: 10.5 }}>{cx < 0 ? "▼" : "▲"} {Math.abs(pu.f(cx) - pu.f(0)).toFixed(pu.d)}</span> : null}
-                  </div>
-                  <div style={{ flex: 1.9, minWidth: 0 }}>{num("Pressure", pcls(ps[i]!), fv("press", (a.tyre_pressure_psi as number[])[i], u), pu.u, pd)}</div>
-                  <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>{num("Core", pcls(ts[i]!), fv("temp", coreT(a, i, cap), u), tu, ts[i] === "ok" ? "" : STATE_WORD[ts[i]!] ?? "", true)}</div>
-                  <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>{opts.brakes ? num("Brake", pcls(bs[i]!), fv("temp", (a.brake_temp_c as number[])[i], u), tu, bs[i] === "ok" ? "" : STATE_WORD[bs[i]!] ?? "", true) : null}</div>
+                <div className={"dk " + k} key={i} role="button" tabIndex={0} title="Click for the next figure" onClick={() => setPick((n) => (n + 1) % ord.length)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPick((n) => (n + 1) % ord.length); } }}
+                  style={{ padding: line ? "2px 10px" : "6px 10px", gap: line ? 2 : 3, justifyContent: line ? "space-between" : "center", flexDirection: line ? "row" : "column", alignItems: line ? "center" : undefined, minWidth: 0, overflow: "hidden", cursor: "pointer" }}>
+                  <div style={{ height: 16, lineHeight: "16px", whiteSpace: "nowrap", overflow: "hidden", flex: "none" }}><span className="lab" style={{ color: "var(--t2)" }}>{size.h >= 5 ? NAMES[i] : CORNERS[i]}</span>{opts.corrections && size.h >= 6 && sc0 != null ? <span className="v ac">set {fv("press", sc0, u)}{cx != null && Math.abs(cx) >= 0.05 ? <span className={cx < 0 ? "dn" : "up"}> {cx < 0 ? "▼" : "▲"} {Math.abs(pu.f(cx) - pu.f(0)).toFixed(pu.d)}</span> : null}</span> : null}</div>
+                  <span className={"big " + pcls(first!.st)} style={{ display: "block", flex: "none", height: Math.round(fs * 1.15), fontSize: fs, whiteSpace: "nowrap", lineHeight: 1.15, overflow: "hidden" }}><span style={{ display: "inline-block", minWidth: first!.name === "press" ? "3.4ch" : "3ch" }}>{first!.v}</span><span className="u" style={{ fontSize: 11, marginLeft: 3 }}>{first!.unit}</span>{size.h < 7 ? <span className="lab" style={{ marginLeft: 5, fontSize: 9 }}>{first!.name}</span> : null}{size.h >= 7 ? <span className="v" style={{ display: "inline-block", minWidth: "6.2em", fontSize: 11, marginLeft: 6 }}>{first!.tag}</span> : null}</span>
+                  {line ? null : <div style={{ display: "flex", justifyContent: "space-between", gap: 4, whiteSpace: "nowrap", alignItems: "baseline", height: 16, flex: "none", minWidth: 0 }}>
+                    {rest.map((x, j) => (j === 0 || size.h >= 5 ? <span key={x.name} className={"v " + pcls(x.st)} style={{ fontSize: 11 }}><span className="lab" style={{ fontSize: 8.5, marginRight: 3 }}>{x.name}</span><span style={{ display: "inline-block", minWidth: x.name === "press" ? "3.4ch" : "3ch", textAlign: "right" }}>{x.v}</span></span> : null))}
+                  </div>}
                 </div>
               );
             })}
@@ -212,39 +214,29 @@ export const tyres = defineModule({
         ),
       };
     }
-    if (!large) {
-      return {
-        flush: true, alert, info: [`SET ${r.session.tyre_set || NONE}`],
-        body: (
-          <table className="t">
-            <thead><tr><th className="l">Corner</th><th>{pu.u}</th><th>Core °{tu.replace("°", "")}</th><th>Brake °{tu.replace("°", "")}</th><th>Set cold</th></tr></thead>
-            <tbody>
-              {CORNERS.map((n, i) => (
-                <tr key={n}><td className="l">{n}</td><td className={pcls(ps[i]!)}>{fv("press", (a.tyre_pressure_psi as number[])[i], u)}{stateGlyph(ps[i]!)}</td><td className={pcls(ts[i]!)}>{fv("temp", coreT(a, i, cap), u)}</td><td className={pcls(bs[i]!)}>{fv("temp", (a.brake_temp_c as number[])[i], u)}</td><td className="ac">{setCold(i) != null ? fv("press", setCold(i), u) : NONE}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        ),
-      };
-    }
-    const row = (label: string, val: string, unitS: string, g: React.ReactNode, tail: React.ReactNode) => (
-      <div className="fc" style={{ gap: 4 }}><div className="f" style={{ gap: 8 }}><span className="lab" style={{ width: 40 }}>{label}</span><span className="v" style={{ fontSize: 12.5 }}>{val}<span className="u">{unitS}</span></span><span style={{ marginLeft: "auto" }}>{tail}</span></div>{g}</div>
+    const row = (label: string, val: string, unitS: string, g: React.ReactNode, tail: React.ReactNode, first = false) => (
+      <div className="fc" style={{ gap: 2 }}><div className="f" style={{ gap: 8, alignItems: "baseline" }}><span className="lab" style={{ width: 40 }}>{label}</span><span className="v" style={{ fontSize: first ? 18 : 12.5 }}><span style={{ display: "inline-block", minWidth: "4.2ch", textAlign: "right" }}>{val}</span><span className="u">{unitS}</span>{tail}</span></div>{g}</div>
     );
     return {
       flush: true, alert,
-      info: [`SET ${r.session.tyre_set || NONE}${lapsOn != null ? ` · ${lapsOn} LAPS` : ""}`, `HOT ${fv("press", lo, u)}–${fv("press", hi, u)}`],
+      info: [`SET ${r.session.tyre_set || NONE}${lapsOn != null ? ` · ${lapsOn} LAPS` : ""}`, `${fv("press", lo, u)}–${fv("press", hi, u)} ${pu.u}`],
       body: (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
           {[0, 1, 2, 3].map((i) => {
             const front = i < 2, core = coreT(a, i, cap), pr = (a.tyre_pressure_psi as number[])[i]!, bt = (a.brake_temp_c as number[])[i]!;
             const bw = c.th.brake_c[front ? "front" : "rear"] ?? c.th.brake_c.front, [blo, bhi] = bw;
-            const cx = corr(i), sc0 = setCold(i), dd = pr - mid;
+            const cx = corr(i), sc0 = setCold(i);
             return (
-              <div className="dk" key={i} style={{ padding: "7px 12px", gap: 6, justifyContent: "space-between" }}>
+              <div className="dk" key={i} style={{ padding: "5px 10px", gap: 3, justifyContent: "space-between" }}>
                 <div><span className="lab" style={{ color: "var(--t2)" }}>{NAMES[i]}</span>{opts.corrections && sc0 != null ? <span className="v ac">set {fv("press", sc0, u)} <span className={cx! < 0 ? "dn" : "up"}>{Math.abs(cx!) < 0.05 ? "" : `${cx! < 0 ? "▼" : "▲"} ${Math.abs(pu.f(cx!) - pu.f(0)).toFixed(pu.d)}`}</span></span> : null}</div>
-                {row("Press", fv("press", pr, u), pu.u, <Gz v={pr} lo={lo} hi={hi} min={lo - 2} max={hi + 2.5} cls={ps[i] === "ok" ? "" : "w"} />, <span className={"v " + (ps[i] === "ok" ? "di" : pcls(ps[i]!))} style={{ whiteSpace: "nowrap" }}>{ps[i] === "ok" ? "ok" : `${dd > 0 ? "▲ +" : "▼ " + MINUS}${Math.abs(pu.f(dd) - pu.f(0)).toFixed(pu.d)}`}</span>)}
-                {row("Core", fv("temp", core, u), tu, <Gz v={core} lo={tlo} hi={thi} min={Math.max(0, tlo - 30)} max={thi + 30} cls={ts[i] === "ok" ? "" : "w"} />, <span className={"v " + (ts[i] === "ok" ? "di" : pcls(ts[i]!))} style={{ whiteSpace: "nowrap" }}>{ts[i] === "ok" ? "ok" : STATE_WORD[ts[i]!] ?? ""}</span>)}
-                {opts.brakes ? row("Brake", fv("temp", bt, u), tu, <Gz v={bt} lo={blo} hi={bhi - 100} min={0} max={bhi + 150} cls={bs[i] === "ok" ? "" : "w"} />, <span className={"v " + (bs[i] === "ok" ? "di" : pcls(bs[i]!))} style={{ whiteSpace: "nowrap" }}>{bs[i] === "ok" ? "ok" : STATE_WORD[bs[i]!] ?? ""}</span>) : null}
+                {(() => {
+                  const rows: Record<string, (f: boolean) => ReactNode> = {
+                    press: (f) => row("Press", fv("press", pr, u), pu.u, <Gz v={pr} lo={lo} hi={hi} min={lo - 2} max={hi + 2.5} cls={ps[i] === "ok" ? "" : "w"} />, null, f),
+                    temp: (f) => row("Core", fv("temp", core, u), tu, <Gz v={core} lo={tlo} hi={thi} min={Math.max(0, tlo - 30)} max={thi + 30} cls={ts[i] === "ok" ? "" : "w"} />, null, f),
+                    brake: (f) => row("Brake", fv("temp", bt, u), tu, <Gz v={bt} lo={blo} hi={bhi - 100} min={0} max={bhi + 150} cls={bs[i] === "ok" ? "" : "w"} />, null, f),
+                  };
+                  return (bigFirst === "temp" ? ["temp", "press", "brake"] : ["press", "temp", "brake"]).filter((x) => x !== "brake" || opts.brakes).map((x, n) => <Fragment key={x}>{rows[x]!(n === 0)}</Fragment>);
+                })()}
               </div>
             );
           })}
@@ -257,7 +249,7 @@ export const tyres = defineModule({
 // ---------- tyre history ----------
 export const tyreHistory = defineModule({
   type: "tyre-history", title: "Tyre history", group: "Car", blurb: "Pressures and core temperatures at the line, lap by lap.",
-  size: { w: 8, h: 11, minW: 4, minH: 6 }, needs: ["laps", "units", "config"],
+  size: { w: 6, h: 11, minW: 4, minH: 6, maxW: 6 }, needs: ["laps", "units", "config"],
   view({ ctx: c, size }) {
     const p = usePrefs(), u = p.units;
     const L = c.laps.filter((l) => Array.isArray(l.psi));
@@ -269,7 +261,7 @@ export const tyreHistory = defineModule({
       flush: true,
       info: [large ? "AT THE LINE, LAP BY LAP" : `${unit("press", u).u.toUpperCase()} AT THE LINE`],
       body: large ? (
-        <table className="t">
+        <table className="t ctr">
           <thead>
             <tr><th /><th colSpan={4} style={bl}>Pressure {unit("press", u).u}</th><th colSpan={4} style={bl}>Core temperature {unit("temp", u).u}</th><th style={bl} /></tr>
             <tr><th>Lap</th>{CORNERS.map((x, i) => <th key={"p" + x} style={i ? undefined : bl}>{x}</th>)}{CORNERS.map((x, i) => <th key={"t" + x} style={i ? undefined : bl}>{x}</th>)}<th style={bl}>Set</th></tr>
@@ -280,8 +272,8 @@ export const tyreHistory = defineModule({
               return (
                 <tr key={l.n} className={k === 0 ? "cur" : undefined}>
                   <td className="mu">{l.n}</td>
-                  {(l.psi as number[]).map((x, i) => { const s = pressState(x, cx); return <td key={"p" + i} className={pcls0(s)} style={i ? undefined : bl}>{fv("press", x, u)}{stateGlyph(s)}</td>; })}
-                  {((l.core as number[] | undefined) ?? []).map((t, i) => { const s = tyreState(t, cx); return <td key={"t" + i} className={pcls0(s)} style={i ? undefined : bl}>{fv("temp", t, u)}{stateGlyph(s)}</td>; })}
+                  {(l.psi as number[]).map((x, i) => { const s = pressState(x, cx); return <td key={"p" + i} className={pcls0(s)} style={i ? undefined : bl}>{fv("press", x, u)}</td>; })}
+                  {((l.core as number[] | undefined) ?? []).map((t, i) => { const s = tyreState(t, cx); return <td key={"t" + i} className={pcls0(s)} style={i ? undefined : bl}>{fv("temp", t, u)}</td>; })}
                   <td style={bl}>{l.wet ? "W" : ""}{nf(l.set, 0)}</td>
                 </tr>
               );
@@ -289,12 +281,12 @@ export const tyreHistory = defineModule({
           </tbody>
         </table>
       ) : (
-        <table className="t">
+        <table className="t ctr">
           <thead><tr><th>Lap</th>{CORNERS.map((x) => <th key={x}>{x}</th>)}<th>Set</th></tr></thead>
           <tbody>
             {rows.map((l, k) => {
               const cx = { th: c.th, wet: !!l.wet, fuelLowLaps: 3 };
-              return <tr key={l.n} className={k === 0 ? "cur" : undefined}><td className="mu">{l.n}</td>{(l.psi as number[]).map((x, i) => { const s = pressState(x, cx); return <td key={i} className={pcls0(s)}>{fv("press", x, u)}{stateGlyph(s)}</td>; })}<td>{nf(l.set, 0)}</td></tr>;
+              return <tr key={l.n} className={k === 0 ? "cur" : undefined}><td className="mu">{l.n}</td>{(l.psi as number[]).map((x, i) => { const s = pressState(x, cx); return <td key={i} className={pcls0(s)}>{fv("press", x, u)}</td>; })}<td>{nf(l.set, 0)}</td></tr>;
             })}
           </tbody>
         </table>
@@ -307,36 +299,47 @@ const pcls0 = (s: State) => (s === "ok" ? "" : s === "bad" ? "up" : s === "cold"
 // ---------- brakes ----------
 export const brakes = defineModule({
   type: "brakes", title: "Brakes", group: "Car", blurb: "Pad and disc thickness, wear per lap, laps left on the pads, and temperatures.",
-  size: { w: 4, h: 6, minW: 3, minH: 5 }, needs: ["reading", "summary", "config", "units"], requires: ["reading"],
+  size: { w: 4, h: 6, minW: 2, minH: 3, maxW: 5, maxH: 7 }, needs: ["reading", "summary", "config", "units"], requires: ["reading"],
   view({ ctx: c, size }) {
     const p = usePrefs(), u = p.units, ctx = sc(c);
+    const [flip, setFlip] = useState(false);
     const a = c.r!.car, stint = (c.s?.stint as Json[] | undefined) ?? [];
     const first = stint.length ? stint[0]!.pads : null, last = stint.length ? stint[stint.length - 1]!.pads : null, low = c.th.pad_low_mm;
     const wear = (i: number): number | null => (first && last && stint.length > 1 ? (first[i] - last[i]) / (stint.length - 1) : null);
     const pads = a.brake_pad_mm as number[], temps = a.brake_temp_c as number[], disc = a.brake_disc_mm as number[];
     const tstate = (t: number, i: number) => brakeState(t, i < 2 ? "front" : "rear", ctx);
-    const large = size.w >= 4 && size.h >= 6;
     const left = (i: number) => { const w = wear(i); return w != null && w > 0 ? Math.floor((pads[i]! - low) / w) : null; };
+    const full = size.h >= 8, line = size.h < 5, fs = size.h >= 7 ? (size.w >= 4 ? 24 : 22) : size.h >= 5 ? 20 : 16;
     return {
       flush: true,
-      info: [large ? "PADS AND DISCS" : "PADS"],
+      info: ["PADS AND DISCS"],
       alert: [Math.max(...pads.map((v) => (padState(v, ctx) === "bad" ? 2 : 0)), ...temps.map((t, i) => { const s = tstate(t, i); return s === "bad" ? 2 : s === "warn" ? 1 : 0; }))],
       body: (
-        <table className="t">
-          <thead><tr><th className="l">Corner</th><th>Pad mm</th>{large ? <><th>Disc mm</th><th>Wear /lap</th></> : null}<th>Laps left</th><th>{large ? `Temp °${unit("temp", u).u.replace("°", "")}` : "Temp"}</th></tr></thead>
-          <tbody>
-            {CORNERS.map((n, i) => {
-              const ps = padState(pads[i]!, ctx), ts = tstate(temps[i]!, i), lf = left(i);
-              return (
-                <tr key={n}>
-                  <td className="l">{large ? NAMES[i] : n}</td><td className={pcls0(ps)}>{nf(pads[i], 1)}{stateGlyph(ps)}</td>
-                  {large ? <><td>{nf(disc[i], 1)}</td><td>{wear(i) != null ? nf(wear(i), 2) : NONE}</td></> : null}
-                  <td className={lf != null && lf < 20 ? "wn" : ""}>{lf ?? NONE}</td><td className={pcls0(ts)}>{fv("temp", temps[i], u)}{stateGlyph(ts)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: line ? "1fr 1fr" : "auto auto", alignContent: line ? "stretch" : "start", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
+          {[0, 1, 2, 3].map((i) => {
+            const ps = padState(pads[i]!, ctx), ts = tstate(temps[i]!, i), lf = left(i);
+            const k = ps === "bad" || ts === "bad" ? "b" : ps === "warn" || ts === "warn" || ts === "cold" ? "w" : "o";
+            return (
+              <div className={"dk " + k} key={i} role="button" tabIndex={0} title="Click for the other figure" onClick={() => setFlip((f) => !f)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFlip((f) => !f); } }}
+                style={{ padding: line ? "2px 10px" : "6px 10px", gap: line ? 2 : 3, justifyContent: line ? "space-between" : "center", flexDirection: line ? "row" : "column", alignItems: line ? "center" : undefined, minWidth: 0, overflow: "hidden", cursor: "pointer" }}>
+                <div style={{ height: line ? undefined : 16, lineHeight: "16px", whiteSpace: "nowrap", overflow: "hidden", flex: "none" }}><span className="lab" style={{ color: "var(--t2)" }}>{size.h >= 5 ? NAMES[i] : CORNERS[i]}</span>{!line && lf != null ? <span className={"v " + (lf < 20 ? "wn" : "di")}>{lf} laps left</span> : null}</div>
+                {(() => {
+                  const padV = <><span style={{ display: "inline-block", minWidth: "3.4ch" }}>{nf(pads[i], 1)}</span><span className="u" style={{ fontSize: 11, marginLeft: 3 }}>mm pad</span></>;
+                  const tmpV = <><span style={{ display: "inline-block", minWidth: "3ch" }}>{fv("temp", temps[i], u)}</span><span className="u" style={{ fontSize: 11, marginLeft: 3 }}>{unit("temp", u).u} disc</span></>;
+                  const tempFirst = flip ? !(c.mode === "best") : ps === "bad" ? false : ts === "bad" ? true : c.mode === "best";
+                  const [P, S] = tempFirst ? [[tmpV, pcls0(ts)], [padV, pcls0(ps)]] as const : [[padV, pcls0(ps)], [tmpV, pcls0(ts)]] as const;
+                  return <>
+                    <span className={"big " + P[1]} style={{ display: "block", flex: "none", height: line ? undefined : Math.round(fs * 1.15), fontSize: fs, whiteSpace: "nowrap", lineHeight: 1.15, overflow: "hidden" }}>{P[0]}</span>
+                    {line ? null : <div style={{ display: "flex", justifyContent: "space-between", gap: 4, whiteSpace: "nowrap", alignItems: "baseline", height: 16, flex: "none" }}>
+                      <span className={"v " + S[1]} style={{ fontSize: 12 }}>{S[0]}</span>
+                      {full ? <span className="v di" style={{ fontSize: 11 }}>disc {nf(disc[i], 1)} mm{wear(i) != null ? ` · ${nf(wear(i), 2)}/lap` : ""}</span> : null}
+                    </div>}
+                  </>;
+                })()}
+              </div>
+            );
+          })}
+        </div>
       ),
     };
   },
@@ -345,10 +348,10 @@ export const brakes = defineModule({
 // ---------- electronics ----------
 export const electronics = defineModule({
   type: "electronics", title: "Electronics", group: "Car", blurb: "Brake bias, TC, ABS, engine map, lights and wipers.",
-  size: { w: 4, h: 5, minW: 3, minH: 4 }, needs: ["reading"], requires: ["reading"],
+  size: { w: 4, h: 4, minW: 3, minH: 3, maxW: 5, maxH: 4 }, needs: ["reading"], requires: ["reading"],
   view({ ctx: c, size }) {
     const a = c.r!.car, s = c.r!.session;
-    const large = size.w >= 4 && size.h >= 5;
+    const large = size.w >= 4 && size.h >= 4;
     const cell = (l: string, v: ReactNode) => <div className="c" key={l}><span className="lab">{l}</span>{large ? <span className="big">{v}</span> : <span className="mid">{v}</span>}</div>;
     const bb = a.brake_bias != null ? <>{nf(a.brake_bias, 1)}{large ? <span className="u">%</span> : null}</> : NONE;
     return {
@@ -389,15 +392,15 @@ function DamageCards({ dmg, sus }: { dmg: number[]; sus: number[] }) {
 
 export const damage = defineModule({
   type: "damage", title: "Damage and engine", group: "Car", blurb: "Bodywork and suspension damage, water and exhaust temperature.",
-  size: { w: 4, h: 6, minW: 3, minH: 5 }, needs: ["reading", "config", "units"], requires: ["reading"],
+  size: { w: 4, h: 6, minW: 2, minH: 3, maxW: 5, maxH: 6 }, needs: ["reading", "config", "units"], requires: ["reading"],
   options: [{ key: "view", label: "View", type: "select", choices: [["auto", "Auto"], ["cards", "Cards"], ["table", "Table"]], def: "auto" }],
   view({ ctx: c, opts, size }) {
     const p = usePrefs(), u = p.units;
     const a = c.r!.car, dmg = ((a.damage as number[] | undefined) ?? []).slice(0, 5), sus = (a.suspension_damage as number[] | undefined) ?? [];
     const bs = dmg.map((v) => bodyState(v)), ss = sus.map((v) => suspState(v)), any = [...bs, ...ss].some((s) => s === "warn" || s === "bad"), ws = waterState(a.water_temp_c, sc(c));
-    const mode = opts.view === "auto" ? (size.w >= 4 && size.h >= 6 ? "cards" : "table") : (opts.view as string);
+    const mode = opts.view === "auto" ? "cards" : (opts.view as string);
     const tu = unit("temp", u).u;
-    const water = <><span className={stCls(ws)}>{fv("temp", a.water_temp_c, u)}{stateGlyph(ws)}</span><span className="u"> {tu}</span></>;
+    const water = <><span className={stCls(ws)}>{fv("temp", a.water_temp_c, u)}</span><span className="u"> {tu}</span></>;
     const exhaust = <>{fv("temp", a.exhaust_temp_c, u)}<span className="u"> {tu}</span></>;
     const cls = (s: State) => (s === "bad" ? "up" : s === "warn" ? "wn" : "");
     const zoneRows: [string, number, number][] = [["Front", dmg[0] ?? 0, sus[0] ?? 0], ["Rear", dmg[1] ?? 0, sus[2] ?? 0], ["Left", dmg[2] ?? 0, sus[1] ?? 0], ["Right", dmg[3] ?? 0, sus[3] ?? 0]];
@@ -408,7 +411,7 @@ export const damage = defineModule({
       body: mode === "cards" ? (
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
           <DamageCards dmg={dmg} sus={sus} />
-          <div className="fc" style={{ width: 170, flex: "none", padding: 8 }}><span className="lab">Engine</span><div><div className="r"><span>Water</span><span>{water}</span></div><div className="r"><span>Exhaust</span><span>{exhaust}</span></div></div></div>
+          {size.w >= 4 ? <div className="fc" style={{ width: 170, flex: "none", padding: 8 }}><span className="lab">Engine</span><div><div className="r"><span>Water</span><span>{water}</span></div><div className="r"><span>Exhaust</span><span>{exhaust}</span></div></div></div> : null}
         </div>
       ) : (
         <table className="t">

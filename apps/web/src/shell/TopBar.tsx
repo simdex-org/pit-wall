@@ -4,7 +4,6 @@ import { feed, sessionLabel } from "../feed/store";
 import { useFeed } from "../feed/useFeed";
 import { fmtClock, NONE, plural } from "../lib/format";
 import { Icon } from "../lib/icons";
-import { useAlerts } from "../state/alerts";
 import { editor, useEditor } from "../state/editor";
 import { nav, useNav } from "../state/nav";
 import { ui } from "../state/ui";
@@ -12,18 +11,11 @@ import { toggleEdit } from "./useShortcuts";
 import { isBuiltin, templates } from "../state/templates";
 import { registry } from "../engine/registry";
 
-// Which advice concerns which modules, so a tab can badge the lines that are about its own workspace.
-const ADVICE_MODULES: Record<string, string[]> = {
-  press_front: ["tyres", "press-fix"], press_rear: ["tyres", "press-fix"], tyres_cold: ["tyres"], brakes_hot: ["brakes", "tyres"], pads_low: ["brakes"],
-  fuel_box: ["race-plan", "fuel", "fuel-calc"], fuel_low: ["race-plan", "fuel", "fuel-calc"], fuel_flag: ["race-plan", "fuel", "fuel-calc"],
-  damage: ["damage"], rain_coming: ["weather"], window_closing: ["rules", "race-plan"], stint_limit: ["rules"], penalty: ["flags"],
-};
-
 function LinkChip() {
   const up = useLink();
   const c = useFeed();
   const age = c.ages.r;
-  const [state, text] = !up ? ["off", "OFFLINE"] : c.live ? ["live", "LIVE"] : age != null && age < 600000 ? ["stale", `STALE ${Math.round(age / 1000)} s`] : ["off", "OFFLINE"];
+  const [state, text] = !up ? ["off", "Offline"] : c.live ? ["live", "Live"] : age != null && age < 600000 ? ["stale", `Stale ${Math.round(age / 1000)} s`] : ["off", "Offline"];
   return <span id="link" role="status" data-state={state} title={text}>{text}</span>;
 }
 
@@ -49,25 +41,11 @@ function SessionPicker() {
 function Tabs() {
   const { tpl, wsId } = useNav();
   const c = useFeed();
-  const alerts = useAlerts();
   const ed = useEditor();
-  const advice: { id: string; severity: number }[] = c.s?.advice ?? [];
-
-  const badge = (w: (typeof tpl.workspaces)[number]): [number, number] => {
-    const types = new Set(w.modules.filter((m) => !m.hidden).map((m) => m.type));
-    const ids = new Set<string>();
-    let level = 0;
-    for (const a of advice) {
-      if (a.severity >= 1 && (ADVICE_MODULES[a.id] ?? []).some((t) => types.has(t))) { level = Math.max(level, a.severity); ids.add(a.id); }
-    }
-    if (w.id === wsId) for (const m of w.modules) level = Math.max(level, alerts.get(m.id)?.[0] ?? 0); // the open workspace's own modules may raise the level, never the number
-    return [level, ids.size];
-  };
 
   return (
     <nav id="tabs" role="tablist" aria-label="Workspaces">
       {tpl.workspaces.map((w, i) => {
-        const [level, n] = badge(w);
         return (
           <span className="tabw" key={w.id}>
             <button type="button" role="tab" id={`tab-${w.id}`} aria-selected={w.id === wsId} tabIndex={w.id === wsId ? 0 : -1} title={`${w.name} (${i + 1})`}
@@ -79,7 +57,6 @@ function Tabs() {
                 nav.stepWorkspace(d);
               }}>
               {w.name}
-              <span className={`tab-alert ${level >= 2 ? "s-bad" : "s-warn"}`} hidden={!level} aria-label={n ? plural(n, "alert") : "a module reports a problem"}>{level ? (level >= 2 ? "■" : "▲") + (n || "") : ""}</span>
             </button>
             {ed.active ? <WsMenu wsId={w.id} count={tpl.workspaces.length} /> : null}
           </span>
@@ -156,7 +133,7 @@ function Brand() {
         <path d="M21 42H26L29 34L33.5 50L37 39H43" fill="none" stroke="var(--acc)" strokeWidth="3" strokeLinejoin="round" />
         <path d="M13 50Q13 58 24 58" fill="none" stroke="currentColor" strokeWidth="3" /><circle cx="27" cy="58" r="3.5" fill="currentColor" />
       </svg>
-      <span className="wordmark">PIT WALL</span>
+      <span className="wordmark">Pit Wall</span>
     </span>
   );
 }

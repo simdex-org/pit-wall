@@ -19,8 +19,32 @@ const Delta = ({ ms, cls = "co-dv" }: { ms: number; cls?: string }) => <span cla
 function ZoneCanvas({ rep, r, sp }: { rep: Report; r: CornerReport; sp: (v: number) => number }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const bench = recorder.lapById(r.bench);
-  useEffect(() => { if (cv.current && bench?.data) drawZone(cv.current, rep.subject.data, bench.data, r.corner, sp); });
-  return <div className="cv" style={{ height: 96, flex: "none" }}><canvas ref={cv} aria-label={`${r.name}: speed and pedals, benchmark against this lap`} /></div>;
+  const { start, end, apex } = r.corner, [rng, setRng] = useState<[number, number] | null>(null), cur = useRef<[number, number]>([start, end]), drag = useRef<[number, number, number] | null>(null);
+  useEffect(() => setRng(null), [start, end]);
+  const [lo, hi] = rng ?? [start, end];
+  cur.current = [lo, hi];
+  const limits = useRef<[number, number]>([start, end]);
+  limits.current = [start, end];
+  useEffect(() => { if (cv.current && bench?.data) drawZone(cv.current, rep.subject.data, bench.data, { start: lo, end: hi, apex }, sp); });
+  useEffect(() => {
+    const el = cv.current!, wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const [s0, e0] = limits.current, [a, b] = cur.current, b0 = el.getBoundingClientRect(), u = (e.clientX - b0.left) / b0.width;
+      const span = Math.min(e0 - s0, Math.max(8, (b - a) * Math.exp(Math.max(-100, Math.min(100, e.deltaY)) * 0.002))), nlo = Math.min(e0 - span, Math.max(s0, a + u * (b - a) - u * span));
+      setRng([nlo, nlo + span]);
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, []);
+  const zoomed = hi - lo < end - start - 0.5;
+  return (
+    <div className="cv" style={{ height: 96, flex: "none" }}>
+      <canvas ref={cv} aria-label={`${r.name}: speed and pedals, benchmark against this lap`}
+        onPointerDown={(e) => { drag.current = [e.clientX, lo, hi]; e.currentTarget.setPointerCapture(e.pointerId); }} onPointerUp={() => { drag.current = null; }}
+        onPointerMove={(e) => { const d = drag.current; if (!d || !zoomed) return; const span = d[2] - d[1], w = cv.current!.getBoundingClientRect().width, nlo = Math.min(end - span, Math.max(start, d[1] - ((e.clientX - d[0]) / w) * span)); setRng([nlo, nlo + span]); }} />
+      {zoomed ? <button type="button" className="btn sm" style={{ position: "absolute", top: 2, right: 2, zIndex: 1 }} onClick={() => setRng(null)}>×{((end - start) / (hi - lo)).toFixed(1)} · reset</button> : null}
+    </div>
+  );
 }
 
 function Detail({ rep, r, sp, su, best }: { rep: Report; r: CornerReport; sp: (v: number) => number; su: string; best: boolean }) {

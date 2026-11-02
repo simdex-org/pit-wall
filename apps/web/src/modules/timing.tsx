@@ -3,7 +3,7 @@ import { defineModule } from "../engine/registry";
 import type { Ctx } from "../feed/store";
 import type { Car } from "../feed/types";
 import { carName } from "../lib/cars";
-import { FLAGS, PENALTIES, PHASES } from "../lib/enums";
+import { FLAGS, PENALTIES, PHASES, SERVABLE } from "../lib/enums";
 import { clamp, fmtClock, fmtDelta, fmtGap, fmtLap, fmtRel, fmtSector, MINUS, nf, NONE, okMs, plural } from "../lib/format";
 import { fv, unit } from "../lib/units";
 import { editor } from "../state/editor";
@@ -109,8 +109,8 @@ function StandingsTable({ c, o, rows, cup, mine, race, cursor }: { c: Ctx; o: St
 
   return (
     <div ref={wrap}>
-      <table className="t">
-        <thead><tr><th>P</th><th>#</th><th className="l">Driver</th>{cols.map((k) => <Fragment key={k}>{head[k]}</Fragment>)}</tr></thead>
+      <table className="t fx" style={{ minWidth: 238 + 88 * (ncol - 3) }}>
+        <thead><tr><th className="s">P</th><th className="s">#</th><th className="l d">Driver</th>{cols.map((k) => <Fragment key={k}>{head[k]}</Fragment>)}</tr></thead>
         <tbody>
           {show.map((x, n) => x == null ? (
             <tr className="gaprow" key={"gap" + n}><td colSpan={ncol} className="di">⋯</td></tr>
@@ -185,7 +185,7 @@ function useLapTrend(c: Ctx, mine: Car | undefined): Map<number, number> {
 
 export const relative = defineModule({
   type: "relative", title: "Relative", group: "Timing", blurb: "The cars nearest to you on track, ahead and behind, in seconds.",
-  size: { w: 3, h: 8, minW: 3, minH: 5 }, needs: ["field", "entries", "reading", "focus"], requires: ["reading"], rate: 4,
+  size: { w: 3, h: 8, minW: 3, minH: 5, maxW: 5, maxH: 12 }, needs: ["field", "entries", "reading", "focus"], requires: ["reading"], rate: 4,
   options: [{ key: "rows", label: "Cars each side", type: "number", min: 2, max: 5, step: 1, def: 3 }, { key: "cls", label: "Class tags", type: "toggle", def: true }],
   view({ ctx: c, opts, size }) {
     const mine = c.me != null ? c.cars.get(c.me) : undefined;
@@ -225,8 +225,8 @@ export const relative = defineModule({
       info: large ? "TRACK ORDER" : `±${N}`,
       onKey: nav.onKey,
       body: (
-        <table className="t">
-          <thead><tr>{large ? <th>P</th> : null}<th>#</th><th className="l">Driver</th><th>Gap</th><th>Trend</th></tr></thead>
+        <table className="t fx" style={{ minWidth: (large ? 44 : 0) + 338 }}>
+          <thead><tr>{large ? <th className="s">P</th> : null}<th className="s">#</th><th className="l d">Driver</th><th>Gap</th><th>Trend</th></tr></thead>
           <tbody>
             {ahead.concat([mine], behind, pin ? [pin] : []).map((x) => {
               const t = trend.get(x.i), isAhead = (x.rel ?? 0) > 0;
@@ -287,7 +287,7 @@ function BattleCell({ label, car, gap, gl, hist, large, better }: { label: "Ahea
 
 export const battle = defineModule({
   type: "battle", title: "Battle", group: "Timing", blurb: "The car ahead and the car behind: interval and whether it is closing.",
-  size: { w: 4, h: 6, minW: 3, minH: 5 }, needs: ["field", "entries", "focus", "reading"], rate: 2,
+  size: { w: 3, h: 4, minW: 3, minH: 4, maxW: 3, maxH: 4 }, needs: ["field", "entries", "focus", "reading"], rate: 2,
   view({ ctx: c, size }) {
     if (c.mode === "best") return { state: { kind: "empty", msg: "Battles are tracked in races only." } };
     const ss = c.r?.session;
@@ -324,7 +324,7 @@ const NOW: Record<string, [string, string]> = { pit: ["IN BOX", "wn"], entry: ["
 
 export const pitActivity = defineModule({
   type: "pit-activity", title: "Pit lane", group: "Timing", blurb: "Who is in the pit lane now, and every car's stops so far.",
-  size: { w: 4, h: 8, minW: 3, minH: 5 }, needs: ["field", "entries"], requires: ["field"], rate: 2,
+  size: { w: 4, h: 8, minW: 3, minH: 5, maxW: 6, maxH: 12 }, needs: ["field", "entries"], requires: ["field"], rate: 2,
   view({ ctx: c, size }) {
     const F = c.field!;
     const seen = useRef(new Map<number, Seen>()).current;
@@ -348,8 +348,8 @@ export const pitActivity = defineModule({
       info: [`${now.length} IN LANE`, large ? `${stops} STOPS SO FAR` : ""],
       onKey: nav.onKey,
       body: (
-        <table className="t">
-          <thead><tr><th>#</th><th className="l">Driver</th><th className="l">Now</th><th>In lane</th>{large ? <><th>Stops</th><th>Last box</th></> : null}</tr></thead>
+        <table className="t fx" style={{ minWidth: 270 + 76 * (large ? 3 : 1) }}>
+          <thead><tr><th className="s">#</th><th className="l d">Driver</th><th className="l">Now</th><th>In lane</th>{large ? <><th>Stops</th><th>Last box</th></> : null}</tr></thead>
           <tbody>
             {rows.map((x) => {
               const e = seen.get(x.i), n = NOW[x.loc];
@@ -373,7 +373,7 @@ export const pitActivity = defineModule({
 // ---------- you vs the focus car ----------
 export const sectorCompare = defineModule({
   type: "sector-compare", title: "You vs focus", group: "Timing", blurb: "Your last and best lap against the focus car (or the car ahead), sector by sector.",
-  size: { w: 4, h: 8, minW: 3, minH: 6 }, needs: ["field", "entries", "focus", "laps"], requires: ["field"], rate: 2,
+  size: { w: 4, h: 6, minW: 3, minH: 6, maxW: 6, maxH: 7 }, needs: ["field", "entries", "focus", "laps"], requires: ["field"], rate: 2,
   view({ ctx: c, size }) {
     const mine = c.me != null ? c.cars.get(c.me) : undefined;
     if (!mine) return { state: { kind: "empty", msg: "Your car is not in the field yet." } };
@@ -419,7 +419,7 @@ export const sectorCompare = defineModule({
 // ---------- session ----------
 export const session = defineModule({
   type: "session", title: "Session", group: "Timing", blurb: "Car, class, track, session, time left and conditions.",
-  size: { w: 4, h: 7, minW: 3, minH: 5 }, needs: ["reading", "field", "entries", "tick"], requires: ["reading"],
+  size: { w: 4, h: 7, minW: 3, minH: 5, maxW: 5, maxH: 7 }, needs: ["reading", "field", "entries", "tick"], requires: ["reading"],
   view({ ctx: c, size }) {
     const p = usePrefs();
     const f = c.r!.fixed, s = c.r!.session, a = c.r!.car, st = c.st, len = c.entries?.track?.length_m || f.track_length_m;
@@ -456,41 +456,48 @@ export const session = defineModule({
 const GF: [string, string, string][] = [["yellow", "Y", "yellow"], ["y1", "S1", "yellow"], ["y2", "S2", "yellow"], ["y3", "S3", "yellow"], ["white", "White", "white"], ["green", "Green", "green"], ["chequered", "Chequered", "chequered"], ["red", "Red", "red"]];
 const FLAG_COL: Record<string, string> = { none: "var(--ok)", green: "var(--ok)", yellow: "var(--warn)", blue: "var(--cold)", white: "var(--tx)", red: "var(--bad)", black: "var(--t3)", chequered: "var(--tx)", orange: "var(--warn)" };
 
+const FLAG_NAME: Record<string, [name: string, meaning: string]> = {
+  none: ["Green", "Racing"], green: ["Green", "Racing"], yellow: ["Yellow", "Danger ahead: slow down, no overtaking"],
+  blue: ["Blue", "A faster car is behind: let it through"], white: ["White", "A slow car is ahead"], black: ["Black", "Report to the pits"],
+  chequered: ["Chequered", "The session is over"], penalty: ["Penalty", "You have a penalty to deal with"], orange: ["Orange", "Your car is damaged"], red: ["Red", "Session stopped"],
+};
+const PENALTY_NAME: Record<string, string> = { DT: "Drive-through", SG10: "10 s stop-and-go", SG20: "20 s stop-and-go", SG30: "30 s stop-and-go", DSQ: "Disqualification", "−BEST": "Best lap removed", TIME: "Time added after the race" };
+
 export const flags = defineModule({
   type: "flags", title: "Flags and penalties", group: "Timing", blurb: "The flag the driver sees, sector yellows, and any penalty to serve.",
-  size: { w: 4, h: 6, minW: 3, minH: 4 }, needs: ["reading", "summary"], requires: ["reading"],
-  view({ ctx: c, size }) {
+  size: { w: 3, h: 7, minW: 3, minH: 7, maxW: 4, maxH: 7 }, needs: ["reading", "summary"], requires: ["reading"],
+  view({ ctx: c }) {
     const s = c.r!.session, f = FLAGS[s.flag] ?? "none", gf = s.global_flags ?? {}, pen = s.penalty | 0, sp = c.s?.penalty;
-    const P = PENALTIES[pen] ?? ["?", "unknown penalty"];
-    const large = size.w >= 4 && size.h >= 5;
-    const word = f === "none" ? "GREEN" : f.toUpperCase();
+    const [code, why] = PENALTIES[pen] ?? ["?", "unknown penalty"];
+    const [word, meaning] = FLAG_NAME[f] ?? FLAG_NAME.none!;
     const col = FLAG_COL[f] ?? "var(--ok)";
-    const penText = pen ? <>{P[0]} {P[1]}{s.penalty_time_s > 0 ? ` · ${nf(s.penalty_time_s, 0)} s` : ""}{sp && sp.laps_left != null ? <b className="up"> · serve within {plural(sp.laps_left, "lap")}</b> : null}</> : "none to serve";
+    const servable = SERVABLE.includes(pen);
     const sector = (k: string, y: boolean) => (
-      <div className="fc" key={k} style={{ border: `1px solid ${y ? "var(--warn)" : "var(--ln)"}`, padding: 6 }}>
-        <span className={"lab" + (y ? " wn" : "")}>{k.toUpperCase()}</span><span className={"v" + (y ? " wn" : "")}>{y ? "▲ yellow" : "clear"}</span>
+      <div className="fc" key={k} style={{ flex: 1, border: `1px solid ${y ? "var(--warn)" : "var(--ln)"}`, padding: "3px 8px", gap: 1 }}>
+        <span className="lab">{k.toUpperCase()}</span><span className={"v" + (y ? " wn" : " mu")}>{y ? "▲ Yellow" : "Clear"}</span>
       </div>
     );
     return {
-      info: large ? ["SECTORS"] : [],
       alert: [pen ? 2 : gf.y1 || gf.y2 || gf.y3 || gf.yellow || f === "yellow" ? 1 : 0],
-      body: large ? (
+      body: (
         <>
-          <div className="f" style={{ gap: 16 }}>
-            <div style={{ width: 44, height: 44, background: col, flex: "none" }} />
-            <div className="fc"><span className="big" style={{ fontSize: 26 }}>{word}</span><span className="v mu">{f === "none" || f === "green" ? "Racing" : s.track_status || ""}</span></div>
-            <div className="sp" />
-            <div className="g3" style={{ gap: 6, width: 240 }}>{sector("s1", !!gf.y1)}{sector("s2", !!gf.y2)}{sector("s3", !!gf.y3)}</div>
+          <div className="f" style={{ gap: 12 }}>
+            <div style={{ width: 36, height: 36, background: col, flex: "none" }} aria-hidden="true" />
+            <div className="fc" style={{ gap: 2 }}><span className="big" style={{ fontSize: 20 }}>{word}</span><span className="v mu">{meaning}</span></div>
           </div>
           <div className="hr" />
-          <div className="fb"><span className="mu">Penalty</span><span className="v">{penText}</span></div>
+          <div className="lab">Sector yellows</div>
+          <div className="f" style={{ gap: 6 }}>{sector("s1", !!gf.y1)}{sector("s2", !!gf.y2)}{sector("s3", !!gf.y3)}</div>
+          <div className="hr" />
+          <div className="lab">Penalty</div>
+          {pen ? (
+            <div className="fc" style={{ gap: 2 }}>
+              <span className="v up" style={{ fontWeight: 600, fontSize: 15 }}>{PENALTY_NAME[code] ?? code}{s.penalty_time_s > 0 ? ` · ${nf(s.penalty_time_s, 0)} s` : ""}</span>
+              <span className="v mu">For {why}</span>
+              <span className="v">{sp && sp.laps_left != null ? <b className="up">Serve within {plural(sp.laps_left, "lap")}, in the pit lane</b> : servable ? "Serve it in the pit lane" : code === "DSQ" ? "You are out of the session" : "Nothing to serve"}</span>
+            </div>
+          ) : <span className="v">None</span>}
         </>
-      ) : (
-        <div className="f" style={{ gap: 12 }}>
-          <div style={{ width: 32, height: 32, background: col, flex: "none" }} />
-          <span className="big" style={{ fontSize: 20 }}>{word}</span><div className="sp" />
-          <span className="v mu">{pen ? penText : "No penalty"}</span>
-        </div>
       ),
     };
   },
@@ -502,7 +509,7 @@ const FLAG_SLACK = 60000;
 
 export const rules = defineModule({
   type: "rules", title: "Stint rules", group: "Timing", blurb: "Mandatory stops, the pit window and the driver stint limits.",
-  size: { w: 3, h: 4, minW: 3, minH: 4 }, needs: ["reading", "summary"], requires: ["reading"],
+  size: { w: 3, h: 4, minW: 3, minH: 4, maxW: 4, maxH: 5 }, needs: ["reading", "summary"], requires: ["reading"],
   view({ ctx: c }) {
     const s = c.r!.session, st = c.st, ml = st ? st.mandatory_left : null, w = st?.pit_window, lap = s.lap_number || s.completed_laps + 1;
     const total = s.total_laps > 0 ? s.total_laps : st && st.laps_to_go != null ? s.completed_laps + st.laps_to_go : 0;
@@ -537,7 +544,7 @@ const KPI_CHOICES: [string, string][] = [["session", "Session"], ["left", "Time 
 
 export const bigNumber = defineModule({
   type: "kpi", title: "Big number", group: "Timing", blurb: "One figure, large: for a driver-facing or second screen.",
-  size: { w: 2, h: 3, minW: 2, minH: 2 }, needs: ["reading", "summary", "field"],
+  size: { w: 2, h: 3, minW: 2, minH: 2, maxW: 3, maxH: 3 }, needs: ["reading", "summary", "field"],
   options: [{ key: "metric", label: "Figure", type: "select", choices: KPI_CHOICES, def: "pos" }, { key: "label", label: "Label (empty = the figure's name)", type: "text", def: "" }],
   view({ ctx: c, opts, size }) {
     const p = usePrefs();

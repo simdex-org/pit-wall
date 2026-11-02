@@ -128,7 +128,6 @@ function Frame({ inst, def, ctx, view, na, style, auto, edit }: { inst: ModuleIn
         {view.headExtra}<span className="mi">{Array.isArray(view.info) ? view.info.filter(Boolean).map((t, i) => <span key={i}>{t}</span>) : view.info ?? ""}</span>
         <span className="mhid" hidden={!pitTag}>{pitTag}</span>
         <span className="mtag" hidden={!stale}>{stale ? `${ctx.r?.session.in_pit_lane ? "◐ IN PIT, NO DATA " : "◐ STALE "}${Math.round(stale / 1000)} s` : ""}</span>
-        <span className={`malert ${level >= 2 ? "s-bad" : "s-warn"}`} hidden={!level}>{level >= 2 ? "■ CRIT" : "▲ WARN"}</span>
         {edit ? <EditButtons inst={inst} /> : <QuickView inst={inst} def={def} quick={view.quick} />}
         <span className="mtools">
           {(view.tools ?? def?.tools)?.map((t) => (

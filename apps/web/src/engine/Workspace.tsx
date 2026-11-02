@@ -90,7 +90,7 @@ function onEditPointer(e: React.PointerEvent): void {
   e.preventDefault();
   editor.select(m.id);
   const host = document.getElementById("ws")!, cs = getComputedStyle(host), gx = parseFloat(cs.columnGap) || 8, gy = parseFloat(cs.rowGap) || 8;
-  const cw = (host.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) - 11 * gx) / 12 + gx, rh = (parseFloat(cs.gridAutoRows) || 28) + gy;
+  const mr = mod.getBoundingClientRect(), cw = (mr.width + gx) / m.w, rh = (mr.height + gy) / m.h; // rows stretch to the window, so measure the cell
   const g = document.createElement("div");
   g.className = "ghost";
   g.setAttribute("aria-hidden", "true");
@@ -108,7 +108,7 @@ function onEditPointer(e: React.PointerEvent): void {
   const move = (ev: PointerEvent) => {
     const dx = Math.round((ev.clientX - x0) / cw), dy = Math.round((ev.clientY - y0) / rh);
     r = grip
-      ? { x: m.x, y: m.y, w: clamp(m.w + dx, s.minW, 12 - m.x), h: clamp(m.h + dy, s.minH, 60) }
+      ? { x: m.x, y: m.y, w: clamp(m.w + dx, s.minW, Math.min(12 - m.x, (s as { maxW?: number }).maxW ?? 12)), h: clamp(m.h + dy, s.minH, (s as { maxH?: number }).maxH ?? 60) }
       : { x: clamp(m.x + dx, 0, 12 - m.w), y: clamp(m.y + dy, 0, 199), w: m.w, h: m.h };
     show();
   };

@@ -61,7 +61,7 @@ export const laps = defineModule({
   type: "laps", title: "Laps", group: "Laps", blurb: "Every lap of the session by stint: times, sectors, fuel, position, marks; pick laps to compare.",
   size: { w: 8, h: 22, minW: 5, minH: 8 }, needs: ["laps", "rec", "sel", "focus", "summary"], rate: 2,
   options: [
-    { key: "who", label: "Whose laps", type: "select", choices: [["self", "Mine"], ["focus", "The focus car (when one is set)"], ["both", "Both, lap by lap (when a focus car is set)"]], def: "self" },
+    { key: "who", label: "Whose laps", hint: "The focus car and both need a focus car to be set.", type: "select", choices: [["self", "Mine"], ["focus", "Focus car"], ["both", "Both, lap by lap"]], def: "self" },
     { key: "onlyStint", label: "This stint only", type: "toggle", def: false },
   ],
   view({ ctx: c, opts, id, size }) {
@@ -194,7 +194,7 @@ export const laps = defineModule({
 
 // ---------- debrief ----------
 export const debrief = defineModule({
-  type: "debrief", title: "Debrief", group: "Laps", blurb: "The engineer's notes on the last laps.", size: { w: 4, h: 12, minW: 3, minH: 6 },
+  type: "debrief", title: "Debrief", group: "Laps", blurb: "The engineer's notes on the last laps.", size: { w: 4, h: 12, minW: 3, minH: 6, maxW: 6, maxH: 14 },
   needs: ["summary"],
   view({ ctx, size }) {
     const laps = ((ctx.s?.debrief as Json[] | undefined) ?? []).slice().reverse();
@@ -225,7 +225,7 @@ export const debrief = defineModule({
 // ---------- lap picker ----------
 export const lapPicker = defineModule({
   type: "lap-picker", title: "Lap picker", group: "Analysis", blurb: "Every lap with a trace (bridge, this page, imported): pick REF and CMP.",
-  size: { w: 3, h: 22, minW: 3, minH: 8 }, multi: false, needs: ["rec", "laps", "sel"],
+  size: { w: 2, h: 22, minW: 2, minH: 8, maxW: 3 }, multi: false, needs: ["rec", "laps", "sel"],
   view({ ctx: c, size }) {
     const sel = useSelection();
     const file = useRef<HTMLInputElement>(null);
@@ -259,8 +259,8 @@ export const lapPicker = defineModule({
       body: (
         <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
           <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-            <table className="t">
-              <thead><tr><th>Lap</th><th>Time</th>{large ? <th className="l">From</th> : null}<th style={{ width: 52, textAlign: "center" }}>REF</th><th style={{ width: 52, textAlign: "center" }}>CMP</th></tr></thead>
+            <table className="t lp">
+              <thead><tr><th>Lap</th><th>Time</th>{large ? <th className="l">From</th> : null}<th style={{ width: 40, textAlign: "center" }}>REF</th><th style={{ width: 40, textAlign: "center" }}>CMP</th></tr></thead>
               <tbody>
                 {rows.map((l) => (
                   <tr key={l.id}>

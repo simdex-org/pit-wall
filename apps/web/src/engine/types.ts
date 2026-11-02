@@ -59,7 +59,7 @@ export interface ModuleDef {
   title: string;
   group: string;
   blurb: string;
-  size: { w: number; h: number; minW: number; minH: number };
+  size: { w: number; h: number; minW: number; minH: number; maxW?: number; maxH?: number };
   multi: boolean;
   needs: Channel[];
   requires: Channel[];

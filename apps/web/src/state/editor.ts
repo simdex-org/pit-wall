@@ -171,7 +171,7 @@ class Editor {
     const m = this.find(id);
     if (!m) return false;
     const def = registry.get(m.type), s = def ? def.size : { minW: 1, minH: 1 };
-    if (x < 0 || y < 0 || y > 199 || w < s.minW || h < s.minH || x + w > 12 || h > 60) return false;
+    if (x < 0 || y < 0 || y > 199 || w < s.minW || h < s.minH || x + w > 12 || h > 60 || w > ((s as { maxW?: number }).maxW ?? 12) || h > ((s as { maxH?: number }).maxH ?? 60)) return false;
     if (overlaps(this.ws.modules, m, x, y, w, h)) return false;
     if (m.x === x && m.y === y && m.w === w && m.h === h) return false;
     return this.change((_, ws) => { Object.assign(ws.modules.find((q) => q.id === id)!, { x, y, w, h }); }, id);

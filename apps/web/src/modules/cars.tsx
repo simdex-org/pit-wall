@@ -5,6 +5,7 @@ import type { Car } from "../feed/types";
 import { carName } from "../lib/cars";
 import { IN_LANE } from "../lib/enums";
 import { clamp } from "../lib/format";
+import { State } from "../lib/states";
 
 export const sortedCars = (c: Ctx): Car[] => [...c.cars.values()].filter((x) => x.pos > 0).sort((a, b) => a.pos - b.pos);
 export const fieldOn = (c: Ctx): boolean => !!(c.field && c.bc?.state === "live");
@@ -100,3 +101,5 @@ export function Kv({ rows, className }: { className?: string; rows: ([ReactNode,
     </dl>
   );
 }
+
+/** The state arrow, small, after the unit. */

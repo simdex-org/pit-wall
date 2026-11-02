@@ -20,6 +20,7 @@ export const useLabelsOpen = (id: string): boolean => {
 const FIELDS: [string, string][] = [["pos", "Position"], ["num", "Race number"], ["code", "Three letters"], ["name", "Surname"], ["gap", "Gap to you"]];
 const WHICH: [string, string][] = [["all", "All"], ["near", "±30 s"], ["class", "Class"], ["focus", "Focus"]];
 const ROADS: [string, string][] = [["s", "Thin"], ["m", "Normal"], ["l", "Wide"]];
+const BADGES: [string, string][] = [["dot", "Number"], ["code", "Code"]];
 const SIZES: [string, string][] = [["s", "S"], ["m", "M"], ["l", "L"]];
 const PRESETS: [string, string, string[]][] = [["gap", "Gap", ["gap"]], ["num", "Number + gap", ["num", "gap"]], ["code", "Code + gap", ["code", "gap"]], ["name", "Full name", ["name"]], ["pos", "Position + number", ["pos", "num"]], ["none", "Dots only", []]];
 
@@ -49,19 +50,22 @@ export function LabelsPanel({ id, opts }: { id: string; opts: Record<string, unk
       </div>
       <div className="ml-sec">
         <span className="lbl">Track</span>
-        <Row label="Road width"><Seg items={ROADS} on={String(opts.road ?? "m")} onPick={(v) => set(id, { road: v })} /></Row>
+        <Row label="Road width"><Seg items={ROADS} on={String(opts.road ?? "s")} onPick={(v) => set(id, { road: v })} /></Row>
         <span className="lbl">Turns</span>
-        <Row label="Show turn names"><Sw label="Show turn names" on={!!opts.corners} onSet={(v) => set(id, { corners: v })} /></Row>
+        <Row label="Turn numbers"><Sw label="Turn numbers" on={!!opts.corners} onSet={(v) => set(id, { corners: v })} /></Row>
       </div>
       <div className="ml-sec">
         <span className="lbl">Sectors</span>
-        <Row label="Colour the sectors"><Sw label="Colour the sectors" on={opts.sectors !== false} onSet={(v) => set(id, { sectors: v })} /></Row>
+        <Row label="Marks across road"><Sw label="Marks across road" on={opts.ticks !== false} onSet={(v) => set(id, { ticks: v })} /></Row>
+        <Row label="Yellow sectors"><Sw label="Yellow sectors" on={opts.yellows !== false} onSet={(v) => set(id, { yellows: v })} /></Row>
       </div>
       <div className="ml-sec">
         <span className="lbl">Other cars</span>
         <Row label="Show other cars"><Sw label="Show other cars" on={opts.field !== false} onSet={(v) => set(id, { field: v })} /></Row>
         <Row label="Cars"><Seg items={WHICH} on={String(opts.which)} onPick={(v) => set(id, { which: v })} /></Row>
         <Row label="Size"><Seg items={SIZES} on={String(opts.size)} onPick={(v) => set(id, { size: v })} /></Row>
+        <Row label="Marker"><Seg items={BADGES} on={String(opts.badge ?? "dot")} onPick={(v) => set(id, { badge: v })} /></Row>
+        <Row label="Highlight rivals"><Sw label="Highlight rivals" on={opts.battle !== false} onSet={(v) => set(id, { battle: v })} /></Row>
         <Row label="Dim far cars"><Sw label="Dim far cars" on={!!opts.dim} onSet={(v) => set(id, { dim: v })} /></Row>
       </div>
       <div className="ml-sec">

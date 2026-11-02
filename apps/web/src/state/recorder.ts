@@ -25,7 +25,7 @@ const takeData = (o: Json): LapData | null => {
 };
 
 export const TRACE_N = 3600; // 60 s at 60 Hz
-export const TRACE_KEYS = ["speed", "thr", "brk", "clu", "steer", "rpm", "gear", "fuel", "gLat", "gLon", "tFL", "tFR", "tRL", "tRR", "pFL", "pFR", "pRL", "pRR"] as const;
+export const TRACE_KEYS = ["speed", "thr", "brk", "clu", "steer", "rpm", "gear", "fuel", "gLat", "gLon", "tc", "abs", "tFL", "tFR", "tRL", "tRR", "pFL", "pFR", "pRL", "pRR"] as const;
 export type TraceKey = (typeof TRACE_KEYS)[number];
 export interface Ring { i: number; n: number; data: Record<TraceKey, Float32Array> }
 
@@ -89,7 +89,7 @@ class Recorder {
 
   private pushTrace(c: Json, cap: Json): void {
     const T = this.trace, v: Record<string, number> = {
-      speed: c.speed_kmh, thr: c.throttle, brk: c.brake, clu: c.clutch, steer: c.steer_angle, rpm: c.rpm, gear: c.gear, fuel: c.fuel_litres, gLat: c.acc_g[0], gLon: c.acc_g[2],
+      speed: c.speed_kmh, thr: c.throttle, brk: c.brake, clu: c.clutch, steer: c.steer_angle, rpm: c.rpm, gear: c.gear, fuel: c.fuel_litres, gLat: c.acc_g[0], gLon: c.acc_g[2], tc: +c.tc_in_action || 0, abs: +c.abs_in_action || 0,
     };
     for (let i = 0; i < 4; i++) { v["t" + CORNER_KEYS[i]] = coreT(c, i, cap); v["p" + CORNER_KEYS[i]] = c.tyre_pressure_psi[i]; }
     for (const k of TRACE_KEYS) T.data[k][T.i] = isFinite(v[k]!) ? v[k]! : 0;

@@ -4,7 +4,7 @@ import { defineModule } from "../engine/registry";
 import type { Ctx } from "../feed/store";
 import type { Json } from "../feed/types";
 import { clamp, MINUS, nf, NONE } from "../lib/format";
-import { pressState, stateGlyph } from "../lib/states";
+import { pressState } from "../lib/states";
 import { fv, unit, UnitChoice } from "../lib/units";
 import { accessKey, post, say } from "../state/bridge";
 import { feed } from "../feed/store";
@@ -141,19 +141,15 @@ function PitPlanBody({ c, confirmDefault, w, h }: { c: Ctx; confirmDefault: bool
   const tankAfter = car ? Math.min(max || Infinity, car.fuel_litres + plan.fuel) : null;
   const atFlag = st && st.spare_l != null ? st.spare_l + (plan.fuel - (st.add_at_box_l ?? 0)) : null;
   const pu = unit("press", units), pStep = pstep(units);
-  const pressRow = (i: number) => {
+  const pressCell = (i: number) => {
     const now = nowOf(p, "p" + i) as number | null | undefined, planV = plan.pressures[i]!;
     const d = now != null ? planV - now : null;
     return (
-      <div key={i}>
-        <span className="lab" style={{ width: 26, color: "var(--t2)" }}>{CORNERS[i]}</span>
-        <span className="v di" style={{ whiteSpace: "nowrap" }}>{now != null ? `${fv("press", now, units)} →` : NONE}</span>
-        <span className="sp" />
-        <Stepper cls="sm" value={toInput(planV, units)} step={pStep} label={`${CORNERS[i]} cold pressure`}
+      <div key={i} className="fc" style={{ gap: 4, alignItems: "stretch", justifyContent: "center", minWidth: 0 }}>
+        <div className="f" style={{ gap: 6 }}><span className="lab" style={{ color: "var(--t2)" }}>{CORNERS[i]}</span><span className="v di" style={{ whiteSpace: "nowrap" }}>{now != null ? fv("press", now, units) : NONE}</span><span className="sp" />
+          {d != null && Math.abs(d) >= 0.05 ? <span className={"v " + (d < 0 ? "dn" : "up")} style={{ whiteSpace: "nowrap" }} title={`The MFD shows ${fv("press", now!, units)} now`}>{d < 0 ? "▼" : "▲"} {Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)}</span> : null}</div>
+        <Stepper cls="fw" value={toInput(planV, units)} step={pStep} label={`${CORNERS[i]} cold pressure`}
           onValue={(v) => { const q = plan.pressures.slice(); q[i] = +pu.b(v).toFixed(2); planStore.set({ ...plan, pressures: q }); }} />
-        {d == null || Math.abs(d) < 0.05
-          ? <span className="v di" style={{ flex: "0 1 104px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", boxSizing: "border-box", paddingRight: 10, textAlign: "right" }} title="The pressure you set is the same as the MFD shows now">unchanged</span>
-          : <span className={"v " + (d < 0 ? "dn" : "up")} style={{ flex: "0 1 104px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", boxSizing: "border-box", paddingRight: 10, textAlign: "right" }} title={`The MFD shows ${fv("press", now!, units)} now; you set ${Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)} ${pu.u} ${d < 0 ? "lower" : "higher"}`}>{d < 0 ? "▼" : "▲"} {Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)} {d < 0 ? "lower" : "higher"}</span>}
       </div>
     );
   };
@@ -206,9 +202,11 @@ function PitPlanBody({ c, confirmDefault, w, h }: { c: Ctx; confirmDefault: bool
     <><span className="mu">Compound</span><span className="sp" /><div className="seg">{(["dry", "wet"] as const).map((k) => <button key={k} type="button" aria-pressed={plan.compound === k} onClick={() => { const [lo, hi] = k === "wet" ? c.th.wet_psi : c.th.dry_psi, mid = +((lo + hi) / 2).toFixed(1); planStore.set({ ...plan, compound: k, pressures: [mid, mid, mid, mid] }, ["p0", "p1", "p2", "p3"]); }}>{k === "dry" ? "Dry" : "Wet"}</button>)}</div></>,
   ];
   for (let r = 0; r < 4; r++) {
-    grid.push(<div key={"fr" + r}>{rowsF[r]}</div>, pressRow(r), <div key={"sr" + r} className={four ? "" : "lc"}>{rowsS[r]}</div>);
-    if (four) grid.push(<div key={"mr" + r} className="lc"><span className="mu">{mfdRows[r]![0]}</span><span className="v" style={{ marginLeft: "auto" }}>{mfdRows[r]![1]}</span></div>);
+    const row = 3 + r;
+    grid.push(<div key={"fr" + r} style={{ gridColumn: 1, gridRow: row }}>{rowsF[r]}</div>, <div key={"sr" + r} className={four ? "" : "lc"} style={{ gridColumn: 3, gridRow: row }}>{rowsS[r]}</div>);
+    if (four) grid.push(<div key={"mr" + r} className="lc" style={{ gridColumn: 4, gridRow: row }}><span className="mu">{mfdRows[r]![0]}</span><span className="v" style={{ marginLeft: "auto" }}>{mfdRows[r]![1]}</span></div>);
   }
+  grid.push(<div key="pq" style={{ gridColumn: 2, gridRow: "3 / span 4", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto auto", gap: "22px 14px", alignContent: "center", padding: "8px var(--pad)" }}>{[0, 1, 2, 3].map(pressCell)}</div>);
   if (big) {
     const share = max ? clamp(((car?.fuel_litres ?? 0) / max) * 100, 0, 100) : 0, add = max ? clamp((plan.fuel / max) * 100, 0, 100 - share) : 0;
     grid.push(
@@ -243,7 +241,7 @@ function PitPlanBody({ c, confirmDefault, w, h }: { c: Ctx; confirmDefault: bool
 
 export const pitPlan = defineModule({
   type: "pit-plan", title: "Pit stop", group: "Pit", blurb: "The next stop, typed into the driver's MFD: the whole plan or one block.",
-  size: { w: 7, h: 16, minW: 6, minH: 12 }, multi: false, needs: ["pit", "reading", "summary", "config", "units"], requires: ["pit"], rate: 4,
+  size: { w: 7, h: 13, minW: 6, minH: 12, maxH: 14 }, multi: false, needs: ["pit", "reading", "summary", "config", "units"], requires: ["pit"], rate: 4,
   options: [{ key: "confirm", label: "Confirm before sending", type: "toggle", def: true }],
   view({ ctx: c, opts, size }) {
     const p = c.pit, lap = c.st?.box_by_lap;
@@ -287,9 +285,10 @@ export const pitLog = defineModule({
 });
 
 // ---------- pressure correction ----------
+const NAMES = ["Front left", "Front right", "Rear left", "Rear right"];
 export const pressFix = defineModule({
   type: "press-fix", title: "Pressure correction", group: "Pit", blurb: "Hot pressures at the line against the window, and the cold pressures to set at the next stop.",
-  size: { w: 4, h: 5, minW: 3, minH: 5 }, needs: ["summary", "config", "pit", "units"],
+  size: { w: 4, h: 6, minW: 2, minH: 3, maxW: 5, maxH: 7 }, needs: ["summary", "config", "pit", "units"],
   view({ ctx: c, size }) {
     const prefs = usePrefs(), units = prefs.units, plan = usePlan();
     const pl = c.s?.press_line;
@@ -308,30 +307,28 @@ export const pressFix = defineModule({
       feed.log(0, "PLAN", "Pressure corrections put in the pit plan");
       say("Pressure corrections put in the pit plan");
     };
-    const large = size.w >= 4;
-    const names = ["Front left", "Front right", "Rear left", "Rear right"];
+    const line = size.h < 5, fs = size.h >= 7 ? 24 : size.h >= 5 ? 20 : 16;
     return {
-      flush: large,
+      flush: true,
       alert: [all ? 0 : 1],
-      info: large ? [`WINDOW ${pu(lo)}–${pu(hi)} ${u.u.toUpperCase()} HOT`] : [],
-      body: large ? (
-        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-        <table className="t">
-          <thead><tr><th className="l">Tyre</th><th>Hot at line</th><th>Window</th><th>Cold now</th><th>Set cold</th></tr></thead>
-          <tbody>
-            {names.map((nm, i) => {
-              const v = (pl.psi as number[])[i]!, s = pressState(v, sc), out = v > hi ? v - hi : v < lo ? v - lo : 0;
-              return <tr key={nm}><td className="l">{nm}</td><td className={s === "ok" ? "" : s === "cold" ? "cd" : "wn"}>{pu(v)}{stateGlyph(s)}</td><td className={out ? "up" : "dn"}>{out ? dp(out) : "●"}</td><td>{pu(base[i]!)}</td><td className="ac">{pu(prop[i]!)}</td></tr>;
+      info: size.w >= 3 ? [`WINDOW ${pu(lo)}–${pu(hi)} ${u.u.toUpperCase()}`] : [],
+      body: (
+        <div className="fc" style={{ flex: 1, minHeight: 0 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: line ? "1fr 1fr" : "auto auto", alignContent: line ? "stretch" : "start", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
+            {[0, 1, 2, 3].map((i) => {
+              const v = (pl.psi as number[])[i]!, s = pressState(v, sc), out = v > hi ? v - hi : v < lo ? v - lo : 0, cl = s === "ok" ? "" : s === "cold" ? "cd" : "wn";
+              return (
+                <div className={"dk " + (s === "ok" ? "o" : s === "bad" ? "b" : "w")} key={i} style={{ padding: line ? "2px 10px" : "6px 10px", gap: line ? 2 : 3, justifyContent: line ? "space-between" : "center", flexDirection: line ? "row" : "column", alignItems: line ? "center" : undefined, minWidth: 0, overflow: "hidden" }}>
+                  <div style={{ height: line ? undefined : 16, lineHeight: "16px", whiteSpace: "nowrap", overflow: "hidden", flex: "none" }}><span className="lab" style={{ color: "var(--t2)" }}>{size.h >= 5 ? NAMES[i] : CORNERS[i]}</span>{!line && out ? <span className="v up">{dp(out)}</span> : null}</div>
+                  {line ? <span className="big ac" style={{ fontSize: fs }}>{pu(prop[i]!)}</span> : <>
+                    <span className={"big " + cl} style={{ display: "block", flex: "none", height: Math.round(fs * 1.15), fontSize: fs, whiteSpace: "nowrap", lineHeight: 1.15, overflow: "hidden" }}><span style={{ display: "inline-block", minWidth: "3.4ch" }}>{pu(v)}</span><span className="u" style={{ fontSize: 11, marginLeft: 3 }}>{u.u}</span></span>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 4, whiteSpace: "nowrap", alignItems: "baseline", height: 16, flex: "none" }}><span className="v ac" style={{ fontSize: 12 }}>set {pu(prop[i]!)}</span>{size.h >= 6 ? <span className="v di" style={{ fontSize: 12 }}>now {pu(base[i]!)}</span> : null}</div></>}
+                </div>
+              );
             })}
-          </tbody>
-        </table>
-        <div className="f" style={{ padding: "6px var(--pad)", marginTop: "auto" }}><span className="v di">{all ? "● In the window" : "Cold = MFD or plan + correction"}</span><span className="sp" /><button type="button" className="btn sm" onClick={use}>Use in pit plan</button></div>
+          </div>
+          <div className="f" style={{ padding: "6px var(--pad)", flex: "none" }}>{size.w >= 4 ? <span className="v di">{all ? "● In the window" : "Set = MFD or plan + correction"}</span> : null}<span className="sp" /><button type="button" className="btn sm" onClick={use}>Use in pit plan</button></div>
         </div>
-      ) : (
-        <>
-          <div className="g2" style={{ gap: "6px 16px" }}>{CORNERS.map((x, i) => <div className="r" key={x}><span>{x} set</span><span className="ac">{pu(prop[i]!)}</span></div>)}</div>
-          <button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} onClick={use}>Use in pit plan</button>
-        </>
       ),
     };
   },

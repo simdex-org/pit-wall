@@ -37,7 +37,7 @@ function rankOpts(st: Json | null): Json[] {
 // ---------- fuel ----------
 export const fuel = defineModule({
   type: "fuel", title: "Fuel", group: "Strategy", blurb: "Laps of fuel left, litres in the tank and consumption.",
-  size: { w: 3, h: 7, minW: 3, minH: 5 }, needs: ["reading", "summary", "config"], requires: ["reading"],
+  size: { w: 3, h: 5, minW: 3, minH: 5, maxW: 4, maxH: 6 }, needs: ["reading", "summary", "config"], requires: ["reading"],
   view({ ctx: c, size }) {
     const st = c.st, car = c.r!.car, fx = c.r!.fixed, lf = st?.laps_of_fuel;
     const fs = fuelState(lf, { th: c.th, wet: c.wet, fuelLowLaps: fuelLow(c) });
@@ -123,6 +123,15 @@ function SharedInputs({ cfg }: { cfg: Json | null }) {
 function RaceLine({ total, now, box, win, plan }: { total: number; now: number; box: number | null; win: { open_lap: number; close_lap: number } | null; plan: number[] }) {
   const W = 600, x = (lap: number) => Math.max(0, Math.min(W, (lap / total) * W));
   const marks: [number, string, string][] = [[now, "NOW", "var(--txt)"], ...(box != null && box > now ? [[box, (plan.length ? "FUEL " : "BOX ") + box, "var(--acc)"] as [number, string, string]] : []), [total, "FLAG", "var(--txt)"]];
+  // Marks closer than a label is wide share one label, so they never print over each other.
+  const labels: { at: number; anchor: "start" | "middle" | "end"; text: string; col: string }[] = [];
+  let last = -Infinity;
+  for (const [lap, label, col] of [...marks].sort((p, q) => p[0] - q[0])) {
+    const g = labels[labels.length - 1];
+    if (g && x(lap) - last < 64) { g.text += " · " + label; g.at = x(lap); g.col = col === "var(--acc)" ? col : g.col; } else labels.push({ at: x(lap), anchor: "middle", text: label, col });
+    last = x(lap);
+  }
+  for (const g of labels) { g.at = Math.min(Math.max(g.at, 0), W); g.anchor = g.at > W - 60 ? "end" : g.at < 40 ? "start" : "middle"; }
   const wx = win ? x(win.open_lap) : 0, ww = win ? Math.max(2, x(win.close_lap) - wx) : 0;
   return (
     <>
@@ -130,11 +139,9 @@ function RaceLine({ total, now, box, win, plan }: { total: number; now: number; 
         <rect x="0" y="26" width={W} height="8" fill="var(--line)" />
         <rect x="0" y="26" width={x(now)} height="8" fill="var(--dim)" />
         {win ? <rect x={wx} y="23" width={ww} height="16" fill="none" stroke="var(--warn)" strokeWidth="1.5" strokeDasharray="4 2" /> : null}
-        {marks.map(([lap, label, col], i) => (
-          <g key={i}>
-            <path d={`M${x(lap)} 18V42`} stroke={col} strokeWidth="2" />
-            <text x={Math.min(x(lap), W - 4)} y="13" textAnchor={lap >= total ? "end" : lap === now && box != null && box > now && x(box) - x(now) < 90 ? "end" : lap === box && x(box) - x(now) < 90 ? "start" : "middle"} style={{ fill: col, fontSize: 13, fontWeight: 600 }}>{label}</text>
-          </g>
+        {marks.map(([lap, , col], i) => <path key={i} d={`M${x(lap)} 18V42`} stroke={col} strokeWidth="2" />)}
+        {labels.map((g, i) => (
+          <text key={i} x={g.at} y="13" textAnchor={g.anchor} style={{ fill: g.col, fontSize: 13, fontWeight: 600 }}>{g.text}</text>
         ))}
         {plan.filter((l) => l >= now && l < total).map((l, i) => (
           <g key={"p" + i}>
@@ -157,7 +164,7 @@ function RaceLine({ total, now, box, win, plan }: { total: number; now: number; 
 
 export const racePlan = defineModule({
   type: "race-plan", title: "Fuel to the flag", group: "Strategy", blurb: "When to box and how much fuel to put in, from the bridge strategy.",
-  size: { w: 4, h: 11, minW: 3, minH: 8 }, needs: ["summary", "reading", "config"], requires: ["summary"],
+  size: { w: 4, h: 11, minW: 3, minH: 8, maxW: 6, maxH: 10 }, needs: ["summary", "reading", "config"], requires: ["summary"],
   view({ ctx: c, size }) {
     const st = c.st, mine = useRacePlan();
     if (!st) return { state: { kind: "empty", msg: "Waiting for the bridge strategy figures." } };
@@ -266,7 +273,7 @@ function Options({ st, ranked, large, planLap }: { st: Json; ranked: Json[]; lar
 
 export const stopOptions = defineModule({
   type: "stop-options", title: "Stop options", group: "Strategy", blurb: "Box now, at the last lap the fuel allows, or when the window opens: loss and rejoin position.",
-  size: { w: 6, h: 7, minW: 5, minH: 6 }, needs: ["summary", "field"], requires: ["summary"],
+  size: { w: 6, h: 5, minW: 5, minH: 5, maxW: 8, maxH: 7 }, needs: ["summary", "field"], requires: ["summary"],
   view({ ctx: c, size }) {
     const st = c.st!;
     const ranked = rankOpts(st);
@@ -284,7 +291,7 @@ export const stopOptions = defineModule({
 // ---------- rejoin ----------
 export const rejoin = defineModule({
   type: "rejoin", title: "Rejoin", group: "Strategy", blurb: "Where you come out if you box at the end of this lap, and who is around you.",
-  size: { w: 4, h: 7, minW: 3, minH: 6 }, needs: ["summary", "field", "entries"], requires: ["field"],
+  size: { w: 4, h: 7, minW: 3, minH: 6, maxW: 6, maxH: 8 }, needs: ["summary", "field", "entries"], requires: ["field"],
   view({ ctx: c, size }) {
     if (c.mode === "best") return { state: { kind: "empty", msg: "Rejoin is predicted in races only." } };
     const rj = c.st?.rejoin;
@@ -317,8 +324,8 @@ export const rejoin = defineModule({
         <div className="cells" style={{ height: "100%" }}>
           <div className="c" style={{ flex: "0 0 200px" }}><span className="lab">Come out</span><span className="big">P{rj.pos}</span>{verdict}{loss}</div>
           <div className="c" style={{ padding: 0 }}>
-            <table className="t">
-              <thead><tr><th>P</th><th>#</th><th className="l">Driver</th><th>Gap</th></tr></thead>
+            <table className="t fx" style={{ minWidth: 318 }}>
+              <thead><tr><th className="s">P</th><th className="s">#</th><th className="l d">Driver</th><th>Gap</th></tr></thead>
               <tbody>
                 {around.map((a, j) => {
                   const car = c.cars.get(a.i), pos = k >= 0 ? rj.pos + j - k : null;
@@ -352,7 +359,7 @@ function StopRow({ k, lap, plan, lane, box, loss, big, fuelL, tyres }: { k: numb
 
 export const stops = defineModule({
   type: "stops", title: "Pit stops", group: "Strategy", blurb: "Every stop measured: lane and box time, what it cost, fuel, tyres, and the stint after it.",
-  size: { w: 6, h: 10, minW: 4, minH: 4 }, needs: ["summary", "focus"],
+  size: { w: 6, h: 8, minW: 4, minH: 4, maxH: 8 }, needs: ["summary", "focus"],
   view({ ctx: c, size }) {
     const list = (c.s?.stops as Json[] | undefined) ?? [];
     const st = c.st, top = rankOpts(st)[0], race = isRace(c);
@@ -409,7 +416,7 @@ const stageColor = (l: number) => (l >= 3 ? "var(--warn)" : l ? "var(--cold)" : 
 
 export const weather = defineModule({
   type: "weather", title: "Track and weather", group: "Strategy", blurb: "Rain now and forecast, grip, track and air temperature, wind. The Weather module has the charts.",
-  size: { w: 4, h: 5, minW: 3, minH: 5 }, needs: ["reading", "field", "tick"], requires: ["reading"],
+  size: { w: 4, h: 5, minW: 3, minH: 5, maxW: 5, maxH: 8 }, needs: ["reading", "field", "tick"], requires: ["reading"],
   view({ ctx: c, size }) {
     const p = usePrefs();
     const s = c.r!.session, car = c.r!.car, rain = Array.isArray(s.rain) ? (s.rain as number[]) : [];
@@ -537,7 +544,7 @@ function PaceChart({ cur, prev, o, pts, f, pf, cc }: { cur: Json[]; prev: Json[]
 
 export const degradation = defineModule({
   type: "degradation", title: "Pace", group: "Strategy", blurb: "This stint's lap times against a fitted line: what the tyres are costing per lap.",
-  size: { w: 6, h: 7, minW: 3, minH: 5 }, needs: ["summary", "laps"],
+  size: { w: 6, h: 7, minW: 3, minH: 5, maxH: 9 }, needs: ["summary", "laps"],
   options: [
     { key: "fuelCorr", label: "Fuel correction (s per 10 L)", type: "number", min: 0, max: 1, step: 0.05, def: 0 },
     { key: "compare", label: "Show the previous stint", type: "toggle", def: true },
