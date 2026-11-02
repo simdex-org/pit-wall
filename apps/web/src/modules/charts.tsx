@@ -95,7 +95,6 @@ export const trackMap = defineModule({
     { key: "dim", label: "Dim cars more than 30 s away", type: "toggle", hidden: true, def: false },
     { key: "colours", label: "Colour each label field", type: "toggle", hidden: true, def: false },
     { key: "size", label: "Size of cars and labels", type: "select", hidden: true, choices: [["s", "Small"], ["m", "Medium"], ["l", "Large"]], def: "m" },
-    { key: "corners", label: "Turn numbers", type: "toggle", hidden: true, def: true },
     { key: "road", label: "Road width", type: "select", hidden: true, choices: [["s", "Thin"], ["m", "Normal"], ["l", "Wide"]], def: "s" },
     { key: "ticks", label: "Sector marks across the road", type: "toggle", hidden: true, def: true },
     { key: "yellows", label: "Flashing stripe on yellow sectors", type: "toggle", hidden: true, def: true },

@@ -29,6 +29,7 @@ const P: Record<string, ReactNode> = {
   "layout-dashboard": <path d="M3 3h8v10H3zM13 3h8v6h-8zM13 11h8v10h-8zM3 15h8v6H3z" />,
   lock: <><path d="M5 11h14v10H5z" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   maximize: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
+  pencil: <path d="M4 20l1-5L16 4l4 4L9 19zM13 7l4 4" />,
   "octagon-alert": <><path d="M8 2h8l6 6v8l-6 6H8l-6-6V8z" /><path d="M12 7v6M12 17v.01" /></>,
   pause: <path d="M8 4v16M16 4v16" strokeWidth="3.5" />,
   play: <path d="M6 4l14 8-14 8z" />,

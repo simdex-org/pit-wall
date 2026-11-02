@@ -7,7 +7,6 @@ import { clamp, fmtRel } from "../lib/format";
 import { recorder } from "../state/recorder";
 import { Ctx2D, fitCanvas, Tokens, tokens } from "./canvas";
 import { lapSpan } from "./lapspan.js";
-import { findTurns } from "./turns";
 
 type Pt = [number, number];
 /** `acc`: recorded in the game, so already in ACC's own frame and starting on the real start/finish line. */
@@ -187,7 +186,7 @@ export function cornerNames(track: string): [number, number, string][] | null {
 /** One colour per label field when the map colours them. */
 export const FIELD_COLOUR: Record<string, string> = { pos: "#f5b942", num: "#6cb6ff", code: "#e8ecf1", name: "#c3a6ff", gap: "#5fd38d" };
 
-export interface MapOpts { field: boolean; fields: string[]; which: string; dim: boolean; colours: boolean; size: string; corners: boolean; road: string; turnStyle: string; ticks: boolean; badge: string; battle: boolean; yellows: boolean }
+export interface MapOpts { field: boolean; fields: string[]; which: string; dim: boolean; colours: boolean; size: string; road: string; ticks: boolean; badge: string; battle: boolean; yellows: boolean }
 export interface MapHit { i: number; x: number; y: number }
 export interface MapOut { hits: MapHit[]; info: string; empty: boolean }
 
@@ -236,7 +235,7 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   for (const [x, z] of D.loop) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; }
   const foc = c.focus !== "self" ? cars.find(([car]) => car.i === c.focus) : null;
-  const pad = o.corners ? 42 : 20, base = Math.min((w - 2 * pad) / Math.max(400, x1 - x0), (h - 2 * pad) / Math.max(400, z1 - z0)), sc = base * view.zoom;
+  const pad = 20, base = Math.min((w - 2 * pad) / Math.max(400, x1 - x0), (h - 2 * pad) / Math.max(400, z1 - z0)), sc = base * view.zoom;
   const tgt = foc ? foc[1] : me, cx = view.follow ? tgt[0] : (x0 + x1) / 2 + view.dx, cz = view.follow ? tgt[1] : (z0 + z1) / 2 + view.dy;
   const X = (x: number) => w / 2 + (x - cx) * sc, Y = (z: number) => h / 2 + (z - cz) * sc;
   view.sc = sc; view.mid = [(x0 + x1) / 2, (z0 + z1) / 2]; view.c = [cx, cz]; // for panning out of follow
@@ -261,25 +260,6 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
   const live = c.s?.sector_pos as number[] | undefined, ends = t?.sec?.length ? t.sec : live?.length ? live : []; // the track's own sector lines first, what the driver's laps have shown only for a track without them
   if (o.yellows && ends.length) drawYellows(g, tk, D.loop, ends, r.session.global_flags as Record<string, boolean> | undefined, path, rw);
   if (o.ticks && ends.length) drawTicks(g, tk, D.loop, ends, X, Y, rw);
-  const avoid: number[][] = [];
-  if (o.corners) { // turn numbers, in driving order; car labels keep clear of them
-    const fz = Math.round(10 * mapScale(o)), cr = fz * 0.95;
-    g.font = `700 ${Math.round(fz * 1.05)}px ${tk.num}`; g.textBaseline = "middle"; g.textAlign = "center";
-    const tkey = [r.fixed.track, D.loop.length, fz, Math.round(base * 1000), rw].join("|");
-    let turns = TURNS.get(tkey);
-    if (!turns) { if (TURNS.size > 20) TURNS.clear(); const ks = findTurns(D.loop); turns = { ks, spots: placeTurns(D.loop, ks, cr, base, rw) }; TURNS.set(tkey, turns); }
-    const { ks, spots } = turns;
-    spots.forEach((sp, q) => {
-      if (!sp || sp.minZoom > view.zoom * 1.0001) return;
-      const c = D.loop[ks[q]!]!, ax = X(c[0]), ay = Y(c[1]), off = rw / 2 + sp.gap + cr, slide = sp.sl * (2 * cr + 3);
-      const cx = ax + sp.nx * off + sp.ux * slide, cy = ay + sp.ny * off + sp.uy * slide;
-      avoid.push([cx - cr, cy - cr, 2 * cr, 2 * cr]);
-      if (sp.gap > 3 || sp.sl) { g.beginPath(); g.moveTo(ax + sp.nx * (rw / 2), ay + sp.ny * (rw / 2)); g.lineTo(cx, cy); g.strokeStyle = tk.muted; g.lineWidth = 1; g.stroke(); } // a number that does not touch its bend is tied to it
-      g.beginPath(); g.arc(cx, cy, cr, 0, 7); g.fillStyle = tk.bg; g.fill(); g.strokeStyle = tk.muted; g.lineWidth = 1.4; g.stroke();
-      g.fillStyle = tk.text; g.fillText(String(q + 1), cx, cy + 0.5);
-    });
-    g.textAlign = "left";
-  }
   const sf = D.loop[0]!;
   { // start/finish: a two-row chequered strip across the road, turned to the direction of travel
     const q = atFrac(D.loop, 0.002), ang = Math.atan2(Y(q[1]) - Y(sf[1]), X(q[0]) - X(sf[0])), sq = 2.5, n = Math.max(3, Math.round((rw + 4) / sq));
@@ -300,7 +280,7 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
     }
   }
   const ta = atFrac(D.loop, sp.track_position - 0.003), tb = atFrac(D.loop, sp.track_position + 0.003), heading = Math.atan2(Y(tb[1]) - Y(ta[1]), X(tb[0]) - X(ta[0]));
-  drawField(g, tk, c, o, cars.map(([car, [x, z]]) => ({ car, sx: X(x), sy: Y(z), hw: 0 })), mx, my, foc ? foc[0] : null, r.session.in_pit_lane, heading, battleIds, w, h, out, avoid);
+  drawField(g, tk, c, o, cars.map(([car, [x, z]]) => ({ car, sx: X(x), sy: Y(z), hw: 0 })), mx, my, foc ? foc[0] : null, r.session.in_pit_lane, heading, battleIds, w, h, out);
   if (c.me != null && !r.session.in_pit_lane) out.hits.push({ i: c.me, x: mx, y: my });
   out.info = [`${(r.session.track_position * 100).toFixed(1)} % of lap`, cars.length ? `${cars.length + 1} cars` : "", view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ""].filter(Boolean).join(" · ");
   return out;
@@ -320,55 +300,6 @@ function drawYellows(g: Ctx2D, tk: Tokens, loop: Pt[], ends: number[], gf: Recor
   g.lineCap = "round";
 }
 
-/**
- * Where each turn's marker goes: a disc just off the road on the outside of its bend, as on a printed circuit map, with no line to the
- * corner. It is worked out once, in the drawing's own units, and kept, so a marker stays on its corner while you zoom (it keeps a
- * fixed pixel distance from the road edge). A disc needs a spot clear of the road and of the other discs. It is always on the outside
- * of the bend; nearer to the road beats farther, and the corner's own place beats a slide along the road. A turn with no such spot at
- * the default zoom is tried at 2x, 4x and 8x and shows from there.
- */
-interface Spot { nx: number; ny: number; ux: number; uy: number; gap: number; sl: number; minZoom: number }
-const TURNS = new Map<string, { ks: number[]; spots: (Spot | null)[] }>();
-
-function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
-  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
-  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
-}
-function placeTurns(loop: Pt[], ks: number[], cr: number, base: number, rw: number): (Spot | null)[] {
-  const n = loop.length - 1, m = Math.max(3, Math.round(n / 80)), step = Math.max(1, Math.round(n / 600)), road: Pt[] = [];
-  for (let q = 0; q < n; q += step) road.push(loop[q]!);
-  const clear = (x: number, y: number, r: number, S: number) => { // a point in drawing units, a radius in pixels
-    for (let i = 0; i < road.length; i++) { const a = road[i]!, b = road[(i + 1) % road.length]!; if (segDist(x * S, y * S, a[0] * S, a[1] * S, b[0] * S, b[1] * S) < r) return false; }
-    return true;
-  };
-  const frames = ks.map((k) => {
-    const a = loop[(k - m + n) % n]!, b = loop[(k + m) % n]!, c = loop[k]!, tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1, ux = tx / tl, uy = ty / tl;
-    let nx = -uy, ny = ux;
-    if ((nx * ty - ny * tx) * ((c[0] - a[0]) * (b[1] - c[1]) - (c[1] - a[1]) * (b[0] - c[0])) > 0) { nx = -nx; ny = -ny; } // away from the bend's centre
-    return { c, ux, uy, nx, ny };
-  });
-  const placed: { x: number; y: number; zoom: number }[] = []; // disc centres, in drawing units
-  const out: (Spot | null)[] = ks.map(() => null);
-  ks.forEach((_, q) => {
-    const { c, ux, uy, nx, ny } = frames[q]!;
-    for (const zl of [1, 2, 4, 8]) {
-      const S = base * zl;
-      let best: { cost: number; spot: Spot; x: number; y: number } | null = null;
-      for (const side of [1, -1]) for (const gap of [3, 6, 10]) for (const sl of [0, 1, -1, 2]) { // the outside of the bend first, then the inside
-        const qx = nx * side, qy = ny * side, off = rw / 2 + gap + cr, sx = qx * off + ux * sl * (2 * cr + 3), sy = qy * off + uy * sl * (2 * cr + 3);
-        const cost = gap + Math.abs(sl) * 6 + (side < 0 ? 4 : 0);
-        if (best && cost >= best.cost) continue;
-        const x = c[0] + sx / S, y = c[1] + sy / S;
-        if (!clear(x, y, cr + rw / 2 + 1.5, S)) continue;
-        if (placed.some((p) => p.zoom <= zl && Math.hypot((x - p.x) * S, (y - p.y) * S) < 2 * cr + 3)) continue;
-        best = { cost, spot: { nx: qx, ny: qy, ux, uy, gap, sl, minZoom: zl }, x, y };
-      }
-      if (best) { out[q] = best.spot; placed.push({ x: best.x, y: best.y, zoom: zl }); return; }
-    }
-  });
-  return out;
-}
-
 /** A short bar across the road where each sector begins, named S2, S3. */
 function drawTicks(g: Ctx2D, tk: Tokens, loop: Pt[], ends: number[], X: (x: number) => number, Y: (z: number) => number, rw: number): void {
   g.font = `600 9px ${tk.num}`; g.textAlign = "center"; g.textBaseline = "middle"; g.lineCap = "butt";
@@ -376,7 +307,7 @@ function drawTicks(g: Ctx2D, tk: Tokens, loop: Pt[], ends: number[], X: (x: numb
     const p = atFrac(loop, f), q = atFrac(loop, f + 0.003), dx = X(q[0]) - X(p[0]), dy = Y(q[1]) - Y(p[1]), len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len, h = rw / 2 + 4;
     g.strokeStyle = tk.text; g.lineWidth = 2; g.beginPath(); g.moveTo(X(p[0]) - nx * h, Y(p[1]) - ny * h); g.lineTo(X(p[0]) + nx * h, Y(p[1]) + ny * h); g.stroke();
     const lx = X(p[0]) + nx * (h + 8), ly = Y(p[1]) + ny * (h + 8);
-    g.lineWidth = 3; g.strokeStyle = tk.bg; g.strokeText("S" + (i + 2), lx, ly); g.fillStyle = tk.muted; g.fillText("S" + (i + 2), lx, ly);
+    g.lineWidth = 2.5; g.strokeStyle = tk.bg; g.strokeText("S" + (i + 2), lx, ly); g.fillStyle = tk.muted; g.fillText("S" + (i + 2), lx, ly);
   });
   g.textAlign = "left"; g.lineCap = "round";
 }
@@ -398,8 +329,8 @@ const FIELD_ORDER = ["pos", "num", "code", "name", "gap"];
 interface Dot { car: Car; sx: number; sy: number; hw: number }
 const CLASS_RADIUS: Record<string, number> = { GT4: 1, GT2: 7, TCX: 3 };
 
-/** The field's dots (and your own disc) with their labels, over a map already drawn. `avoid` are boxes no label may cover. */
-function drawField(g: Ctx2D, tk: Tokens, c: Ctx, o: MapOpts, dots: Dot[], mx: number, my: number, foc: Car | null, inPit: boolean, heading: number, battleIds: Set<number>, w: number, h: number, out: MapOut, avoid: number[][]): void {
+/** The field's dots (and your own disc) with their labels, over a map already drawn. */
+function drawField(g: Ctx2D, tk: Tokens, c: Ctx, o: MapOpts, dots: Dot[], mx: number, my: number, foc: Car | null, inPit: boolean, heading: number, battleIds: Set<number>, w: number, h: number, out: MapOut): void {
   const k = mapScale(o), blink = Math.floor(performance.now() / 600) % 2 === 0; // blue flags blink slowly: 0.6 s on, 0.6 s off
   const meCar0 = c.me != null ? c.cars.get(c.me) : undefined, race = c.mode === "race";
   // ACC publishes no flag for other cars: a car is marked blue when it is a lap or more down and just ahead of you in a race (about to be lapped).

@@ -1,5 +1,6 @@
 import { CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import { clamp } from "../lib/format";
+import { Icon } from "../lib/icons";
 import { editor, useEditor } from "../state/editor";
 import type { ModuleInstance, Workspace as WorkspaceData } from "../state/templates";
 import { aux } from "./versions";
@@ -50,6 +51,12 @@ export function Workspace({ workspace }: { workspace: WorkspaceData }) {
   return (
     <main id="ws" ref={host} className={`ws${geo.narrow ? " narrow" : ""}${editing ? " editing" : ""}`} data-ws={workspace.id} style={style}
       onClick={editing ? onEditClick : undefined} onPointerDown={editing ? onEditPointer : undefined}>
+      {editing && !ordered.length ? (
+        <div className="ws-empty">
+          <p>This workspace is empty.</p>
+          <button type="button" className="btn primary" onClick={() => editor.setDrawer(true)}><Icon name="plus" />Add a module</button>
+        </div>
+      ) : null}
       {ordered.map((m) => <ModuleHost key={m.id + m.type} inst={m} style={placement(m, geo.narrow, rowPx)} auto={geo.narrow && AUTO_HEIGHT.has(m.type)} edit={editing ? { sel: ed.sel === m.id } : undefined} />)}
     </main>
   );

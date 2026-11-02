@@ -51,8 +51,6 @@ export function LabelsPanel({ id, opts }: { id: string; opts: Record<string, unk
       <div className="ml-sec">
         <span className="lbl">Track</span>
         <Row label="Road width"><Seg items={ROADS} on={String(opts.road ?? "s")} onPick={(v) => set(id, { road: v })} /></Row>
-        <span className="lbl">Turns</span>
-        <Row label="Turn numbers"><Sw label="Turn numbers" on={!!opts.corners} onSet={(v) => set(id, { corners: v })} /></Row>
       </div>
       <div className="ml-sec">
         <span className="lbl">Sectors</span>

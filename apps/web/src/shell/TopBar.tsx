@@ -149,7 +149,9 @@ export function TopBar({ onKeys }: { onKeys: () => void }) {
       <SessionPicker />
       <Clock />
       <LinkChip />
-      <button type="button" className="btn sm" id="btnEdit" title="Edit this workspace (E)" aria-pressed={ed.active} onClick={toggleEdit}>Edit</button>
+      <button type="button" className="btn" id="btnEdit" title="Edit this workspace: add, move and resize modules (E)" aria-pressed={ed.active} onClick={toggleEdit}>
+        <Icon name="pencil" />{ed.active ? "Editing" : "Edit layout"}
+      </button>
       <button type="button" className="btn icon" id="btnSettings" title="Settings (,)" aria-label="Settings" onClick={() => ui.openSettings()}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.5" /><circle cx="8" cy="8" r="5.2" /><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1" /></svg>
       </button>
