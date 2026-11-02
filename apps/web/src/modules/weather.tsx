@@ -6,7 +6,7 @@ import { MINUS, nf, NONE } from "../lib/format";
 import { fv, unit } from "../lib/units";
 import { useSize } from "../lib/useSize";
 import { usePrefs } from "../state/prefs";
-import { slopePerMin, wxSample, WxSample } from "../state/wxlog";
+import { slopePerMin, wxForecastTime, wxSample, WxSample } from "../state/wxlog";
 
 const HEAD = 62 + 28, CHART_MIN = 96, STRIP = 44;
 const SHORT = ["Dry", "Drizzle", "Light", "Medium", "Heavy", "Storm"];
@@ -31,7 +31,7 @@ export function forecast(rain: number[], clouds: number | null) {
 const stroke = (l: number) => (l >= WETS_LEVEL ? "var(--warn)" : l ? "var(--cold)" : "var(--t2)");
 
 /** Rain level over the last 10 minutes (solid), then ACC's two forecast points at +10 and +30 min (hatched). Levels, not chances: ACC sends no probability. */
-function RainChart({ log, now, fc, w, h }: { log: WxSample[]; now: number; fc: [number, number]; w: number; h: number }) {
+function RainChart({ log, now, fc, since, w, h }: { log: WxSample[]; now: number; fc: [number, number]; since: number; w: number; h: number }) {
   const hatch = useId();
   const L = 58, R = 14, T = 26, B = 24, pw = w - L - R, ph = h - T - B;
   const x = (min: number) => L + ((min + PAST_MIN) / (PAST_MIN + AHEAD_MIN)) * pw;
@@ -39,8 +39,11 @@ function RainChart({ log, now, fc, w, h }: { log: WxSample[]; now: number; fc: [
   const recent = log.filter((s) => now - s.t <= PAST_MIN * 60000);
   const lvNow = log.length ? log[log.length - 1]!.rain : 0;
   const past = recent.map((s) => `${x((s.t - now) / 60000).toFixed(1)},${y(s.rain).toFixed(1)}`).join(" ");
-  const pts: [number, number, string][] = [[0, lvNow, "middle"], [10, fc[0], "middle"], [30, fc[1], "end"]];
+  const gone = (now - since) / 60000;
+  const ahead: [number, number, string][] = [[10 - gone, fc[0], "middle"], [30 - gone, fc[1], "end"]];
+  const pts: [number, number, string][] = [[0, lvNow, "middle"], ...ahead.filter(([m]) => m > 0.5)];
   const line = pts.map(([m, l]) => `${x(m).toFixed(1)},${y(l).toFixed(1)}`).join(" ");
+  const end = pts[pts.length - 1]![0];
   const label = (l: number, m: number) => (l >= 4 && m === 30 ? y(l) + 16 : y(l) - 9);
   return (
     <svg width={w} height={h} style={{ display: "block" }} role="img" aria-label={`Rain level: ${SHORT[lvNow]} now, ${SHORT[fc[0]]} in 10 minutes, ${SHORT[fc[1]]} in 30 minutes`}>
@@ -59,7 +62,7 @@ function RainChart({ log, now, fc, w, h }: { log: WxSample[]; now: number; fc: [
       {[-10, -5, 0, 10, 20, 30].map((m) => (
         <text key={m} x={x(m)} y={h - 7} textAnchor="middle" fontSize={10} fill={m === 0 ? "var(--tx)" : "var(--t3)"}>{m === 0 ? "Now" : (m > 0 ? "+" : MINUS) + Math.abs(m) + " min"}</text>
       ))}
-      <polygon points={`${x(0)},${y(0)} ${line} ${x(30)},${y(0)}`} fill={`url(#${hatch})`} />
+      <polygon points={`${x(0)},${y(0)} ${line} ${x(end)},${y(0)}`} fill={`url(#${hatch})`} />
       {recent.length > 1 ? <>
         <polygon points={`${x((recent[0]!.t - now) / 60000)},${y(0)} ${past} ${x(0)},${y(0)}`} fill="var(--t2)" opacity={0.18} />
         <polyline points={past} fill="none" stroke="var(--t2)" strokeWidth={1.75} />
@@ -166,6 +169,7 @@ export const weatherCenter = defineModule({
     const t = Date.now();
     const wind = s.wind_speed_kmh != null ? s.wind_speed_kmh / 3.6 : null;
     const log = wxSample({ t, rain: lv(0), wet, clouds, track: car.road_temp_c, air: car.air_temp_c, wind });
+    const since = wxForecastTime(t, [lv(1), lv(2)]);
     const tu = unit("temp", p.units).u, deg = tu === "°F" ? 1.8 : 1;
     const f = (v: number) => (tu === "°F" ? v * 1.8 + 32 : v);
     const grip = s.track_grip | 0, gripName = GRIP[grip] ?? NONE;
@@ -250,7 +254,7 @@ export const weatherCenter = defineModule({
             )}
             {hideChart ? null : (
               <Fit style={{ flex: 1, minHeight: CHART_MIN }}>{(w, h) => which === "rain"
-                ? <RainChart log={log} now={t} fc={[lv(1), lv(2)]} w={w} h={h} />
+                ? <RainChart log={log} now={t} fc={[lv(1), lv(2)]} since={since} w={w} h={h} />
                 : <TempChart log={log} now={t} k={which as "track" | "air"} f={f} tu={tu} color={which === "track" ? "var(--warn)" : "var(--cold)"} w={w} h={h} />}</Fit>
             )}
             {strip || hideChart ? (
@@ -263,7 +267,7 @@ export const weatherCenter = defineModule({
                 <span><i>Grip</i> {gripName}</span>
               </div>
             ) : null}
-            {showNote ? <div className="wx-note">{which === "rain" ? "Solid line: recorded while this page is open. Hatched: ACC's forecast at +10 and +30 min. ACC sends levels, not chances." : "Recorded while this page is open. ACC sends no temperature forecast."}</div> : null}
+            {showNote ? <div className="wx-note">{which === "rain" ? "Solid line: recorded while this page is open. Hatched: ACC's forecast at +10 and +30 min, sliding toward Now until ACC updates it. ACC sends levels, not chances." : "Recorded while this page is open. ACC sends no temperature forecast."}</div> : null}
           </div>
           {keep.size && !hideChart ? <div className="wx-side">{["cond", "temp", "wind", "grip"].filter((id) => keep.has(id)).map((id) => sections[id]![1])}</div> : null}
         </div>

@@ -12,6 +12,14 @@ export function wxSample(s: WxSample): WxSample[] {
   return log;
 }
 
+let anchor = { t: 0, fc: [-1, -1] as [number, number] };
+
+/** When ACC's +10 and +30 min forecast last changed. Its points stay on that moment, so the chart slides them toward Now until ACC says something new. */
+export function wxForecastTime(t: number, fc: [number, number]): number {
+  if (fc[0] !== anchor.fc[0] || fc[1] !== anchor.fc[1]) anchor = { t, fc };
+  return anchor.t;
+}
+
 /** Change per minute over the last `windowMin` minutes, or null with under a minute of data. */
 export function slopePerMin(samples: WxSample[], pick: (s: WxSample) => number | null, windowMin = 10): number | null {
   const end = samples[samples.length - 1];
