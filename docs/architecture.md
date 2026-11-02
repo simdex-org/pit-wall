@@ -31,15 +31,18 @@ Every strategy figure (box lap, fuel to add, stops needed, pit window, stop opti
 
 | Method and path | Needs key | Purpose |
 |---|---|---|
-| `GET /events?hz=5\|10\|15\|30\|60` | no | SSE stream; sends only what changed since the client's last message |
-| `GET /lap?n=` | no | one lap's 400-point trace and racing line |
-| `GET /field/laps?car=` | no | another car's lap history |
-| `GET /track` | no | saved layout of the track being driven |
+| `GET /events?hz=5\|10\|15\|30\|60` | yes (or session cookie) | SSE stream; sends only what changed since the client's last message |
+| `GET /lap?n=` | yes (or session cookie) | one lap's 400-point trace and racing line |
+| `GET /field/laps?car=` | yes (or session cookie) | another car's lap history |
+| `GET /track` | yes (or session cookie) | saved layout of the track being driven |
+| `POST /auth` | yes | trade the key for the HttpOnly session cookie the reads use |
 | `POST /pit` | yes | apply a pit plan |
 | `POST /config` | yes | change thresholds and strategy inputs |
 | `POST /mfd/close` | yes | close the pit page on the driver's screen |
 
-The key goes in the `X-Pit-Key` header. Every request must be addressed to an IP or `localhost`, which stops DNS rebinding.
+The key goes in the `X-Pit-Key` header. The page trades it once for a `SameSite=Strict`, `HttpOnly` session cookie (an HMAC of the key, not the key) because `EventSource` cannot send headers. Only the page's own files are served without it. Every request must be addressed to an IP or `localhost`, which stops DNS rebinding. Ten wrong keys in a minute from one address locks it out for the rest of the minute. Every response carries a Content-Security-Policy, `nosniff`, `X-Frame-Options: DENY` and `no-referrer`.
+
+The link is plain HTTP unless `--tls-cert` and `--tls-key` (PEM files) are given; then it is HTTPS, the cookie is `Secure` and HSTS is sent. Without TLS, keep the link inside an encrypted VPN. The bridge warns at start when the bind address is `0.0.0.0` or public, and refuses a `--key` under 12 characters unless it listens on loopback only.
 
 ## Pit control
 

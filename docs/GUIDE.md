@@ -98,8 +98,9 @@ ACC does not publish rival inputs, fuel or tyre wear, and the page never pretend
 | Option | Default | What it is |
 |---|---|---|
 | `--http HOST:PORT` | `127.0.0.1:8765` | Where the dashboard is served. Give your VPN address so the engineer can connect. |
-| `--key KEY` | random each start | Access key to send pit plans and change shared thresholds. |
+| `--key KEY` | random each start | Access key. Needed to see any data and to send pit plans. At least 12 characters unless the bridge is on 127.0.0.1. |
 | `--pit-key KEY` | `p` | ACC's key for the pitstop MFD page: one character or `F1`–`F24`. |
+| `--tls-cert FILE`, `--tls-key FILE` | off | Serve HTTPS with this PEM certificate and key. Without them the link is plain HTTP: use it only inside a VPN. |
 | `--key-ms MS` | `40` | How long each key is held. Raise to 60–80 if ACC misses presses. |
 | `--vjoy [N]` | off | Press the MFD through vJoy device N instead of the keyboard. |
 | `--broadcast-port PORT` | from `broadcasting.json` | ACC's broadcasting port. `0` turns field timing off. |
