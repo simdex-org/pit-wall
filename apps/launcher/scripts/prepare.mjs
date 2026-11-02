@@ -1,6 +1,6 @@
 // Gathers what the installed app needs next to it: Node, the bundled bridge and the page. Output is ignored by git.
 import { execFileSync, execSync } from "node:child_process";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rcedit } from "rcedit";
@@ -23,5 +23,7 @@ await rcedit(join(out, "node", "node.exe"), {
 });
 cpSync(join(root, "packages/bridge/dist"), join(out, "bridge"), { recursive: true });
 cpSync(web, join(out, "web"), { recursive: true });
-execFileSync(process.execPath, [join(root, "packages/bridge/scripts/stamp.mjs"), out], { stdio: "inherit" });
+const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const sha = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"]).toString().trim();
+writeFileSync(join(out, "app.json"), JSON.stringify({ version, sha, time: new Date().toISOString() }) + "\n");
 console.log(`resources ready in ${out}`);
