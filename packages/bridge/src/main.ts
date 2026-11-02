@@ -4,11 +4,13 @@
 // Serves the page plus a Server-Sent-Events stream it draws from, and, when the engineer sends a pit plan, sets it in the
 // game's pit page. Sending a plan or changing the shared thresholds needs the access key printed at start; watching does not.
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { networkInterfaces } from "node:os";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import { enable } from "./broadcast/config.js";
+import { bindWarning, keyProblem } from "./http/auth.js";
 import { createBridgeServer } from "./http/server.js";
 import { accLoop, startField } from "./loops.js";
 import { FakeMfd } from "./pit/fake-mfd.js";
@@ -22,6 +24,7 @@ const HELP = `Usage: pitwall-bridge [options]
 
   --http ADDRESS:PORT        where the page is served: this PC's VPN address and a port (default 127.0.0.1:8765, this PC only)
   --no-browser               do not open the page automatically
+  --tls-cert FILE --tls-key FILE   serve https with this certificate and private key (PEM)
   --key KEY                  access key for sending pit plans and changing thresholds (default: a new one each start)
   --pit-key KEY              ACC's key for the pitstop MFD page (default p)
   --key-ms MS                how long each key is held and released, ms (default 40)
@@ -43,6 +46,7 @@ const HELP = `Usage: pitwall-bridge [options]
 
   --enable-broadcast [PORT]  once, ACC closed: switch ACC's broadcasting port on in broadcasting.json, then exit
   --info                     print this PC's addresses and ACC's broadcasting port as JSON, then exit
+  --sectors                  while you drive, save where the sector lines are on each track to pitwall-sectors.json
   --probe                    print the not-yet-verified shared-memory fields once a second from a live session
   --bind-vjoy [N]            help bind ACC's MFD actions to vJoy buttons 1-6, then exit
 `;
@@ -73,7 +77,7 @@ async function main(): Promise<void> {
         "pit-key": { type: "string", default: "p" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
         "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" },
-        "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
+        "tls-cert": { type: "string" }, "tls-key": { type: "string" }, "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, sectors: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
     }).values;
@@ -92,6 +96,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
+  if (v.sectors) { const { recordSectors } = await import("./telemetry/sectors.js"); return void (await recordSectors()); }
   if (v.probe) { const { probe } = await import("./telemetry/pages.js"); return void (await probe()); }
   if (v["bind-vjoy"] !== undefined) { const { bindVjoy } = await import("./pit/vjoy.js"); return void (await bindVjoy(Number(v["bind-vjoy"]))); }
 
@@ -119,6 +124,12 @@ async function main(): Promise<void> {
   const simTrack = v["sim-track"]!;
   if (simTrack !== "demo" && !(simTrack in SIM_TRACKS)) return fail(`--sim-track must be demo or one of ${Object.keys(SIM_TRACKS).join(", ")}`);
   const key = v.key ?? randomBytes(16).toString("base64url");
+  const keyBad = keyProblem(key, hh);
+  if (keyBad) return fail(keyBad);
+  if (!v["tls-cert"] !== !v["tls-key"]) return fail("--tls-cert and --tls-key go together");
+  let tlsFiles: { cert: Buffer; key: Buffer } | undefined;
+  try { if (v["tls-cert"]) tlsFiles = { cert: readFileSync(v["tls-cert"]), key: readFileSync(v["tls-key"]!) }; } catch (e) { return fail(`TLS files: ${(e as Error).message}`); }
+  const scheme = tlsFiles ? "https" : "http";
 
   PIT.key = key;
   const fakeMfd = new FakeMfd();
@@ -140,7 +151,7 @@ async function main(): Promise<void> {
   startField({ simulateAcc: simulate, simSession, broadcastPort: v["broadcast-port"] === undefined ? undefined : Number(v["broadcast-port"]),
     broadcastPassword: v["broadcast-password"] }, pages);
 
-  const server = createBridgeServer();
+  const server = createBridgeServer(tlsFiles);
   server.on("error", (e: NodeJS.ErrnoException) => {
     console.log(`Cannot serve on ${v.http}: ${e.message}`);
     if (e.code === "EADDRINUSE" || e.code === "EACCES") {
@@ -166,13 +177,15 @@ async function main(): Promise<void> {
   if (v["control-stdin"]) createInterface({ input: process.stdin }).on("line", (l) => { if (l.trim() === "quit") shutdown(); }).on("close", shutdown);
 
   server.listen({ host: hh, port: Number(hp), exclusive: true }, () => {
-    console.log(`Pit Wall on ${v.http}   (Ctrl+C to stop)`);
+    console.log(`Pit Wall on ${scheme}://${v.http}   (Ctrl+C to stop)`);
+    const warn = bindWarning(hh, !!tlsFiles);
+    if (warn) console.log(`Note: ${warn}`);
     if (hh === "127.0.0.1" || hh === "localhost") {
       console.log("Only this PC can open it. For the engineer, start it on your VPN address (Hamachi's is 25.x.x.x):");
       for (const ip of myAddresses()) console.log(`    pitwall-bridge --http ${ip}:${hp}`);
-    } else console.log(`Engineer, open:   http://${hh}:${hp}/?key=${key}`);
+    } else console.log(`Engineer, open:   ${scheme}://${hh}:${hp}/?key=${key}`);
     if (!v["no-browser"]) {
-      const url = `http://${hh === "0.0.0.0" ? "127.0.0.1" : hh}:${hp}/?key=${key}`;
+      const url = `${scheme}://${hh === "0.0.0.0" ? "127.0.0.1" : hh}:${hp}/?key=${key}`;
       spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
     }
   });
