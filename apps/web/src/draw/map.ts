@@ -258,7 +258,7 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
   const rw = (({ s: 8, l: 20 } as Record<string, number>)[o.road] ?? 13); // the same at every zoom, so the markers keep their distance from it
   path(D.loop, rw + 3, tk.muted); path(D.loop, rw, tk.bg); // a dark road between two light edge lines
   const live = c.s?.sector_pos as number[] | undefined, ends = t?.sec?.length ? t.sec : live?.length ? live : []; // the track's own sector lines first, what the driver's laps have shown only for a track without them
-  if (o.yellows && ends.length) drawYellows(g, tk, D.loop, ends, r.session.global_flags as Record<string, boolean> | undefined, path, rw);
+  if (o.yellows && ends.length) drawYellows(g, tk, D.loop, ends, r.session.global_flags as Record<string, boolean> | undefined, r.session.flag === 2 ? sp.track_position : null, path, rw);
   if (o.ticks && ends.length) drawTicks(g, tk, D.loop, ends, X, Y, rw);
   const sf = D.loop[0]!;
   { // start/finish: a two-row chequered strip across the road, turned to the direction of travel
@@ -279,11 +279,21 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
       battleIds.add(car.i);
     }
   }
-  const ta = atFrac(D.loop, sp.track_position - 0.003), tb = atFrac(D.loop, sp.track_position + 0.003), heading = Math.atan2(Y(tb[1]) - Y(ta[1]), X(tb[0]) - X(ta[0]));
+  const heading = headingOf(me, D.loop, sp.track_position, X, Y);
   drawField(g, tk, c, o, cars.map(([car, [x, z]]) => ({ car, sx: X(x), sy: Y(z), hw: 0 })), mx, my, foc ? foc[0] : null, r.session.in_pit_lane, heading, battleIds, w, h, out);
   if (c.me != null && !r.session.in_pit_lane) out.hits.push({ i: c.me, x: mx, y: my });
   out.info = [`${(r.session.track_position * 100).toFixed(1)} % of lap`, cars.length ? `${cars.length + 1} cars` : "", view.zoom > 1.01 ? `×${view.zoom.toFixed(1)}` : ""].filter(Boolean).join(" · ");
   return out;
+}
+
+/** Where the car points: the way it has moved over the last 4 m, the drawing's tangent until it has moved (or when it jumps). */
+const HEAD = { ref: null as Pt | null, a: null as number | null };
+function headingOf(me: Pt, loop: Pt[], pos: number, X: (x: number) => number, Y: (z: number) => number): number {
+  const d = HEAD.ref ? Math.hypot(me[0] - HEAD.ref[0], me[1] - HEAD.ref[1]) : Infinity;
+  if (d > 100) { HEAD.ref = me; HEAD.a = null; } else if (d >= 4) { HEAD.a = Math.atan2(me[1] - HEAD.ref![1], me[0] - HEAD.ref![0]); HEAD.ref = me; }
+  if (HEAD.a != null) return HEAD.a;
+  const ta = atFrac(loop, pos - 0.003), tb = atFrac(loop, pos + 0.003);
+  return Math.atan2(Y(tb[1]) - Y(ta[1]), X(tb[0]) - X(ta[0]));
 }
 
 const stretch = (loop: Pt[], a: number, b: number): Pt[] => {
@@ -292,11 +302,13 @@ const stretch = (loop: Pt[], a: number, b: number): Pt[] => {
 };
 
 /** A sector under yellow flashes a yellow stripe along its stretch of the road. */
-function drawYellows(g: Ctx2D, tk: Tokens, loop: Pt[], ends: number[], gf: Record<string, boolean> | undefined, path: (pts: ArrayLike<number[]>, width: number, color: string) => void, rw: number): void {
+function drawYellows(g: Ctx2D, tk: Tokens, loop: Pt[], ends: number[], gf: Record<string, boolean> | undefined, mine: number | null, path: (pts: ArrayLike<number[]>, width: number, color: string) => void, rw: number): void {
   if (!gf || Math.floor(performance.now() / 600) % 2) return; // flashes like the blue flags: 0.6 s on, 0.6 s off
   const marks = [0, ...ends, 1];
   g.lineCap = "butt";
-  for (let i = 0; i + 1 < marks.length; i++) if (gf["y" + (i + 1)]) path(stretch(loop, marks[i]!, marks[i + 1]!), rw, tk.warn);
+  // ACC does not always raise the sector flags; the flag the driver is shown then marks the sector they are in
+  const sector = !gf.y1 && !gf.y2 && !gf.y3 && mine != null ? marks.findIndex((m, i) => mine >= m && mine < marks[i + 1]!) : -1;
+  for (let i = 0; i + 1 < marks.length; i++) if (gf["y" + (i + 1)] || i === sector) path(stretch(loop, marks[i]!, marks[i + 1]!), rw, tk.warn);
   g.lineCap = "round";
 }
 

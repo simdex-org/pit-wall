@@ -166,20 +166,21 @@ export const standings = defineModule({
 });
 
 // ---------- relative ----------
-/** The gap to each car when you last crossed the line: the trend is how it moved over this lap. */
-function useLapTrend(c: Ctx, mine: Car | undefined): Map<number, number> {
-  const snap = useRef<{ lap: number; rel: Map<number, number> }>({ lap: -1, rel: new Map() });
-  const prev = useRef<Map<number, number>>(new Map());
-  if (mine && snap.current.lap !== mine.laps) {
-    prev.current = snap.current.rel;
-    snap.current = { lap: mine.laps, rel: new Map([...c.cars.values()].filter((x) => x.rel != null && isFinite(x.rel)).map((x) => [x.i, x.rel!])) };
+
+function useGapRate(pairs: [string, number | null | undefined][], lapMs: number | null | undefined): Map<string, number> {
+  const buf = useRef(new Map<string, [number, number][]>()).current;
+  const now = performance.now(), out = new Map<string, number>(), live = new Set<string>();
+  for (const [k, v] of pairs) {
+    if (v == null || !isFinite(v)) continue;
+    live.add(k);
+    const h = buf.get(k) ?? [];
+    if (!h.length || now - h[h.length - 1]![0] >= 500) h.push([now, v]);
+    while (h[0]![0] < now - 60000) h.shift();
+    buf.set(k, h);
+    const span = now - h[0]![0];
+    if (span >= 15000) out.set(k, ((h[h.length - 1]![1] - h[0]![1]) / span) * (okMs(lapMs) ? lapMs! : 100000));
   }
-  const out = new Map<number, number>();
-  for (const x of c.cars.values()) {
-    const a = prev.current.get(x.i);
-    if (a == null || x.rel == null || !isFinite(x.rel) || Math.sign(a) !== Math.sign(x.rel)) continue;
-    out.set(x.i, Math.abs(x.rel) - Math.abs(a));
-  }
+  for (const k of buf.keys()) if (!live.has(k)) buf.delete(k);
   return out;
 }
 
@@ -189,8 +190,8 @@ export const relative = defineModule({
   options: [{ key: "rows", label: "Cars each side", type: "number", min: 2, max: 5, step: 1, def: 3 }, { key: "cls", label: "Class tags", type: "toggle", def: true }],
   view({ ctx: c, opts, size }) {
     const mine = c.me != null ? c.cars.get(c.me) : undefined;
-    const trend = useLapTrend(c, mine);
     const others = [...c.cars.values()].filter((x) => x.i !== c.me && x.rel != null && isFinite(x.rel));
+    const trend = useGapRate(others.map((x) => [`${x.i}${Math.sign(x.rel!)}`, Math.abs(x.rel!)]), mine?.last);
     const rowPx = size.w >= 5 ? 27 : 21, N = Math.max(1, Math.min(opts.rows as number, Math.floor(((size.h * 28 - 48) / rowPx - 1) / 2))); // what fits the module, never more than asked
     const ahead = others.filter((x) => x.rel! > 0).sort((a, b) => a.rel! - b.rel!).slice(0, N).reverse();
     const behind = others.filter((x) => x.rel! < 0).sort((a, b) => b.rel! - a.rel!).slice(0, N);
@@ -229,7 +230,7 @@ export const relative = defineModule({
           <thead><tr>{large ? <th className="s">P</th> : null}<th className="s">#</th><th className="l d">Driver</th><th>Gap</th><th>Trend</th></tr></thead>
           <tbody>
             {ahead.concat([mine], behind, pin ? [pin] : []).map((x) => {
-              const t = trend.get(x.i), isAhead = (x.rel ?? 0) > 0;
+              const t = trend.get(`${x.i}${Math.sign(x.rel ?? 0)}`), isAhead = (x.rel ?? 0) > 0;
               return (
                 <Fragment key={x.i}>
                 {x === pin ? <tr className="gaprow"><td colSpan={large ? 5 : 4} className="di">⋯</td></tr> : null}
@@ -267,13 +268,12 @@ function Line({ h, col }: { h: number[]; col: string }) {
   return <svg className="ln" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="Interval over the last laps"><path className="gl" d={`M0 ${H - 0.5}H${W}`} /><polyline className="tr" stroke={col} points={pts} vectorEffect="non-scaling-stroke" /></svg>;
 }
 
-function BattleCell({ label, car, gap, gl, hist, large, better }: { label: "Ahead" | "Behind"; car: Car | undefined; gap: number | null | undefined; gl: number; hist: (number | null | undefined)[] | undefined; large: boolean; better: boolean }) {
+function BattleCell({ label, car, gap, gl, hist, large, live }: { label: "Ahead" | "Behind"; car: Car | undefined; gap: number | null | undefined; gl: number; hist: (number | null | undefined)[] | undefined; large: boolean; live: number | undefined }) {
   if (!car) return <div className="c"><span className="lab">{label}</span><span className="mu">{label === "Ahead" ? "Leading." : "Last car."}</span></div>;
-  const h = series(hist, gap, gl), rate = rateOf(h), shown = rate != null && Math.abs(rate) >= 20;
+  const h = series(hist, gap, gl), rate = rateOf(h) ?? live ?? null, shown = rate != null && Math.abs(rate) >= 20;
   // closing is good for the car ahead of you, bad for the car behind
   const closing = rate != null && rate < 0, good = shown && (closing === (label === "Ahead"));
   const trend = shown ? <span className={"v " + (good ? "dn" : "up")}>{closing ? "▼" : "▲"} {(Math.abs(rate!) / 1000).toFixed(2)} /lap</span> : null;
-  void better;
   if (!large) return <div className="c"><span className="lab">{label} {carNum(car)}</span><span className="big">{gl > 0 ? plural(gl, "lap") : fmtRel(gap).replace(/^[+−-]/, "")}</span>{trend}</div>;
   return (
     <div className="c">
@@ -289,9 +289,12 @@ export const battle = defineModule({
   type: "battle", title: "Battle", group: "Timing", blurb: "The car ahead and the car behind: interval and whether it is closing.",
   size: { w: 3, h: 4, minW: 3, minH: 4, maxW: 3, maxH: 4 }, needs: ["field", "entries", "focus", "reading"], rate: 2,
   view({ ctx: c, size }) {
-    if (c.mode === "best") return { state: { kind: "empty", msg: "Battles are tracked in races only." } };
     const ss = c.r?.session;
     const fc = c.focusCar;
+    const list = fc && fieldOn(c) ? sortedCars(c) : [], A = fc ? list.find((x) => x.pos === fc.pos - 1) : undefined, B = fc ? list.find((x) => x.pos === fc.pos + 1) : undefined;
+    const rates = useGapRate([[`a${A?.i}`, fc && A && !(fc.int_laps > 0) ? fc.int : null], [`b${B?.i}`, B && !(B.int_laps > 0) ? B.int : null]], fc?.last);
+    const rA = rates.get(`a${A?.i}`), rB = rates.get(`b${B?.i}`);
+    if (c.mode === "best") return { state: { kind: "empty", msg: "Battles are tracked in races only." } };
     if (!fieldOn(c) || !fc) {
       return {
         info: "FIELD OFF", flush: true, body: (
@@ -302,7 +305,6 @@ export const battle = defineModule({
         ),
       };
     }
-    const list = sortedCars(c), A = list.find((x) => x.pos === fc.pos - 1), B = list.find((x) => x.pos === fc.pos + 1);
     const large = size.w >= 4 && size.h >= 6;
     const away = fc.i !== c.me && fc.rel != null && isFinite(fc.rel) ? `YOU ${(Math.abs(fc.rel) / 1000).toFixed(3)} ${fc.rel > 0 ? "BEHIND" : "AHEAD"}` : "";
     return {
@@ -310,8 +312,8 @@ export const battle = defineModule({
       info: large ? [`${carNum(fc)} · P${fc.pos}`, away] : fc.i === c.me ? `P${fc.pos}` : [`${carNum(fc)} · P${fc.pos}`, away],
       body: (
         <div className="cells" style={{ height: "100%" }}>
-          <BattleCell label="Ahead" car={A} gap={fc.int} gl={fc.int_laps} hist={fc.int_hist} large={large} better />
-          <BattleCell label="Behind" car={B} gap={B?.int} gl={B?.int_laps ?? 0} hist={B?.int_hist} large={large} better={false} />
+          <BattleCell label="Ahead" car={A} gap={fc.int} gl={fc.int_laps} hist={fc.int_hist} large={large} live={rA} />
+          <BattleCell label="Behind" car={B} gap={B?.int} gl={B?.int_laps ?? 0} hist={B?.int_hist} large={large} live={rB} />
         </div>
       ),
     };
