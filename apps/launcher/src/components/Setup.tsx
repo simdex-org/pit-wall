@@ -1,24 +1,31 @@
 import { useState } from "react";
 import * as bridge from "../lib/bridge";
-import { Prefs, vpnName } from "../lib/settings";
-import { Button, Card, ComboInput, Label, Switch, TextInput } from "./ui";
+import { isLoopback, newKey, Prefs } from "../lib/settings";
+import { Button, Card, Label, TextInput } from "./ui";
+
+export type Message = { text: string; tone: "bad" | "ok" | "muted" };
 
 interface Props {
   prefs: Prefs;
   onChange: (p: Prefs) => void;
   addresses: string[];
-  hamachi: string;
+  failed: boolean;
+  message: Message | null;
   onStart: () => void;
-  message: { text: string; tone: "bad" | "ok" | "muted" } | null;
+  onRecheck: () => void;
 }
 
 const tone = { bad: "text-bad", ok: "text-ok", muted: "text-muted" } as const;
 
-export function Setup({ prefs, onChange, addresses, hamachi, onStart, message }: Props) {
-  const [note, setNote] = useState<Props["message"]>(null);
+export function Setup({ prefs, onChange, addresses, failed, message, onStart, onRecheck }: Props) {
+  const [note, setNote] = useState<Message | null>(null);
   const [binding, setBinding] = useState(false);
   const shown = note ?? message;
   const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => onChange({ ...prefs, [k]: v });
+  const usable = addresses.filter((ip) => !isLoopback(ip));
+  const noAddress = usable.length === 0;
+  const inError = failed && !noAddress;
+  const link = `http://${prefs.ip.trim()}:${prefs.port.trim()}/?key=${prefs.key.trim()}`;
 
   async function bind() {
     setBinding(true);
@@ -33,29 +40,93 @@ export function Setup({ prefs, onChange, addresses, hamachi, onStart, message }:
     }
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <Card className="p-5">
-        <Label>VPN address</Label>
-        <ComboInput value={prefs.ip} onChange={(v) => set("ip", v)} options={addresses.map((ip) => ({ value: ip, hint: vpnName(ip) }))} />
-        <p className="mt-1 text-[12px] text-dim">
-          {hamachi
-            ? <>Your Hamachi address is <button type="button" className="text-text underline" onClick={() => set("ip", hamachi)}>{hamachi}</button>. Type another address if your engineer connects another way.</>
-            : "No Hamachi address found. Open Hamachi and power it on, or type the address your engineer connects to."}
-        </p>
+  const ipField = (
+    <TextInput id="ip" value={prefs.ip} onChange={(e) => set("ip", e.target.value)} inputMode="decimal" aria-invalid={inError}
+      className={`px-4 font-medium ${inError ? "h-[50px] border-bad text-[22px]" : "h-[54px] text-[24px]"}`} />
+  );
 
-        <div className="mt-4 grid grid-cols-[110px_1fr] gap-3">
-          <div><Label>Port</Label><TextInput value={prefs.port} onChange={(e) => set("port", e.target.value)} inputMode="numeric" /></div>
-          <div><Label>Key</Label><TextInput value={prefs.key} onChange={(e) => set("key", e.target.value)} /></div>
+  const portAndKey = (
+    <div className="grid grid-cols-[100px_minmax(0,1fr)] gap-3">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="port">PORT</Label>
+        <TextInput id="port" value={prefs.port} onChange={(e) => set("port", e.target.value)} inputMode="numeric" className="h-11 px-3 text-[15px]" />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="key">ACCESS KEY</Label>
+        <div className="flex gap-2">
+          <TextInput id="key" value={prefs.key} onChange={(e) => set("key", e.target.value)} className="h-11 flex-1 px-3 text-[15px]" />
+          <Button onClick={() => set("key", newKey())} className="h-11 px-3.5 font-semibold">New key</Button>
         </div>
+      </div>
+    </div>
+  );
 
-        <div className="mt-4"><Switch checked={prefs.vjoy} onChange={(on) => set("vjoy", on)}>Press the pit page through vJoy</Switch></div>
+  return (
+    <>
+      {noAddress ? (
+        <>
+          <Card className="flex flex-col gap-3.5 border-warn p-[18px]">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <Label htmlFor="ip">IP ADDRESS</Label>
+                <span className="flex items-center gap-1.5 text-[12px] font-semibold tracking-[.08em] text-warn">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M8 1.5l6.5 12h-13z" /><path d="M8 6.5v3.5M8 12v.01" /></svg>
+                  NO ADDRESS FOUND
+                </span>
+              </div>
+              {ipField}
+            </div>
+            <p className="m-0 text-[15px] leading-[1.45]">Pit Wall did not find an address your engineer could connect to. With 127.0.0.1 only this PC can open the dashboard.</p>
+            <ol className="m-0 flex list-none flex-col gap-2 p-0 text-[14px] leading-[1.4]">
+              {["Connect this PC to the network your engineer will use.", "Or type the address your engineer connects to.", "Press Check again."].map((t, i) => (
+                <li key={t} className="flex gap-3"><span className="font-mono font-bold text-accent">{i + 1}</span><span>{t}</span></li>
+              ))}
+            </ol>
+            <Button onClick={onRecheck} className="h-11 text-[15px] font-semibold">Check again</Button>
+          </Card>
+          <Card className="border-line px-[18px] py-3.5">{portAndKey}</Card>
+        </>
+      ) : (
+        <Card className="flex flex-col gap-3.5 border-line p-[18px]">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="ip" tone={inError ? "bad" : "muted"}>IP ADDRESS</Label>
+              {!inError && usable.includes(prefs.ip.trim()) && (
+                <span className="flex items-center gap-1.5 text-[12px] font-semibold tracking-[.08em] text-ok">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M2 6.5l3 3 5-6" /></svg>
+                  DETECTED ON THIS PC
+                </span>
+              )}
+            </div>
+            {ipField}
+            <p className="m-0 text-[12px] leading-[1.4] text-muted">
+              {inError
+                ? <>Found on this PC: <span className="font-mono text-text">{usable.join(", ")}</span></>
+                : "This is the address your engineer connects to. Type another one if you connect another way."}
+            </p>
+          </div>
+          {portAndKey}
+          {!inError && (
+            <div className="border-t border-line pt-3 text-[12px] leading-[1.45] text-muted">
+              Link for your engineer<br />
+              <span className="select-text break-all font-mono text-[13px] text-accent">{link}</span>
+            </div>
+          )}
+        </Card>
+      )}
 
-        <Button onClick={bind} disabled={!prefs.vjoy || binding} className="mt-4 w-full">{binding ? "Binding..." : "Bind vJoy in ACC"}</Button>
+      <Card className="flex items-center gap-3.5 border-line px-[18px] py-2.5">
+        <input id="vj" type="checkbox" checked={prefs.vjoy} onChange={(e) => set("vjoy", e.target.checked)} className="m-0 size-5 shrink-0 cursor-pointer accent-accent" />
+        <label htmlFor="vj" className="flex-1 cursor-pointer text-[15px] font-semibold">Press the pit page through vJoy</label>
+        <Button onClick={bind} disabled={!prefs.vjoy || binding} className="h-9 px-3.5 font-semibold">{binding ? "Binding..." : "Bind in ACC"}</Button>
       </Card>
 
-      {shown && <p className={`min-h-5 text-[13px] leading-snug ${tone[shown.tone]}`} role="status">{shown.text}</p>}
-      <Button kind="primary" onClick={onStart}>Start Pit Wall</Button>
-    </div>
+      <div className="flex-1" />
+
+      {shown && <p className={`m-0 text-[13px] leading-snug ${tone[shown.tone]}`} role="status">{shown.text}</p>}
+      <Button kind={noAddress ? "outline" : "primary"} onClick={onStart}>
+        {failed && !noAddress ? "TRY AGAIN" : noAddress ? "START FOR THIS PC ONLY" : "START PIT WALL"}
+      </Button>
+    </>
   );
 }

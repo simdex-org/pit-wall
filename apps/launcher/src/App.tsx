@@ -1,21 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CloseDialog } from "./components/CloseDialog";
 import { Running } from "./components/Running";
-import { Setup } from "./components/Setup";
+import { Message, Setup } from "./components/Setup";
 import { TitleBar } from "./components/TitleBar";
 import { UpdateBar } from "./components/UpdateBar";
-import { Button } from "./components/ui";
+import { Card, LogBox } from "./components/ui";
 import * as bridge from "./lib/bridge";
-import { bridgeArgs, linkFor, loadPrefs, Prefs, savePrefs, validate } from "./lib/settings";
+import { failureMessage } from "./lib/failure";
+import { bridgeArgs, isLoopback, linkFor, loadPrefs, pickIp, Prefs, savePrefs, validate } from "./lib/settings";
 
-type Message = { text: string; tone: "bad" | "ok" | "muted" };
 const MAX_LINES = 300;
+
+function Header({ stopped }: { stopped: boolean }) {
+  return (
+    <header className="flex items-end justify-between">
+      <div>
+        <div className="text-[32px] font-bold leading-none tracking-[.14em]">PIT WALL</div>
+        <div className="mt-1.5 text-[13px] text-muted">Race engineer bridge for Assetto Corsa Competizione</div>
+      </div>
+      {stopped ? (
+        <div className="flex items-center gap-2 font-mono text-[12px] text-bad">
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="2" fill="none" /></svg>
+          STOPPED · v{__VERSION__}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 font-mono text-[12px] text-muted">
+          <span className="box-border size-2 rounded-full border-2 border-dim" />
+          IDLE · v{__VERSION__}
+        </div>
+      )}
+    </header>
+  );
+}
 
 export function App() {
   const [addresses, setAddresses] = useState<string[]>([]);
-  const [hamachi, setHamachi] = useState("");
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs([]));
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [since, setSince] = useState(0);
   const [lines, setLines] = useState<string[]>([]);
   const [message, setMessage] = useState<Message | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -24,9 +47,8 @@ export function App() {
   useEffect(() => {
     bridge.info().then((i) => {
       setAddresses(i.addresses);
-      setHamachi(i.hamachi);
       if (i.broadcastPort <= 0) bridge.enableFieldTiming().catch(() => {});
-      setPrefs(loadPrefs(i.hamachi ? [i.hamachi, ...i.addresses] : i.addresses));
+      setPrefs(loadPrefs(i.addresses));
     }).catch((e) => setMessage({ text: `The bridge did not answer: ${e}`, tone: "bad" }));
   }, []);
 
@@ -41,11 +63,21 @@ export function App() {
         setStopping(false);
         setMessage(served.current && code === 0
           ? { text: "Pit Wall stopped. Start it again when you want.", tone: "muted" }
-          : { text: "Pit Wall could not run. The last log lines say why.", tone: "bad" });
+          : { text: "Pit Wall could not run.", tone: "bad" });
       }),
       bridge.onCloseRequested(() => setConfirmClose(true)),
     ];
     return () => { subs.forEach((s) => s.then((off) => off())); };
+  }, []);
+
+  const recheck = useCallback(async () => {
+    try {
+      const i = await bridge.info();
+      setAddresses(i.addresses);
+      setPrefs((p) => (isLoopback(p.ip) ? { ...p, ip: pickIp(i.addresses) } : p));
+    } catch (e) {
+      setMessage({ text: `The bridge did not answer: ${e}`, tone: "bad" });
+    }
   }, []);
 
   const startBridge = useCallback(async () => {
@@ -57,6 +89,7 @@ export function App() {
     served.current = false;
     try {
       await bridge.start(bridgeArgs(prefs));
+      setSince(Date.now());
       setRunning(true);
     } catch (e) {
       setMessage({ text: String(e), tone: "bad" });
@@ -69,31 +102,28 @@ export function App() {
   return (
     <div className="flex h-full flex-col">
       <TitleBar />
-      <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-7">
-        <header className="flex items-center justify-between">
-          <img src="/logo.svg" alt="Pit Wall" className="h-11" />
-          <p className="text-right text-xs leading-snug text-dim">Race engineer bridge v{__VERSION__}<br />Assetto Corsa Competizione</p>
-        </header>
+      <main className={`flex min-h-0 flex-1 flex-col overflow-auto px-8 pb-4 pt-6 ${running || failedStart ? "gap-4" : "gap-3.5"}`}>
+        {!running && <Header stopped={failedStart} />}
 
-        {confirmClose && (
-          <div role="alertdialog" aria-label="Close Pit Wall" className="flex items-center gap-3 rounded-lg border border-warn bg-panel px-4 py-3 text-[14px]">
-            <span className="flex-1">Stop Pit Wall and close the window? Your engineer loses the dashboard.</span>
-            <Button onClick={() => setConfirmClose(false)}>Keep running</Button>
-            <Button kind="danger" onClick={() => bridge.quit()}>Stop and close</Button>
-          </div>
-        )}
+        {confirmClose && <CloseDialog onKeep={() => setConfirmClose(false)} onQuit={() => bridge.quit()} />}
 
         {running ? (
-          <Running address={`${prefs.ip}:${prefs.port.trim()}`} link={linkFor(prefs)} lines={lines} stopping={stopping} onStop={stopBridge} />
+          <Running address={`${prefs.ip.trim()}:${prefs.port.trim()}`} link={linkFor(prefs)} lines={lines} stopping={stopping} since={since} onStop={stopBridge} />
         ) : (
           <>
-            <Setup prefs={prefs} onChange={setPrefs} addresses={addresses} hamachi={hamachi}
-              onStart={startBridge} message={message} />
-            {failedStart && <pre className="select-text overflow-auto rounded-lg border border-line bg-panel p-3 font-mono text-[11px] text-muted">{lines.slice(-6).join("\n")}</pre>}
+            {failedStart && (
+              <Card role="alert" className="flex flex-col gap-3 border-bad px-5 py-4">
+                <div className="text-[20px] font-bold text-bad">Pit Wall could not run</div>
+                <div className="text-[15px] leading-[1.45]">{failureMessage(lines, prefs.ip, prefs.port)}</div>
+                <div className="rounded border border-line bg-bg p-3"><LogBox lines={lines.slice(-6)} /></div>
+              </Card>
+            )}
+            <Setup prefs={prefs} onChange={setPrefs} addresses={addresses} failed={failedStart}
+              message={failedStart ? null : message} onStart={startBridge} onRecheck={recheck} />
           </>
         )}
 
-        <div className="mt-auto"><UpdateBar running={running} /></div>
+        <UpdateBar running={running} />
       </main>
     </div>
   );
