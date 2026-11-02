@@ -1,6 +1,6 @@
-// The page, GET /events (SSE), /lap, /session, /field/laps, /track and POST /pit, /config, /mfd/close.
-import { timingSafeEqual } from "node:crypto";
+// The page, GET /events (SSE), /lap, /session, /field/laps, /track (signed in) and POST /auth, /pit, /config, /mfd/close.
 import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
 import { isIP } from "node:net";
 import { cleanConfig } from "../config.js";
 import { WEB_DIR } from "../paths.js";
@@ -9,13 +9,15 @@ import { cleanPlan } from "../pit/plan.js";
 import { FAST, FIELD, log, PIT, setJob, STATE, TEL } from "../state.js";
 import { loadLayout } from "../tracks.js";
 import { Rec, rnd, ValueError } from "../util.js";
+import { blocked, forgive, keyOk, miss, presented, sessionCookie, sessionOk } from "./auth.js";
+import { secure, setTls, tls } from "./headers.js";
 import { serveStatic } from "./static.js";
 
 type Res = ServerResponse;
 
 function reply(res: Res, code: number, text: string, kind = "text/plain; charset=utf-8"): void {
   const body = Buffer.from(text);
-  res.writeHead(code, { "Content-Type": kind, "Content-Length": body.length, "Cache-Control": "no-cache" });
+  res.writeHead(code, secure({ "Content-Type": kind, "Content-Length": body.length, "Cache-Control": "no-cache" }));
   res.end(body);
 }
 const replyJson = (res: Res, code: number, obj: unknown) => reply(res, code, JSON.stringify(rnd(obj)), "application/json");
@@ -78,16 +80,17 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   try { return JSON.parse(Buffer.concat(chunks).toString("utf-8")); } catch (e) { throw new ValueError((e as Error).message); }
 }
 
-function keyOk(req: IncomingMessage): boolean {
-  const a = Buffer.from(String(req.headers["x-pit-key"] ?? "")), b = Buffer.from(PIT.key);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 async function post(req: IncomingMessage, res: Res, path: string): Promise<void> {
   if (!hostOk(req.headers.host)) return reply(res, 403, "use the PC's IP address");
-  if (!["/pit", "/config", "/mfd/close"].includes(path)) return reply(res, 404, "not found");
-  if (!keyOk(req)) return reply(res, 403, "wrong or missing access key");
+  if (!["/auth", "/pit", "/config", "/mfd/close"].includes(path)) return reply(res, 404, "not found");
   const from = req.socket.remoteAddress ?? "?";
+  if (blocked(from)) return reply(res, 429, "too many wrong keys; wait a minute");
+  if (!keyOk(req)) { miss(from); return reply(res, 403, "wrong or missing access key"); }
+  forgive(from);
+  if (path === "/auth") { // trades the key for the session cookie the event stream and the other reads use
+    res.setHeader("Set-Cookie", sessionCookie(tls));
+    return reply(res, 204, "");
+  }
   if (path === "/mfd/close") { // take the pit page off the driver's screen (ACC's Cycle MFD)
     if (!PIT.mfd) return reply(res, 503, "pit control is not available on this PC");
     const snap = pitSnapshot(); // outside a live session Cycle MFD would only move the driver's MFD to another page
@@ -129,9 +132,16 @@ function intParam(q: URLSearchParams, name: string, lo: number, hi: number): num
   return v >= lo && v <= hi ? v : null;
 }
 
+const DATA = new Set(["/events", "/lap", "/field/laps", "/session", "/track"]);
+
 function get(req: IncomingMessage, res: Res): void {
   if (!hostOk(req.headers.host)) return reply(res, 403, "use the PC's IP address");
   const u = new URL(req.url ?? "/", "http://x");
+  if (DATA.has(u.pathname)) {
+    const from = req.socket.remoteAddress ?? "?";
+    if (blocked(from)) return reply(res, 429, "too many wrong keys; wait a minute");
+    if (!sessionOk(req)) { if (presented(req)) miss(from); return reply(res, 401, "sign in first"); }
+  }
   if (u.pathname === "/events") return events(req, res, u.searchParams);
   if (u.pathname === "/lap" || u.pathname === "/field/laps") {
     const lap = u.pathname === "/lap";
@@ -165,7 +175,7 @@ function events(req: IncomingMessage, res: Res, q: URLSearchParams): void {
   const gap = 1000 / (["5", "10", "15", "30", "60"].includes(hz) ? Number(hz) : 30);
   const fast = hz === "60";
   if (fast) FAST.n++;
-  res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
+  res.writeHead(200, secure({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" }));
   // what this client was last sent; -1: everything on the first message
   const sent = { ver: -1, summary: null as number | null, laps: -1, field: -1, slow: -1, entries: -1, log: 0, pit_log: -1, config: -1 };
   let lastBeat = 0, due = 0; // due: when the next reading may go, on a fixed beat so polling never rounds the rate down
@@ -208,9 +218,11 @@ function events(req: IncomingMessage, res: Res, q: URLSearchParams): void {
   req.on("close", () => { clearInterval(timer); if (fast) FAST.n--; });
 }
 
-export function createBridgeServer(): Server {
-  return createServer((req, res) => {
+export function createBridgeServer(tlsFiles?: { cert: Buffer; key: Buffer }): Server {
+  setTls(!!tlsFiles);
+  const handler = (req: IncomingMessage, res: ServerResponse) => {
     const run = req.method === "POST" ? post(req, res, new URL(req.url ?? "/", "http://x").pathname) : Promise.resolve(get(req, res));
     run.catch((e) => { console.error(e); if (!res.headersSent) reply(res, 500, "server error"); else res.end(); });
-  });
+  };
+  return tlsFiles ? createHttpsServer(tlsFiles, handler) : createServer(handler);
 }

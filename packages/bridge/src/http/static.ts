@@ -2,6 +2,7 @@
 // unchanged file is answered with a short 304.
 import { createReadStream, statSync } from "node:fs";
 import { IncomingMessage, ServerResponse } from "node:http";
+import { secure } from "./headers.js";
 import { extname, join, normalize, sep } from "node:path";
 
 // Windows' registry can map .js to text/plain, and browsers refuse a module served so; so the table is ours.
@@ -12,7 +13,7 @@ const TYPES: Record<string, string> = {
 };
 
 function send(res: ServerResponse, code: number, text: string): void {
-  res.writeHead(code, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" });
+  res.writeHead(code, secure({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" }));
   res.end(text);
 }
 
@@ -27,11 +28,11 @@ export function serveStatic(req: IncomingMessage, res: ServerResponse, root: str
   if (!st.isFile()) return send(res, 404, "not found");
   const since = req.headers["if-modified-since"];
   if (since && Math.floor(st.mtimeMs / 1000) <= Math.floor(Date.parse(since) / 1000)) {
-    res.writeHead(304, { "Cache-Control": "no-cache" });
+    res.writeHead(304, secure({ "Cache-Control": "no-cache" }));
     return void res.end();
   }
-  res.writeHead(200, { "Content-Type": TYPES[extname(file).toLowerCase()] ?? "application/octet-stream", "Content-Length": st.size,
-    "Last-Modified": st.mtime.toUTCString(), "Cache-Control": "no-cache" });
+  res.writeHead(200, secure({ "Content-Type": TYPES[extname(file).toLowerCase()] ?? "application/octet-stream", "Content-Length": st.size,
+    "Last-Modified": st.mtime.toUTCString(), "Cache-Control": "no-cache" }));
   if (req.method === "HEAD") return void res.end();
   createReadStream(file).pipe(res);
 }
