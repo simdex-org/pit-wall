@@ -16,16 +16,19 @@ export function installed(): string | null {
   } catch { return null; }
 }
 
-const parts = (v: string) => v.replace(/^v/, "").split(".").map(Number);
+const parse = (v: string) => {
+  const m = /^v?(\d+(?:\.\d+)*)-?([a-z]*)/i.exec(v);
+  return { nums: (m?.[1] ?? "0").split(".").map(Number), tag: (m?.[2] ?? "").toLowerCase() };
+};
 
 export function isNewer(have: string | null, latest: string): boolean {
   if (have === null) return false;
-  const [a, b] = [parts(have), parts(latest)];
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const d = (b[i] ?? 0) - (a[i] ?? 0);
+  const [a, b] = [parse(have), parse(latest)];
+  for (let i = 0; i < Math.max(a.nums.length, b.nums.length); i++) {
+    const d = (b.nums[i] ?? 0) - (a.nums[i] ?? 0);
     if (d) return d > 0;
   }
-  return false;
+  return b.tag > a.tag;
 }
 
 /** The installer is Pit.Wall_x.y.z_x64-setup.exe; the portable build is PitWall.exe (PitWall-portable.exe in v0.1.x). */

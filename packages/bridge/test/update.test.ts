@@ -10,6 +10,10 @@ describe("update", () => {
     expect(isNewer("1.0.10", "1.0.9")).toBe(false);
     expect(isNewer("1.0.2", "1.0.2")).toBe(false);
     expect(isNewer(null, "2.0.0")).toBe(false);
+    expect(isNewer("1.0.3", "1.0.3f")).toBe(true);
+    expect(isNewer("1.0.3-f", "1.0.3f")).toBe(false);
+    expect(isNewer("1.0.3f", "1.0.3")).toBe(false);
+    expect(isNewer("1.0.3f", "1.0.4")).toBe(true);
   });
 
   test("a release needs a tag and assets", () => {
