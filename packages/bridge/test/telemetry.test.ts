@@ -36,6 +36,7 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
     expect(tel.debrief[0]!.lap_number).toBeGreaterThan(tel.debrief[1]!.lap_number);
     const d = tel.debrief[0]!;
     expect(d.sectors_ms).toHaveLength(3);
+    expect(tel.secKept).toHaveLength(2);
     expect(d.sectors_ms.reduce((a: number, b: number) => a + b, 0)).toBe(d.lap_time_ms);
     expect(Math.abs(s.fuel_per_lap - pages.world.player.lpl)).toBeLessThan(0.3);
     expect(s.stint_laps).toBeGreaterThanOrEqual(3);

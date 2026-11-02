@@ -40,6 +40,7 @@ export class Telemetry {
   splits: number[] = [];
   debrief: Rec[] = [];
   secPos: number[] = [];
+  secAt: number[] = []; // the latest crossing of each sector line, whatever lap it was on
   secKept: number[] = []; // where the sectors end, in lap fractions, from the last lap that had them all
   stintStart: number | null = null;
   fuelAtLine: number | null = null;
@@ -85,7 +86,7 @@ export class Telemetry {
       this.vault.set(id, { traces: this.traces });
       if (this.past.length > 6) this.vault.delete(this.past.shift()!.id);
     }
-    this.prev = null; this.splits = []; this.debrief = []; this.secPos = [];
+    this.prev = null; this.splits = []; this.debrief = []; this.secPos = []; this.secAt = []; this.secKept = [];
     this.stintStart = this.fuelAtLine = null;
     this.lapFuel = []; this.lapBrakeMax = 0; this.best = null; this.stint = [];
     this.laps = []; this.lapStartPit = this.lapSawPit = false; this.lapsVer++;
@@ -113,6 +114,11 @@ export class Telemetry {
     if (p && r.sector > p.sector) { // ACC's exact sector time; the frame's lap time is up to a frame late, so it is the fallback
       const at = (this.splits.length ? this.splits[this.splits.length - 1]! : 0) + r.last_sector_ms;
       this.secPos.push(r.track_pos);
+      const n = (r.sectors || 3) - 1; // the line a jump of more than one sector crossed is not known
+      if (r.sector === p.sector + 1 && p.sector < n) {
+        this.secAt[p.sector] = r.track_pos;
+        if (Array.from({ length: n }, (_, i) => this.secAt[i]).every((v) => v !== undefined)) this.secKept = this.secAt.slice(0, n);
+      }
       this.splits.push(r.last_sector_ms > 0 && r.last_sector_ms < 600000 && r.cur_ms - at >= 0 && r.cur_ms - at < 250 ? at : r.cur_ms);
     }
     this.lapBrakeMax = Math.max(this.lapBrakeMax, ...r.brake_temp);
@@ -288,7 +294,6 @@ export class Telemetry {
         this.events.push([0, "PIT", `Stop L${pd.in} cost ${(pd.rec.loss_ms / 1000).toFixed(1)} s`]);
       }
     }
-    if (whole) this.secKept = this.secPos.slice();
     this.splits = []; this.secPos = []; this.lapBrakeMax = 0; this.fuelAtLine = r.fuel;
     this.lapStartPit = this.lapSawPit = !!r.pit_lane;
     this.cur = []; this.line = [];
@@ -306,11 +311,11 @@ export class Telemetry {
   /** The track layout worth keeping: the fastest valid whole lap's line (else the fastest whole lap's) and its sector lines, or null. */
   bestLayout(): Rec | null {
     const ts = [...this.traces].filter(([, t]) => t.line.length > 100).map(([n, t]) => [t.valid ? 0 : 1, t.ms, n] as const);
-    if (!ts.length) return null;
+    if (!ts.length) return this.secKept.length ? { sec: this.secKept.map((v) => Math.round(v * 1e5) / 1e5) } : null; // no whole lap yet: just the sectors
     const [inv, ms, n] = ts.reduce((m, x) => (x[0] < m[0] || (x[0] === m[0] && (x[1] < m[1] || (x[1] === m[1] && x[2] < m[2]))) ? x : m));
     const t = this.traces.get(n)!;
     const r5 = (v: number) => Math.round(v * 1e5) / 1e5, r1 = (v: number) => Math.round(v * 10) / 10;
-    return { valid: !inv, ms, sec: t.sec.map(r5), line: t.line.map(([x, z, q]) => [r1(x!), r1(z!), r5(q!)]) };
+    return { valid: !inv, ms, sec: (this.secKept.length ? this.secKept : t.sec).map(r5), line: t.line.map(([x, z, q]) => [r1(x!), r1(z!), r5(q!)]) };
   }
 
   /** The field's final state of an earlier session, once the broadcast side has it. */

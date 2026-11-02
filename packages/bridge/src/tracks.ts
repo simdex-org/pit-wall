@@ -14,13 +14,17 @@ export function loadLayout(name: string): Rec | null {
 /** Never throws. */
 export function saveLayout(name: string, lay: Rec): void {
   const old = loadLayout(name);
-  // old is at least as good: (not valid, ms) lexicographically no greater than the new one's
-  if (old) {
+  let out: Rec = lay;
+  if (!lay.line) { // only the sectors, from a lap that was not whole: they go on the layout already kept
+    if (!lay.sec) return;
+    out = old ? { ...old, sec: old.sec ?? lay.sec } : { valid: false, ms: null, ...lay };
+  } else if (old) {
+    // old is at least as good: (not valid, ms) lexicographically no greater than the new one's
     const a = [old.valid ? 0 : 1, old.ms ?? 9e9], b = [lay.valid ? 0 : 1, lay.ms];
     if (a[0]! < b[0]! || (a[0] === b[0] && a[1]! <= b[1]!)) return;
   }
   try {
     mkdirSync(TRACK_DIR, { recursive: true });
-    writeFileSync(trackFile(name), JSON.stringify({ ...lay, track: name }));
+    writeFileSync(trackFile(name), JSON.stringify({ ...out, track: name }));
   } catch { /* the layout is only a cache */ }
 }
