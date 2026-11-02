@@ -169,26 +169,32 @@ export function same(k: string, a: unknown, b: unknown): boolean {
   return a === b;
 }
 
-/** What a send would change, as text: "Fuel 42 → 58 L". */
-export function changes(p: PitPlan, pit: Json | null, only: Block | undefined, pitLog: Json[], units?: UnitChoice): string[] {
-  const out: string[] = [];
+export interface ChangeRow { label: string; from?: string; to: string; unit: string }
+
+/** What a send would change, one row per setting: "Fuel", 42 → 58, "L". */
+export function changeRows(p: PitPlan, pit: Json | null, only: Block | undefined, pitLog: Json[], units?: UnitChoice): ChangeRow[] {
+  const out: ChangeRow[] = [];
   for (const g of GROUPS) {
     if (only && only !== g.block) continue;
     for (const { key: k } of g.rows) {
       if (k === "tyre_set" && p.compound === "wet") continue; // wet tyres have no sets in ACC: never typed
       const v = pv(p, k), n = nowOf(pit, k);
-      const u = isPress(k) ? " " + unit("press", units).u : k === "fuel" ? " L" : "";
+      const unitText = isPress(k) ? unit("press", units).u : k === "fuel" ? "L" : "";
       if (n != null) {
-        if (!same(k, n, v)) out.push(`${LABEL[k]} ${show(k, n, units)} → ${show(k, v, units)}${u}`);
+        if (!same(k, n, v)) out.push({ label: LABEL[k]!, from: String(show(k, n, units)), to: String(show(k, v, units)), unit: unitText });
       } else {
         const typed = v === true || (["compound", "front_pad", "rear_pad"].includes(k) && (only || p[k === "compound" ? "tyres" : "brakes"]));
         const sv = sentVal(pitLog, k);
-        if (typed && !(sv !== undefined && same(k, sv, v))) out.push(`${LABEL[k]} → ${show(k, v, units)}`);
+        if (typed && !(sv !== undefined && same(k, sv, v))) out.push({ label: LABEL[k]!, to: String(show(k, v, units)), unit: unitText });
       }
     }
   }
   return out;
 }
+
+/** The same rows as text: "Fuel 42 → 58 L". */
+export const changes = (p: PitPlan, pit: Json | null, only: Block | undefined, pitLog: Json[], units?: UnitChoice): string[] =>
+  changeRows(p, pit, only, pitLog, units).map((r) => (r.from != null ? `${r.label} ${r.from} → ${r.to}` : `${r.label} → ${r.to}`) + (r.unit ? " " + r.unit : ""));
 
 export interface RowResult { r: string; txt: string; cls: string; title: string }
 

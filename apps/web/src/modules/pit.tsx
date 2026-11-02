@@ -11,7 +11,7 @@ import { accessKey, post, say } from "../state/bridge";
 import { feed } from "../feed/store";
 import { usePrefs } from "../state/prefs";
 import {
-  Block, changes, CORNERS, nowOf, OK_RES, PitPlan, planStore, pv, resOf, same, sentVal, show, usePlan, usePlanFlash,
+  Block, ChangeRow, changeRows, CORNERS, nowOf, OK_RES, PitPlan, planStore, pv, resOf, same, sentVal, show, usePlan, usePlanFlash,
 } from "../state/plan";
 
 const clock = (d: Date) => d.toLocaleTimeString([], { hour12: false });
@@ -51,7 +51,7 @@ const PADS: [string, string][] = [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]
 function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean }) {
   const plan = usePlan(), flash = usePlanFlash(), prefs = usePrefs(), units = prefs.units;
   const [confirm, setConfirm] = useState(confirmDefault);
-  const [pending, setPending] = useState<{ only?: Block[]; text: string } | null>(null);
+  const [pending, setPending] = useState<{ only?: Block[]; title: string; rows: ChangeRow[] } | null>(null);
   const [msg, setMsg] = useState("");
   const [sending, setSending] = useState(false);
   const [closeUntil, setCloseUntil] = useState(0);
@@ -91,8 +91,8 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
   const send = (only?: Block[]) => {
     if (sending) return;
     if (confirm) {
-      const ch = only ? only.flatMap((b) => changes(plan, c.pit, b, c.pitLog, units)) : changes(plan, c.pit, undefined, c.pitLog, units);
-      setPending({ only, text: (only ? `Send ${only.join(" and ")}: ` : "Send the whole plan: ") + (ch.length ? ch.join(" · ") : "nothing differs from the MFD") });
+      const rows = only ? only.flatMap((b) => changeRows(plan, c.pit, b, c.pitLog, units)) : changeRows(plan, c.pit, undefined, c.pitLog, units);
+      setPending({ only, title: only ? `Send ${only.join(" and ")}` : "Send the whole plan", rows });
       return;
     }
     void doSend(only);
@@ -216,8 +216,7 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
             <div className="pwb-bar" title={max ? `Tank ${nf(max, 0)} L` : ""}><i className="now" style={{ width: nowPct + "%" }} /><i className="add" style={{ width: addPct + "%" }} /></div>
           </div>
           <div className="pwb-pre">
-            {[5, 10, 20].map((d) => <button key={d} type="button" className="pwb-chip" onClick={() => bump(d)}>+{d}</button>)}
-            <button type="button" className="pwb-chip" disabled={!max || !car} title="Fill the tank" onClick={() => set({ fuel: Math.max(0, Math.floor(max - nowL)) })}>Fill</button>
+            {[-10, -5, 5, 10].map((d) => <button key={d} type="button" className="pwb-chip" onClick={() => bump(d)}>{d < 0 ? MINUS + -d : "+" + d}</button>)}
           </div>
           <div className="pwb-pick">
             <button type="button" className="pwb-chip" disabled={st?.add_at_box_l == null} aria-pressed={st?.add_at_box_l != null && plan.fuel === Math.ceil(st.add_at_box_l)} title="What the strategy says to add" onClick={() => planStore.patch({ fuel: Math.ceil(st!.add_at_box_l) })}>Strategy {st?.add_at_box_l != null ? nf(st.add_at_box_l, 1) : NONE}</button>
@@ -263,10 +262,17 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
         {sendBtn(["brakes", "repairs"])}
       </div>
       {pending ? (
-        <div className="f" style={{ padding: 8, gap: 8, borderTop: "1px solid var(--warn)", background: "color-mix(in srgb, var(--warn) 14%, transparent)", flex: "none" }}>
-          <span style={{ flex: 1 }}>{pending.text}</span>
-          <button type="button" className="btn pr" disabled={sendOff} autoFocus onClick={() => void doSend(pending.only)}>Send</button>
-          <button type="button" className="btn" onClick={() => setPending(null)}>Cancel</button>
+        <div className="pwb-cf" role="alertdialog" aria-label={pending.title}>
+          <div className="pwb-cfh"><b>{pending.title}</b><span className="mu">{pending.rows.length ? `${pending.rows.length} change${pending.rows.length === 1 ? "" : "s"}` : "nothing differs from the MFD"}</span></div>
+          <div className="pwb-cfl">
+            {pending.rows.map((r) => (
+              <span key={r.label} className="pwb-cfi"><span className="lab">{r.label}</span><span className="v">{r.from != null ? <><s>{r.from}</s><i>→</i></> : null}<b>{r.to}</b>{r.unit ? <small> {r.unit}</small> : null}</span></span>
+            ))}
+          </div>
+          <div className="pwb-cfa">
+            <button type="button" className="btn sm" onClick={() => setPending(null)}>Cancel</button>
+            <button type="button" className="btn sm pr" disabled={sendOff} autoFocus onClick={() => void doSend(pending.only)}>Send</button>
+          </div>
         </div>
       ) : null}
       <div className="pwb-foot">

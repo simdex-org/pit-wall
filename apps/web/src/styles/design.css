@@ -897,7 +897,7 @@ dialog{background:var(--panel)}
 #drawer .dr-foot{display:flex;justify-content:space-between;align-items:center;margin-top:2px}
 #drawer .dr-go{font:600 11.5px var(--font);color:var(--acc)}
 #drawer .dr-card:disabled .dr-go{color:var(--dim)}
-.mod .pw{container:pw/size;flex-direction:column;flex:1;min-height:0;display:flex}
+.mod .pw{position:relative;container:pw/size;flex-direction:column;flex:1;min-height:0;display:flex}
 .mod .pwb,.mod .pwb-svc,.mod .pwb-foot{--ctl:22px;--fuelw:230px;--gw:132px;--gnum:26px;--dw:70px;--g:6px;--pad:10px;--slot:208px;--svc:36px;--foot:40px;--fbtn:26px}
 .mod .pwb{flex:1;min-height:0;display:flex}
 @container pw (min-height:360px){.mod .pwb,.mod .pwb-svc,.mod .pwb-foot{--ctl:24px;--fuelw:270px;--gw:190px;--gnum:34px;--dw:92px;--g:8px;--pad:12px;--slot:240px;--svc:40px;--foot:42px;--fbtn:28px}}
@@ -1009,3 +1009,16 @@ dialog{background:var(--panel)}
 .mod .pwb-st,.mod .pwb-ml{display:none}
 .mod .pwb-figs .v{font-size:15px}
 .mod .pwb-th{gap:6px 12px}}
+
+.mod .pwb-cf{border-top:1px solid var(--warn);background:color-mix(in srgb,var(--warn) 6%,var(--p1));box-shadow:0 -8px 14px #0008;z-index:5;position:absolute;bottom:0;left:0;right:0;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;max-height:40%;padding:6px var(--pad,10px);display:grid;overflow:auto}
+.mod .pwb-cfh{grid-column:1;align-items:baseline;gap:8px;display:flex}
+.mod .pwb-cfh b{font-weight:600}
+.mod .pwb-cfl{grid-column:1;flex-wrap:wrap;gap:2px 14px;display:flex}
+.mod .pwb-cfi{align-items:baseline;gap:6px;display:flex}
+.mod .pwb-cfi .lab{font-size:9px}
+.mod .pwb-cfi .v{align-items:baseline;gap:4px;white-space:nowrap;display:flex}
+.mod .pwb-cfi s{color:var(--t3);text-decoration:none}
+.mod .pwb-cfi i{color:var(--t3);font-style:normal}
+.mod .pwb-cfi b{color:var(--ac);font-weight:600}
+.mod .pwb-cfi small{color:var(--t2)}
+.mod .pwb-cfa{grid-area:1/2/span 2/3;align-self:center;gap:6px;display:flex}
