@@ -1,7 +1,6 @@
 {
   "name": "@pitwall/tracks",
   "private": true,
-  "version": "1.0.2",
   "type": "module",
   "exports": {
     ".": "./tracks.json"
