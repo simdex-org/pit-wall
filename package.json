@@ -7,6 +7,9 @@
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @pitwall/web build && pnpm --filter @pitwall/bridge build",
+    "app": "pnpm --filter @pitwall/launcher prepare:resources && pnpm --filter @pitwall/launcher tauri dev",
+    "app:build": "pnpm --filter @pitwall/launcher package",
+    "app:portable": "pnpm --filter @pitwall/launcher package:portable",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck"
   },
