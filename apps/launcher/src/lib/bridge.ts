@@ -16,7 +16,6 @@ export async function info(): Promise<BridgeInfo> {
 }
 
 export const enableFieldTiming = () => tool(["--enable-broadcast"]);
-export const bindVjoy = () => tool(["--bind-vjoy"]);
 
 export function onLine(fn: (line: string) => void): Promise<UnlistenFn> {
   return listen<string>("bridge-line", (e) => fn(e.payload));

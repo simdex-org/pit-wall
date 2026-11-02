@@ -1,7 +1,4 @@
-import { useState } from "react";
-import * as bridge from "../lib/bridge";
 import { isLoopback, linkFor, Prefs } from "../lib/settings";
-import { SimCard } from "./SimCard";
 import { Button, Card, Label, TextInput, Toggle } from "./ui";
 
 export type Message = { text: string; tone: "bad" | "ok" | "muted" };
@@ -19,27 +16,11 @@ interface Props {
 const tone = { bad: "text-bad", ok: "text-ok", muted: "text-muted" } as const;
 
 export function Setup({ prefs, onChange, addresses, failed, message, onStart, onRecheck }: Props) {
-  const [note, setNote] = useState<Message | null>(null);
-  const [binding, setBinding] = useState(false);
-  const shown = note ?? message;
   const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => onChange({ ...prefs, [k]: v });
   const usable = addresses.filter((ip) => !isLoopback(ip));
   const noAddress = usable.length === 0;
   const inError = failed && !noAddress;
   const link = linkFor(prefs);
-
-  async function bind() {
-    setBinding(true);
-    setNote({ text: "Switch to ACC, open Options > Controls and find the MFD actions. In 10 seconds the beeps start: click each action's binding when you hear its beeps (1 pit page, 2 up, 3 down, 4 left, 5 right, 6 cycle MFD). Then save the controls.", tone: "muted" });
-    try {
-      await bridge.bindVjoy();
-      setNote({ text: "Done. ACC's six MFD actions should now show vJoy buttons 1 to 6.", tone: "ok" });
-    } catch (e) {
-      setNote({ text: `vJoy binding failed. Is vJoy installed, with device 1 set to 6 buttons or more? ${e}`, tone: "bad" });
-    } finally {
-      setBinding(false);
-    }
-  }
 
   const ipField = (
     <TextInput id="ip" value={prefs.ip} onChange={(e) => set("ip", e.target.value)} inputMode="decimal" aria-invalid={inError}
@@ -113,17 +94,10 @@ export function Setup({ prefs, onChange, addresses, failed, message, onStart, on
         </Card>
       )}
 
-      <Card className="flex items-center gap-3.5 border-line px-[18px] py-2.5">
-        <Toggle id="vj" checked={prefs.vjoy} onChange={(v) => set("vjoy", v)} />
-        <label htmlFor="vj" className="flex-1 cursor-pointer text-[15px] font-semibold">Press the pit page through vJoy</label>
-        <Button onClick={bind} disabled={!prefs.vjoy || binding} className="h-9 px-3.5 font-semibold">{binding ? "Binding..." : "Bind in ACC"}</Button>
-      </Card>
-
-      <SimCard prefs={prefs} onChange={onChange} />
 
       <div className="flex-1" />
 
-      {shown && <p className={`m-0 text-[13px] leading-snug ${tone[shown.tone]}`} role="status">{shown.text}</p>}
+      {message && <p className={`m-0 text-[13px] leading-snug ${tone[message.tone]}`} role="status">{message.text}</p>}
       <Button kind={noAddress ? "outline" : "primary"} onClick={onStart}>
         {failed && !noAddress ? "TRY AGAIN" : noAddress ? "START FOR THIS PC ONLY" : "START PIT WALL"}
       </Button>

@@ -2,20 +2,8 @@ export interface Prefs {
   ip: string;
   port: string;
   key: string;
-  vjoy: boolean;
   open: boolean;
-  sim: boolean;
-  simSession: string;
-  simTrack: string;
-  simMinutes: string;
-  simCars: string;
-  simClasses: string;
-  simPace: string;
-  simGrid: string;
-  simSpeed: string;
 }
-
-export const SIM_TRACKS = ["demo", "nordschleife", "monza", "spa", "silverstone", "nurburgring", "brands_hatch", "suzuka", "laguna_seca", "mount_panorama", "imola", "barcelona", "zandvoort", "paul_ricard", "hungaroring", "misano", "zolder", "kyalami", "cota", "indianapolis", "watkins_glen", "red_bull_ring", "valencia", "donington", "oulton_park", "snetterton"];
 
 const STORE = "pitwall.launcher";
 
@@ -41,14 +29,8 @@ export function validate(port: string, key: string, ip = "127.0.0.1"): string | 
   return null;
 }
 
-const simArgs = (p: Prefs): string[] => !p.sim ? [] : [
-  "--simulate-acc", "--sim-session", p.simSession, "--sim-track", p.simTrack, "--sim-speed", p.simSpeed.trim() || "1",
-  ...([["--sim-minutes", p.simMinutes], ["--sim-cars", p.simCars], ["--sim-classes", p.simClasses], ["--sim-pace", p.simPace], ["--sim-grid", p.simGrid]] as const)
-    .flatMap(([flag, v]) => (v.trim() ? [flag, v.trim()] : [])),
-];
-
 export function bridgeArgs(p: Prefs): string[] {
-  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.vjoy ? ["--vjoy"] : []), ...(p.open ? ["--open"] : []), ...simArgs(p)];
+  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.open ? ["--open"] : [])];
 }
 
 export const linkFor = (p: Prefs): string => `http://${p.ip.trim()}:${p.port.trim()}/${p.open ? "" : `?key=${p.key.trim()}`}`;
@@ -60,17 +42,7 @@ export function loadPrefs(addresses: string[]): Prefs {
     ip: saved.ip || pickIp(addresses),
     port: saved.port ?? "8765",
     key: saved.key && saved.key.length >= 12 ? saved.key : newKey(),
-    vjoy: !!saved.vjoy,
     open: !!saved.open,
-    sim: !!saved.sim,
-    simSession: saved.simSession ?? "race",
-    simTrack: saved.simTrack ?? "demo",
-    simMinutes: saved.simMinutes ?? "",
-    simCars: saved.simCars ?? "20",
-    simClasses: saved.simClasses ?? "",
-    simPace: saved.simPace ?? "",
-    simGrid: saved.simGrid ?? "",
-    simSpeed: saved.simSpeed ?? "1",
   };
 }
 

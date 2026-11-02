@@ -4,7 +4,6 @@ const items = [
   ["IP address", "The address your engineer types in their browser. Use your VPN address (Hamachi, Radmin, Tailscale). 127.0.0.1 means only this PC can open the dashboard."],
   ["Port", "The port the dashboard answers on. Leave it at 8765 unless something else uses it."],
   ["Anyone with the link can edit the pit stop", "Off: the link carries a secret key, and only people holding that link can see the data or send pit plans. On: there is no key. Anyone who can reach the address sees everything and can change the pit stop, so use it only on a VPN you trust."],
-  ["Press the pit page through vJoy", "Sends the MFD presses through a vJoy device instead of the keyboard. Needs vJoy installed. Bind in ACC assigns vJoy buttons 1 to 6 to ACC's MFD actions once."],
   ["Link for your engineer", "What to send to your engineer. It changes only if you change the address, port or the switch above."],
 ] as const;
 
