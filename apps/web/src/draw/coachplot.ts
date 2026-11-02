@@ -6,13 +6,14 @@ import { fitCanvas, tokens } from "./canvas";
 export function drawZone(cv: HTMLCanvasElement, subj: LapData, bench: LapData, c: { start: number; end: number; apex: number }, spd: (kmh: number) => number): void {
   const [g, w, h] = fitCanvas(cv), tk = tokens(), top = 4, sh = Math.round(h * 0.6), ph = h - sh - 10;
   const X = (u: number) => ((u - c.start) / (c.end - c.start)) * w;
+  const u0 = Math.ceil(c.start), u1 = Math.floor(c.end);
   let hi = 1, lo = Infinity;
-  for (const d of [subj, bench]) for (let u = c.start; u <= c.end; u++) { const v = spd(d.speed[wrap(u)]!); if (v > hi) hi = v; if (v < lo) lo = v; }
+  for (const d of [subj, bench]) for (let u = u0; u <= u1; u++) { const v = spd(d.speed[wrap(u)]!); if (v > hi) hi = v; if (v < lo) lo = v; }
   const line = (d: LapData, ch: "speed" | "thr" | "brk", y0: number, hh: number, a: number, b: number, col: string, dash: number[]) => {
     g.beginPath();
-    for (let u = c.start; u <= c.end; u++) {
+    for (let u = u0; u <= u1; u++) {
       const v = ch === "speed" ? spd(d.speed[wrap(u)]!) : d[ch][wrap(u)]!, y = y0 + hh - ((v - a) / (b - a || 1)) * hh;
-      if (u > c.start) g.lineTo(X(u), y); else g.moveTo(X(u), y);
+      if (u > u0) g.lineTo(X(u), y); else g.moveTo(X(u), y);
     }
     g.setLineDash(dash); g.strokeStyle = col; g.lineWidth = 1.5; g.stroke(); g.setLineDash([]);
   };

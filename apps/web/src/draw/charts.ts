@@ -35,16 +35,32 @@ export function rowDefs(u: UnitChoice): Record<string, RowDef> {
 
 export const ROW_CHOICES: [string, string][] = [["speed", "Speed"], ["pedals", "Throttle & brake"], ["steer", "Steering"], ["gearrpm", "Gear & RPM"], ["gforce", "G-force"], ["tyretemp", "Tyre core"], ["tyrepsi", "Tyre pressure"], ["fuel", "Fuel"]];
 
+const AID = { tc: "#ff3df2", abs: "#35e0ff" };
+/** Repaints in the aid colour only the stretches of a line where `on(i)` holds (TC on throttle, ABS on brake). */
+function aidSegs(g: CanvasRenderingContext2D, n: number, on: (i: number) => boolean, x: (i: number) => number, y: (i: number) => number, width: number, dash: number[], col: string): void {
+  g.beginPath();
+  for (let i = 1; i < n; i++) if (on(i)) { g.moveTo(x(i - 1), y(i - 1)); g.lineTo(x(i), y(i)); }
+  g.strokeStyle = col; g.lineWidth = width + 1; g.setLineDash(dash); g.stroke(); g.setLineDash([]);
+}
+
+/** Label gutter at the left, value gutter at the right. */
+const liveGutters = (w: number) => [w >= 420 ? 78 : 62, 44] as const;
+/** Samples back from the newest for a pointer at x (px in the canvas). */
+export function liveHover(x: number, w: number, win: number): number {
+  const [gl, vr] = liveGutters(w), pw = w - gl - vr;
+  return clamp(Math.round(((w - vr - x) * (win - 1)) / pw), 0, win - 1);
+}
+
 export interface LiveRange { lo: number; hi: number; s: Series }
 
 /**
  * Rows of the ring on a time axis, newest at the right. `hover` is the number of samples back from the newest, or null.
  * Returns the first series' min and max over the window, for the module header.
  */
-export function drawLive(cv: HTMLCanvasElement, defs: Record<string, RowDef>, rows: string[], T: Ring, hover: number | null, win: number): LiveRange | null {
-  const [g, w, h] = fitCanvas(cv), tk = tokens(), n = Math.min(T.n, win), lh = h / Math.max(1, rows.length);
-  const gl = w >= 420 ? 78 : 62, vr = 44; // label gutter at the left, value gutter at the right
-  const at = (arr: Float32Array, k: number) => arr[(T.i - n + k + TRACE_N) % TRACE_N]!;
+export function drawLive(cv: HTMLCanvasElement, defs: Record<string, RowDef>, rows: string[], T: Ring, hover: number | null, win: number, back = 0): LiveRange | null {
+  const bk = Math.min(back, Math.max(0, T.n - win)), [g, w, h] = fitCanvas(cv), tk = tokens(), n = Math.min(T.n - bk, win), lh = h / Math.max(1, rows.length);
+  const [gl, vr] = liveGutters(w);
+  const at = (arr: Float32Array, k: number) => arr[(T.i - bk - n + k + TRACE_N) % TRACE_N]!;
   const xOf = (k: number) => gl + (w - gl - vr) - ((n - 1 - k) * (w - gl - vr)) / Math.max(1, win - 1);
   const hk = hover == null ? n - 1 : Math.max(0, n - 1 - hover);
   let range: LiveRange | null = null;
@@ -63,6 +79,8 @@ export function drawLive(cv: HTMLCanvasElement, defs: Record<string, RowDef>, ro
         g.beginPath();
         for (let k = 0; k < n; k++) { const y = chY(at(arr, k), lo, hi, top + tb, lh - tb); if (k) g.lineTo(xOf(k), y); else g.moveTo(xOf(k), y); }
         g.strokeStyle = tk[s.c]; g.lineWidth = 1.5; g.lineJoin = "round"; g.stroke();
+        const aid = s.k === "thr" ? T.data.tc : s.k === "brk" ? T.data.abs : null;
+        if (aid) aidSegs(g, n, (k) => at(aid, k) > 0.5, xOf, (k) => chY(at(arr, k), lo, hi, top + tb, lh - tb), 1.5, [], AID[s.k === "thr" ? "tc" : "abs"]);
       }
       if (!range && n) {
         let a = Infinity, b = -Infinity;
@@ -166,6 +184,8 @@ export function drawTraces(cv: HTMLCanvasElement, defs: Record<string, Lane>, la
           g.beginPath();
           for (let i = 0; i < NB; i++) { const y = chY(a[i]!, lo, hi, pt, ph); if (i) g.lineTo(xOf(i), y); else g.moveTo(0, y); }
           g.strokeStyle = col; g.lineWidth = dash ? 1.25 : 1.5; g.setLineDash(dash ? [4, 3] : []); g.lineJoin = "round"; g.stroke(); g.setLineDash([]);
+          const aid = k === "thr" ? lap.tc : k === "brk" ? lap.abs : null;
+          if (aid) aidSegs(g, NB, (i) => aid[i]! > 0.5, xOf, (i) => chY(a[i]!, lo, hi, pt, ph), dash ? 1.25 : 1.5, dash ? [4, 3] : [], AID[k === "thr" ? "tc" : "abs"]);
           if (ci != null) tags.push([xOf(ci), chY(a[ci]!, lo, hi, pt, ph), (dash ? "C " : "R ") + L.fmt!(a[ci]!), col]);
         }
       }
@@ -196,14 +216,14 @@ export function drawTraces(cv: HTMLCanvasElement, defs: Record<string, Lane>, la
 }
 
 // ---------- G-G (friction circle) from the live ring ----------
-export function drawGG(cv: HTMLCanvasElement, T: Ring, trail: number): void {
+export function drawGG(cv: HTMLCanvasElement, T: Ring, trail: number, zoom = 1): void {
   const [g, w, h] = fitCanvas(cv), tk = tokens(), n = T.n;
   const at = (a: Float32Array, k: number) => a[(T.i - n + k + TRACE_N) % TRACE_N]!;
   const R = Math.max(8, Math.min(w, h) / 2 - 16), cx = w / 2, cy = h / 2;
-  const m = clamp(Math.max(recorder.gHist.maxLat, recorder.gHist.maxLon) * 1.15, 1.5, 3);
+  const m = clamp(Math.max(recorder.gHist.maxLat, recorder.gHist.maxLon) * 1.15, 1.5, 3) / zoom;
   const px = (v: number) => cx + (v / m) * R, py = (v: number) => cy - (v / m) * R;
   g.strokeStyle = tk.line; g.lineWidth = 1; g.font = `500 10px ${tk.num}`; g.fillStyle = tk.dim; g.textAlign = "left"; g.textBaseline = "bottom";
-  for (const r of [1, 2, 3].filter((x) => x < m)) {
+  for (const r of (zoom > 2 ? [0.5, 1, 2, 3] : [1, 2, 3]).filter((x) => x < m)) {
     const rr = (r / m) * R;
     g.beginPath(); g.arc(cx, cy, rr, 0, 7); g.stroke();
     g.fillText(r + " g", cx + rr * 0.707 + 3, cy - rr * 0.707 - 3);
