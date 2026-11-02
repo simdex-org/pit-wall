@@ -34,3 +34,12 @@ export function Card({ className = "", ...rest }: HTMLAttributes<HTMLDivElement>
 export function LogBox({ lines, className = "" }: { lines: string[]; className?: string }) {
   return <pre className={`m-0 box-border select-text whitespace-pre-wrap font-mono text-[11.5px] leading-[1.65] text-muted ${className}`}>{lines.join("\n")}</pre>;
 }
+
+export function Toggle({ checked, onChange, id }: { checked: boolean; onChange: (v: boolean) => void; id: string }) {
+  return (
+    <button type="button" role="switch" id={id} aria-checked={checked} onClick={() => onChange(!checked)}
+      className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors ${checked ? "border-accent bg-accent" : "border-edge bg-raise"}`}>
+      <span className={`absolute top-0.5 size-[18px] rounded-full transition-[left] ${checked ? "left-[22px] bg-bg" : "left-0.5 bg-muted"}`} />
+    </button>
+  );
+}

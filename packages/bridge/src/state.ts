@@ -15,8 +15,8 @@ export const STATE: Rec = {
 };
 
 /** The pit page: the MFD, the access key, and who holds `busy` ("plan" or "close"; a Close pit page has no pit_job). */
-export const PIT: { mfd: (Mfd & { close?(): void }) | null; key: string; busy: boolean; doing: string; closed_at: number } =
-  { mfd: null, key: "", busy: false, doing: "", closed_at: 0 };
+export const PIT: { mfd: (Mfd & { close?(): void }) | null; key: string; open: boolean; busy: boolean; doing: string; closed_at: number } =
+  { mfd: null, key: "", open: false, busy: false, doing: "", closed_at: 0 };
 
 /** The Field (or FakeField); the broadcast side needs nothing else from the rest. */
 export const FIELD: { f: Field | null; src: FieldSource | null } = { f: null, src: null };

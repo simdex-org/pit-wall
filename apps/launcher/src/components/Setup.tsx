@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as bridge from "../lib/bridge";
-import { isLoopback, newKey, Prefs } from "../lib/settings";
-import { Button, Card, Label, TextInput } from "./ui";
+import { isLoopback, linkFor, Prefs } from "../lib/settings";
+import { Button, Card, Label, TextInput, Toggle } from "./ui";
 
 export type Message = { text: string; tone: "bad" | "ok" | "muted" };
 
@@ -25,7 +25,7 @@ export function Setup({ prefs, onChange, addresses, failed, message, onStart, on
   const usable = addresses.filter((ip) => !isLoopback(ip));
   const noAddress = usable.length === 0;
   const inError = failed && !noAddress;
-  const link = `http://${prefs.ip.trim()}:${prefs.port.trim()}/?key=${prefs.key.trim()}`;
+  const link = linkFor(prefs);
 
   async function bind() {
     setBinding(true);
@@ -46,17 +46,14 @@ export function Setup({ prefs, onChange, addresses, failed, message, onStart, on
   );
 
   const portAndKey = (
-    <div className="grid grid-cols-[100px_minmax(0,1fr)] gap-3">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="port">PORT</Label>
-        <TextInput id="port" value={prefs.port} onChange={(e) => set("port", e.target.value)} inputMode="numeric" className="h-11 px-3 text-[15px]" />
+        <TextInput id="port" value={prefs.port} onChange={(e) => set("port", e.target.value)} inputMode="numeric" className="h-11 w-28 px-3 text-[15px]" />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="key">ACCESS KEY</Label>
-        <div className="flex gap-2">
-          <TextInput id="key" value={prefs.key} onChange={(e) => set("key", e.target.value)} className="h-11 flex-1 px-3 text-[15px]" />
-          <Button onClick={() => set("key", newKey())} className="h-11 px-3.5 font-semibold">New key</Button>
-        </div>
+      <div className="flex items-center gap-3.5">
+        <Toggle id="open" checked={prefs.open} onChange={(v) => set("open", v)} />
+        <label htmlFor="open" className="flex-1 cursor-pointer text-[15px] font-semibold">Anyone with the link can edit the pit stop</label>
       </div>
     </div>
   );
@@ -116,7 +113,7 @@ export function Setup({ prefs, onChange, addresses, failed, message, onStart, on
       )}
 
       <Card className="flex items-center gap-3.5 border-line px-[18px] py-2.5">
-        <input id="vj" type="checkbox" checked={prefs.vjoy} onChange={(e) => set("vjoy", e.target.checked)} className="m-0 size-5 shrink-0 cursor-pointer accent-accent" />
+        <Toggle id="vj" checked={prefs.vjoy} onChange={(v) => set("vjoy", v)} />
         <label htmlFor="vj" className="flex-1 cursor-pointer text-[15px] font-semibold">Press the pit page through vJoy</label>
         <Button onClick={bind} disabled={!prefs.vjoy || binding} className="h-9 px-3.5 font-semibold">{binding ? "Binding..." : "Bind in ACC"}</Button>
       </Card>

@@ -3,6 +3,7 @@ export interface Prefs {
   port: string;
   key: string;
   vjoy: boolean;
+  open: boolean;
 }
 
 const STORE = "pitwall.launcher";
@@ -30,10 +31,10 @@ export function validate(port: string, key: string, ip = "127.0.0.1"): string | 
 }
 
 export function bridgeArgs(p: Prefs): string[] {
-  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.vjoy ? ["--vjoy"] : [])];
+  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.vjoy ? ["--vjoy"] : []), ...(p.open ? ["--open"] : [])];
 }
 
-export const linkFor = (p: Prefs): string => `http://${p.ip.trim()}:${p.port.trim()}/?key=${p.key.trim()}`;
+export const linkFor = (p: Prefs): string => `http://${p.ip.trim()}:${p.port.trim()}/${p.open ? "" : `?key=${p.key.trim()}`}`;
 
 export function loadPrefs(addresses: string[]): Prefs {
   let saved: Partial<Prefs> = {};
@@ -43,6 +44,7 @@ export function loadPrefs(addresses: string[]): Prefs {
     port: saved.port ?? "8765",
     key: saved.key && saved.key.length >= 12 ? saved.key : newKey(),
     vjoy: !!saved.vjoy,
+    open: !!saved.open,
   };
 }
 

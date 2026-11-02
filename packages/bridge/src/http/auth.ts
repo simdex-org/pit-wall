@@ -23,7 +23,7 @@ function cookie(req: IncomingMessage): string {
   return "";
 }
 
-export const keyOk = (req: IncomingMessage) => same(String(req.headers["x-pit-key"] ?? ""), PIT.key);
+export const keyOk = (req: IncomingMessage) => PIT.open || same(String(req.headers["x-pit-key"] ?? ""), PIT.key);
 export const presented = (req: IncomingMessage) => !!req.headers["x-pit-key"] || cookie(req) !== "";
 export const sessionOk = (req: IncomingMessage) => keyOk(req) || same(cookie(req), token());
 

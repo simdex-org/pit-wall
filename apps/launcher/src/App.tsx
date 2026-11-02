@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CloseDialog } from "./components/CloseDialog";
+import { Help } from "./components/Help";
 import { Running } from "./components/Running";
 import { Message, Setup } from "./components/Setup";
 import { TitleBar } from "./components/TitleBar";
@@ -11,13 +12,14 @@ import { bridgeArgs, isLoopback, linkFor, loadPrefs, pickIp, Prefs, savePrefs, v
 
 const MAX_LINES = 300;
 
-function Header({ stopped }: { stopped: boolean }) {
+function Header({ stopped, onHelp }: { stopped: boolean; onHelp: () => void }) {
   return (
     <header className="flex items-end justify-between">
       <div>
         <div className="text-[32px] font-bold leading-none tracking-[.14em]">PIT WALL</div>
         <div className="mt-1.5 text-[13px] text-muted">Race engineer bridge for Assetto Corsa Competizione</div>
       </div>
+      <div className="flex items-center gap-3">
       {stopped ? (
         <div className="flex items-center gap-2 font-mono text-[12px] text-bad">
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="2" fill="none" /></svg>
@@ -29,6 +31,9 @@ function Header({ stopped }: { stopped: boolean }) {
           IDLE · v{__VERSION__}
         </div>
       )}
+      <button type="button" aria-label="Help" onClick={onHelp}
+        className="grid size-7 cursor-pointer place-items-center rounded-full border border-edge text-[14px] font-bold text-text hover:border-accent hover:text-accent">?</button>
+      </div>
     </header>
   );
 }
@@ -42,6 +47,7 @@ export function App() {
   const [lines, setLines] = useState<string[]>([]);
   const [message, setMessage] = useState<Message | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [help, setHelp] = useState(false);
   const served = useRef(false);
 
   useEffect(() => {
@@ -103,7 +109,8 @@ export function App() {
     <div className="flex h-full flex-col">
       <TitleBar />
       <main className={`flex min-h-0 flex-1 flex-col overflow-auto px-8 pb-4 pt-6 ${running || failedStart ? "gap-4" : "gap-3.5"}`}>
-        {!running && <Header stopped={failedStart} />}
+        {!running && <Header stopped={failedStart} onHelp={() => setHelp(true)} />}
+        {help && <Help onClose={() => setHelp(false)} />}
 
         {confirmClose && <CloseDialog onKeep={() => setConfirmClose(false)} onQuit={() => bridge.quit()} />}
 

@@ -26,7 +26,8 @@ const HELP = `Usage: pitwall-bridge [options]
   --no-browser               do not open the page automatically
   --tls-cert FILE --tls-key FILE   serve https with this certificate and private key (PEM)
   --key KEY                  access key for sending pit plans and changing thresholds (default: a new one each start)
-  --pit-key KEY              ACC's key for the pitstop MFD page (default p)
+  --open                     no access key: anyone who can reach the address may send pit plans
+  --pit-key KEY             ACC's key for the pitstop MFD page (default p)
   --key-ms MS                how long each key is held and released, ms (default 40)
   --vjoy [N]                 press the MFD through vJoy device N (default 1) instead of the keyboard
   --simulate-acc             a pretend session, 20-car field and pit page instead of the game
@@ -73,7 +74,7 @@ async function main(): Promise<void> {
     v = parseArgs({
       args: normalize(process.argv.slice(2)),
       options: {
-        http: { type: "string", default: "127.0.0.1:8765" }, "no-browser": { type: "boolean" }, key: { type: "string" },
+        http: { type: "string", default: "127.0.0.1:8765" }, "no-browser": { type: "boolean" }, key: { type: "string" }, open: { type: "boolean" },
         "pit-key": { type: "string", default: "p" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
         "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" },
@@ -132,6 +133,7 @@ async function main(): Promise<void> {
   const scheme = tlsFiles ? "https" : "http";
 
   PIT.key = key;
+  PIT.open = !!v.open;
   const fakeMfd = new FakeMfd();
   try {
     if (simulate) PIT.mfd = fakeMfd;
@@ -183,7 +185,7 @@ async function main(): Promise<void> {
     if (hh === "127.0.0.1" || hh === "localhost") {
       console.log("Only this PC can open it. For the engineer, start it on your VPN address (Hamachi's is 25.x.x.x):");
       for (const ip of myAddresses()) console.log(`    pitwall-bridge --http ${ip}:${hp}`);
-    } else console.log(`Engineer, open:   ${scheme}://${hh}:${hp}/?key=${key}`);
+    } else console.log(`Engineer, open:   ${scheme}://${hh}:${hp}/${PIT.open ? "" : `?key=${key}`}`);
     if (!v["no-browser"]) {
       const url = `${scheme}://${hh === "0.0.0.0" ? "127.0.0.1" : hh}:${hp}/?key=${key}`;
       spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();

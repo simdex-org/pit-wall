@@ -18,11 +18,13 @@ describe("validate", () => {
 });
 
 describe("launch arguments", () => {
-  const prefs = { ip: "25.1.2.3", port: " 8765 ", key: "abcd1234efgh", vjoy: true };
+  const prefs = { ip: "25.1.2.3", port: " 8765 ", key: "abcd1234efgh", vjoy: true, open: false };
   test("bridge args and link", () => {
     expect(bridgeArgs(prefs)).toEqual(["--http", "25.1.2.3:8765", "--key", "abcd1234efgh", "--no-browser", "--vjoy"]);
     expect(bridgeArgs({ ...prefs, vjoy: false })).not.toContain("--vjoy");
     expect(linkFor(prefs)).toBe("http://25.1.2.3:8765/?key=abcd1234efgh");
+    expect(bridgeArgs({ ...prefs, open: true })).toContain("--open");
+    expect(linkFor({ ...prefs, open: true })).toBe("http://25.1.2.3:8765/");
   });
   test("generated keys pass validation", () => {
     for (let i = 0; i < 50; i++) expect(validate("8765", newKey())).toBeNull();
