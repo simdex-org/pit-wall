@@ -3,5 +3,13 @@
   "private": true,
   "version": "1.0.2",
   "type": "module",
-  "exports": { ".": "./tracks.json" }
+  "exports": {
+    ".": "./tracks.json"
+  },
+  "scripts": {
+    "test": "node --test",
+    "record": "node scripts/build.mjs",
+    "missing": "node scripts/missing.mjs",
+    "sectors": "node scripts/sectors.mjs"
+  }
 }
