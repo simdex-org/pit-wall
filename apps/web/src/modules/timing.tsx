@@ -324,7 +324,7 @@ const NOW: Record<string, [string, string]> = { pit: ["IN BOX", "wn"], entry: ["
 
 export const pitActivity = defineModule({
   type: "pit-activity", title: "Pit lane", group: "Timing", blurb: "Who is in the pit lane now, and every car's stops so far.",
-  size: { w: 4, h: 8, minW: 3, minH: 5, maxW: 6, maxH: 12 }, needs: ["field", "entries"], requires: ["field"], rate: 2,
+  size: { w: 4, h: 8, minW: 3, minH: 5, maxW: 12, maxH: 12 }, needs: ["field", "entries"], requires: ["field"], rate: 2,
   view({ ctx: c, size }) {
     const F = c.field!;
     const seen = useRef(new Map<number, Seen>()).current;
@@ -544,18 +544,23 @@ const KPI_CHOICES: [string, string][] = [["session", "Session"], ["left", "Time 
 
 export const bigNumber = defineModule({
   type: "kpi", title: "Big number", group: "Timing", blurb: "One figure, large: for a driver-facing or second screen.",
-  size: { w: 2, h: 3, minW: 2, minH: 2, maxW: 3, maxH: 3 }, needs: ["reading", "summary", "field"],
-  options: [{ key: "metric", label: "Figure", type: "select", choices: KPI_CHOICES, def: "pos" }, { key: "label", label: "Label (empty = the figure's name)", type: "text", def: "" }],
+  size: { w: 2, h: 3, minW: 2, minH: 3, maxW: 12, maxH: 12 }, needs: ["reading", "summary", "field"],
+  options: [{ key: "metrics", label: "Figures", type: "multi", choices: KPI_CHOICES, def: ["pos"] }, { key: "label", label: "Label (one figure only; empty = the figure's name)", type: "text", def: "" }],
   view({ ctx: c, opts, size }) {
     const p = usePrefs();
-    const m = opts.metric as string, car = c.r?.car;
-    const [l, v]: [string, ReactNode] = m === "gear" ? ["Gear", !car ? NONE : car.gear < 0 ? "R" : car.gear === 0 ? "N" : String(car.gear)]
+    const car = c.r?.car;
+    const ms = (opts.metrics as string[]).length ? (opts.metrics as string[]) : ["pos"];
+    const fig = (m: string): [string, ReactNode] => m === "gear" ? ["Gear", !car ? NONE : car.gear < 0 ? "R" : car.gear === 0 ? "N" : String(car.gear)]
       : m === "speed" ? ["Speed", car ? <>{fv("speed", car.speed_kmh, p.units)}<span className="u">{unit("speed", p.units).u}</span></> : NONE]
       : m === "fuelL" ? ["Fuel", car ? <>{nf(car.fuel_litres, 1)}<span className="u">L</span></> : NONE]
       : kpiCell(m as KpiId, c, p, null);
-    const label = (opts.label as string) || l;
-    return size.h <= 2
-      ? { flush: true, body: <div className="f" style={{ justifyContent: "space-between", alignSelf: "stretch", flex: 1, padding: "0 var(--pad)" }}><span className="lab">{label}</span><span className="big" style={{ fontSize: 28 }}>{v}</span></div> }
-      : { body: <div className="fc" style={{ justifyContent: "center", flex: 1, gap: 8 }}><span className="lab">{label}</span><span className="big" style={{ fontSize: 34 }}>{v}</span></div> };
+    if (ms.length > 1) {
+      return { flush: true, body: <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gridAutoRows: "min-content", alignContent: "start", gap: 1, background: "var(--ln)", alignSelf: "stretch", flex: 1, overflow: "auto" }}>{ms.map((m) => {
+        const [l, v] = fig(m);
+        return <div key={m} className="fc" style={{ background: "var(--mbg)", padding: "10px var(--pad)", gap: 6, minWidth: 0, overflow: "hidden" }}><span className="lab">{l}</span><span className="big" style={{ fontSize: 20, lineHeight: 1.2, whiteSpace: "normal", overflowWrap: "anywhere" }}>{v}</span></div>;
+      })}</div> };
+    }
+    const [l, v] = fig(ms[0]!);
+    return { body: <div className="fc" style={{ justifyContent: "center", flex: 1, gap: 8 }}><span className="lab">{(opts.label as string) || l}</span><span className="big" style={{ fontSize: 34 }}>{v}</span></div> };
   },
 });
