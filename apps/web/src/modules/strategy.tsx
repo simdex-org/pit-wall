@@ -177,7 +177,7 @@ export const racePlan = defineModule({
     const ns = nextStop(mine, ((c.s?.stops as Json[] | undefined) ?? []).length);
     // With a race plan the headline is the planned lap, as long as the fuel lasts to it; otherwise the fuel limit stays and says why.
     const planLap = race && box && ns && st.box_by_lap != null && ns.lap <= st.box_by_lap ? ns.lap : null, planLate = !!(race && box && ns && st.box_by_lap != null && ns.lap > st.box_by_lap);
-    const total = lapNow != null && st.laps_to_go != null ? lapNow - 1 + Math.ceil(st.laps_to_go) : null;
+    const total = lapNow != null && st.laps_to_go != null ? lapNow - 1 + Math.ceil(st.laps_to_go) : mine && lapNow != null ? mine.total : null;
     const fpl = st.fuel_per_lap || 0;
     // Stints: the ones done, this one to the box (or the flag), and the one after it.
     const stops = (c.s?.stops as Json[] | undefined) ?? [];

@@ -315,7 +315,7 @@ export const brakes = defineModule({
       info: ["PADS AND DISCS"],
       alert: [Math.max(...pads.map((v) => (padState(v, ctx) === "bad" ? 2 : 0)), ...temps.map((t, i) => { const s = tstate(t, i); return s === "bad" ? 2 : s === "warn" ? 1 : 0; }))],
       body: (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: line ? "1fr 1fr" : "auto auto", alignContent: line ? "stretch" : "start", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: line ? "1fr 1fr" : "auto auto", alignContent: line ? "stretch" : "center", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
           {[0, 1, 2, 3].map((i) => {
             const ps = padState(pads[i]!, ctx), ts = tstate(temps[i]!, i), lf = left(i);
             const k = ps === "bad" || ts === "bad" ? "b" : ps === "warn" || ts === "warn" || ts === "cold" ? "w" : "o";
@@ -358,7 +358,7 @@ export const electronics = defineModule({
       flush: true,
       info: large ? [`LIGHTS ${(["off", "low", "high"][a.lights_stage | 0] ?? NONE).toUpperCase()}`, `WIPERS ${a.wiper ? nf(a.wiper, 0) : "OFF"}`] : [],
       body: (
-        <div className="cells" style={{ height: "100%" }}>
+        <div className="cells ctr" style={{ height: "100%" }}>
           {cell(large ? "Brake bias" : "BB", bb)}{cell("TC", nf(a.tc_level, 0))}{cell("ABS", nf(a.abs_level, 0))}{cell(large ? "Engine map" : "Map", nf(s.engine_map, 0))}
         </div>
       ),

@@ -35,7 +35,7 @@ function migrateBoard(board: unknown[], rows: string[] | null): void {
   };
   for (const r of board) if (Array.isArray(r) && MAP[r[0]]) add(MAP[r[0]]!, r[1], +r[2] || 4, r[3] === false);
   if (!mods.some((m) => m.type === "pit-plan")) add("pit-plan", 7, 8, false);
-  t.workspaces.find((w) => w.id === "w-strategy")!.modules = mods;
+  t.workspaces.find((w) => w.id === "w-pit")!.modules = mods;
   if (rows) for (const w of t.workspaces) for (const m of w.modules) if (m.type === "channels") m.options.rows = rows;
   Object.assign(t, { id: newId("t-"), name: "My layout (migrated)", basedOn: "builtin-race", created: new Date().toISOString() });
   const s = sanitize(t, { keepUnknown: true }).t;

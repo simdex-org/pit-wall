@@ -557,9 +557,9 @@ export const bigNumber = defineModule({
       : m === "fuelL" ? ["Fuel", car ? <>{nf(car.fuel_litres, 1)}<span className="u">L</span></> : NONE]
       : kpiCell(m as KpiId, c, p, null);
     if (ms.length > 1) {
-      return { flush: true, body: <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gridAutoRows: "min-content", alignContent: "start", gap: 1, background: "var(--ln)", alignSelf: "stretch", flex: 1, overflow: "auto" }}>{ms.map((m) => {
+      return { flush: true, body: <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gridAutoRows: "minmax(max-content, 1fr)", gap: 1, background: "var(--ln)", alignSelf: "stretch", flex: 1, overflow: "auto" }}>{ms.map((m) => {
         const [l, v] = fig(m);
-        return <div key={m} className="fc" style={{ background: "var(--mbg)", padding: "10px var(--pad)", gap: 6, minWidth: 0, overflow: "hidden" }}><span className="lab">{l}</span><span className="big" style={{ fontSize: 20, lineHeight: 1.2, whiteSpace: "normal", overflowWrap: "anywhere" }}>{v}</span></div>;
+        return <div key={m} className="fc" style={{ background: "var(--mbg)", padding: "10px var(--pad)", gap: 6, minWidth: 0, overflow: "hidden", justifyContent: "center" }}><span className="lab">{l}</span><span className="big" style={{ fontSize: size.h >= 5 && ms.length <= 6 ? 36 : 22, lineHeight: 1.2, whiteSpace: "normal", overflowWrap: "anywhere" }}>{v}</span></div>;
       })}</div> };
     }
     const [l, v] = fig(ms[0]!);

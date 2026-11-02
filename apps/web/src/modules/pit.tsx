@@ -3,6 +3,7 @@ import { nextStop, useRacePlan } from "../state/racePlan";
 import { defineModule } from "../engine/registry";
 import type { Ctx } from "../feed/store";
 import type { Json } from "../feed/types";
+import { angleOf, arcPath, polar } from "../lib/arc";
 import { clamp, MINUS, nf, NONE } from "../lib/format";
 import { pressState } from "../lib/states";
 import { fv, unit, UnitChoice } from "../lib/units";
@@ -47,7 +48,7 @@ const Switch = ({ label, on, onSet }: { label: string; on: boolean; onSet: (v: b
 const CLOSE_TITLE = "Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)";
 const PADS: [string, string][] = [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]];
 
-function PitPlanBody({ c, confirmDefault, w, h }: { c: Ctx; confirmDefault: boolean; w: number; h: number }) {
+function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean }) {
   const plan = usePlan(), flash = usePlanFlash(), prefs = usePrefs(), units = prefs.units;
   const [confirm, setConfirm] = useState(confirmDefault);
   const [pending, setPending] = useState<{ only?: Block[]; text: string } | null>(null);
@@ -135,91 +136,132 @@ function PitPlanBody({ c, confirmDefault, w, h }: { c: Ctx; confirmDefault: bool
     : "";
   const closeDisabled = !live || busy || noKey || closeUntil > performance.now();
 
-  // ----- the figures the columns show -----
+  // ----- the figures the page shows -----
   const st = c.st, car = c.r?.car, max = c.r && c.r.fixed.max_fuel > 0 ? (c.r.fixed.max_fuel as number) : 0;
   const fpl = st?.fuel_per_lap || 0;
-  const tankAfter = car ? Math.min(max || Infinity, car.fuel_litres + plan.fuel) : null;
+  const nowL = car?.fuel_litres ?? 0;
+  const tankAfter = car ? Math.min(max || Infinity, nowL + plan.fuel) : null;
   const atFlag = st && st.spare_l != null ? st.spare_l + (plan.fuel - (st.add_at_box_l ?? 0)) : null;
   const pu = unit("press", units), pStep = pstep(units);
-  const pressCell = (i: number) => {
+  const rp = useRacePlan(), planned = nextStop(rp, ((c.s?.stops as unknown[] | undefined) ?? []).length);
+  const gMax = max || Math.max(120, nowL + plan.fuel);
+  const aNow = angleOf(nowL, 0, gMax), aEnd = angleOf(Math.min(gMax, nowL + plan.fuel), 0, gMax);
+  const [lo, hi] = wet ? c.th.wet_psi : c.th.dry_psi, pmin = lo - 3, pmax = hi + 4;
+  const nowPct = clamp((nowL / gMax) * 100, 0, 100), addPct = clamp((plan.fuel / gMax) * 100, 0, 100 - nowPct);
+  const bump = (d: number) => set({ fuel: clamp(plan.fuel + d, 0, 150) });
+
+  const sendBtn = (blocks: Block[]) => <button type="button" className="btn sm" disabled={sendOff} title={sendTitle} onClick={() => send(blocks)}>Send</button>;
+  const sw = (label: ReactNode, on: boolean, onSet: (v: boolean) => void) => <button type="button" className="pwb-sw" aria-pressed={on} onClick={() => onSet(!on)}><i />{label}</button>;
+  const padSeg = (tag: string, k: "front_pad" | "rear_pad") => (
+    <>
+      <span className="lab">{tag}</span>
+      <span className="seg pd">{PADS.map(([v]) => <button key={v} type="button" aria-pressed={String(plan[k]) === v} aria-label={`${tag === "F" ? "Front" : "Rear"} pad compound ${v}`} onClick={() => set({ [k]: +v } as Partial<PitPlan>)}>{v}</button>)}</span>
+    </>
+  );
+  const pill = (
+    <span className="pwb-fp">
+      <button type="button" aria-label="Less fuel" title="1 L less" onClick={() => bump(-1)}><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5h8" /></svg></button>
+      <button type="button" aria-label="More fuel" title="1 L more" onClick={() => bump(1)}><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5h8M5 1v8" /></svg></button>
+    </span>
+  );
+  const dial = (i: number) => {
     const now = nowOf(p, "p" + i) as number | null | undefined, planV = plan.pressures[i]!;
     const d = now != null ? planV - now : null;
+    const cls = planV < lo ? "lo" : planV > hi ? "hi" : "ok";
+    const aTick = now != null ? angleOf(now, pmin, pmax) : null;
+    const t1 = aTick != null ? polar(60, 50, 34, aTick) : null, t2 = aTick != null ? polar(60, 50, 46, aTick) : null;
     return (
-      <div key={i} className="fc" style={{ gap: 4, alignItems: "stretch", justifyContent: "center", minWidth: 0 }}>
-        <div className="f" style={{ gap: 6 }}><span className="lab" style={{ color: "var(--t2)" }}>{CORNERS[i]}</span><span className="v di" style={{ whiteSpace: "nowrap" }}>{now != null ? fv("press", now, units) : NONE}</span><span className="sp" />
-          {d != null && Math.abs(d) >= 0.05 ? <span className={"v " + (d < 0 ? "dn" : "up")} style={{ whiteSpace: "nowrap" }} title={`The MFD shows ${fv("press", now!, units)} now`}>{d < 0 ? "▼" : "▲"} {Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)}</span> : null}</div>
-        <Stepper cls="fw" value={toInput(planV, units)} step={pStep} label={`${CORNERS[i]} cold pressure`}
-          onValue={(v) => { const q = plan.pressures.slice(); q[i] = +pu.b(v).toFixed(2); planStore.set({ ...plan, pressures: q }); }} />
+      <div key={i} className="pwb-dc">
+        <div className="pwb-dial">
+          <svg viewBox="0 0 120 94" aria-hidden="true">
+            <path className="trk" d={arcPath(60, 50, 40, -135, 135)} strokeWidth="8" />
+            <path className="win" d={arcPath(60, 50, 40, angleOf(lo, pmin, pmax), angleOf(hi, pmin, pmax))} strokeWidth="8" />
+            <path className="val" d={arcPath(60, 50, 33, -135, angleOf(planV, pmin, pmax))} strokeWidth="3" />
+            {t1 && t2 ? <line className="tick" x1={t1[0]} y1={t1[1]} x2={t2[0]} y2={t2[1]} strokeWidth="2" /> : null}
+          </svg>
+          <div className="pwb-dn"><b>{CORNERS[i]}</b><span className={d != null && d < 0 ? "dn2" : "up2"}>{d != null && Math.abs(d) >= 0.05 ? `${d < 0 ? "▼" : "▲"} ${Math.abs(pu.f(d) - pu.f(0)).toFixed(pu.d)}` : ""}</span></div>
+        </div>
+        <div className="pwb-ds">
+          <span className={"pwb-st " + cls}>{cls === "lo" ? "Below" : cls === "hi" ? "Above" : "In window"}</span>
+          <Stepper cls="sm" value={toInput(planV, units)} step={pStep} label={`${CORNERS[i]} cold pressure`}
+            onValue={(v) => { const q = plan.pressures.slice(); q[i] = +pu.b(v).toFixed(2); planStore.set({ ...plan, pressures: q }); }} />
+          <span className="mu pwb-ml" title={`The MFD shows ${now != null ? fv("press", now, units) : NONE} now`}>MFD {now != null ? fv("press", now, units) : NONE}</span>
+        </div>
       </div>
     );
   };
-  const rp = useRacePlan(), planned = nextStop(rp, ((c.s?.stops as unknown[] | undefined) ?? []).length), raceTyres = !!rp?.tyres;
-  const four = w >= 8;
-  const big = h >= 14;
-  const lg = big ? "lg" : "";
-  const head = (t: string, blocks: Block[], extra?: ReactNode) => <div className="hh"><span className="t2">{t}</span>{extra}<span className="sp" /><button type="button" className="btn sm" disabled={sendOff} title={sendTitle} onClick={() => send(blocks)}>Send</button></div>;
-  const sw = (label: string, k: keyof PitPlan, mfd?: string) => (
-    <div><span className="mu">{label}</span><span className="sp" /><Switch label={label} on={!!pv(plan, k)} onSet={(v) => set({ [k]: v } as Partial<PitPlan>)} />{mfd ? <span className="v di">{mfd}</span> : null}</div>
-  );
-  const cols = four ? 4 : 3;
-  const rowsCss = `${big ? 36 : 30}px ${four ? 104 : big ? 96 : 64}px repeat(4,1fr)${big ? " 44px" : ""}`;
-  const cell = (inner: ReactNode, cls = "", key?: string) => <div key={key} className={cls}>{inner}</div>;
-  const last = (i: number) => (i === cols - 1 ? " lc" : "");
-  const flashed = (k: string) => flash.has(k);
-  void flashed;
-
-  const mfdRows: [string, ReactNode][] = [
-    ["Cursor on", p && live ? (p.cursor ?? NONE) : NONE], ["Fuel to add", p && live ? nf(p.fuel, 1) + " L" : NONE], ["Tyre set", p && live ? nf(p.tyre_set, 0) : NONE],
-    ["Pressures", p && live && Array.isArray(p.pressures) ? p.pressures.map((v: number) => fv("press", v, units)).join(" ") : NONE],
-  ];
-
-  const grid: ReactNode[] = [];
-  // header row
-  grid.push(head("Fuel to add", ["fuel"], planned ? <button type="button" className="btn sm gh" style={{ marginLeft: 8 }} title={`Your race plan, stop ${planned.n}: box after lap ${planned.lap}, add ${nf(planned.add, 1)} L. Click to put it in the plan.`} onClick={() => planStore.patch({ fuel: Math.ceil(planned.add) })}>Plan {nf(planned.add, 0)} L</button> : null), head("Tyres", ["tyres", "pressures"]), <div key="hs" className={"hh" + last(2)}><span className="t2">Service</span><button type="button" className="btn sm" disabled={sendOff} title={sendTitle} onClick={() => send(["brakes", "repairs"])}>Send</button></div>);
-  if (four) grid.push(<div key="hm" className="hh lc"><span className="t2">The MFD now</span><span className={"v " + (live && p?.open !== false ? "p" : "di")}>{live ? "● open" : "○ closed"}</span></div>);
-  // hero row
-  grid.push(
-    <div key="f0" className="hr0"><span className="lab">Litres to add</span>
-      <Stepper cls="lg" value={plan.fuel} min={0} max={150} step={1} label="Fuel to add in litres" onValue={(v) => set({ fuel: v })} />
-</div>,
-    <div key="t0" className="hr0"><span className="lab">Tyre set · on the car: set {live ? nf(p!.current_set, 0) : NONE}</span>
-      <Stepper cls={lg} value={plan.tyre_set} min={1} max={50} step={1} label="Tyre set" disabled={wet} title={wet ? "Wet tyres have no sets in ACC" : undefined} onValue={(v) => set({ tyre_set: v })} /></div>,
-    <div key="s0" className={"hr0" + last(2)}><span className="lab">Change tyres</span>
-      <div className="f" style={{ gap: 10 }}><Switch label="Change tyres" on={plan.tyres} onSet={(v) => set({ tyres: v })} /><span className="v mu">{plan.tyres ? "yes, new set" : "no"}</span></div></div>,
-  );
-  if (four) grid.push(<div key="m0" className="hr0 lc"><span className="lab">Page</span><span className="mid">{live ? "Pit strategy" : NONE}</span></div>);
-  // four rows
-  const rowsF = [
-    <><span className="mu">Strategy says</span><span className="v" style={{ marginLeft: "auto" }}>{st?.add_at_box_l != null ? nf(st.add_at_box_l, 1) + " L" : NONE}</span></>,
-    <><span className="mu">Tank after the stop</span><span className="v" style={{ marginLeft: "auto" }}>{tankAfter != null ? nf(tankAfter, 1) + " L" : NONE}</span></>,
-    <><span className="mu">Laps added</span><span className="v" style={{ marginLeft: "auto" }}>{fpl > 0 ? "+" + nf(plan.fuel / fpl, 1) : NONE}</span></>,
-    <><span className="mu">At the flag</span><span className={"v " + (atFlag != null && atFlag < 0 ? "up" : "dn")} style={{ marginLeft: "auto" }}>{atFlag != null ? (atFlag >= 0 ? "+" : MINUS) + nf(Math.abs(atFlag), 1) + " L" : NONE}</span></>,
-  ];
-  const rowsS = [
-    <><span className="mu">Brake pads</span><span className="sp" /><Switch label="Brake pads" on={plan.brakes} onSet={(v) => set({ brakes: v })} />{plan.brakes ? <><select aria-label="Front pads" value={String(plan.front_pad)} onChange={(e) => set({ front_pad: +e.target.value })}>{PADS.map(([v, l]) => <option key={v} value={v}>F {l}</option>)}</select><select aria-label="Rear pads" value={String(plan.rear_pad)} onChange={(e) => set({ rear_pad: +e.target.value })}>{PADS.map(([v, l]) => <option key={v} value={v}>R {l}</option>)}</select></> : null}</>,
-    <><span className="mu">Repair suspension</span><span className="sp" /><Switch label="Repair suspension" on={plan.flip_suspension} onSet={(v) => set({ flip_suspension: v })} /></>,
-    <><span className="mu">Repair bodywork</span><span className="sp" /><Switch label="Repair bodywork" on={plan.flip_bodywork} onSet={(v) => set({ flip_bodywork: v })} /></>,
-    <><span className="mu">Compound</span><span className="sp" /><div className="seg">{(["dry", "wet"] as const).map((k) => <button key={k} type="button" aria-pressed={plan.compound === k} onClick={() => { const [lo, hi] = k === "wet" ? c.th.wet_psi : c.th.dry_psi, mid = +((lo + hi) / 2).toFixed(1); planStore.set({ ...plan, compound: k, pressures: [mid, mid, mid, mid] }, ["p0", "p1", "p2", "p3"]); }}>{k === "dry" ? "Dry" : "Wet"}</button>)}</div></>,
-  ];
-  for (let r = 0; r < 4; r++) {
-    const row = 3 + r;
-    grid.push(<div key={"fr" + r} style={{ gridColumn: 1, gridRow: row }}>{rowsF[r]}</div>, <div key={"sr" + r} className={four ? "" : "lc"} style={{ gridColumn: 3, gridRow: row }}>{rowsS[r]}</div>);
-    if (four) grid.push(<div key={"mr" + r} className="lc" style={{ gridColumn: 4, gridRow: row }}><span className="mu">{mfdRows[r]![0]}</span><span className="v" style={{ marginLeft: "auto" }}>{mfdRows[r]![1]}</span></div>);
-  }
-  grid.push(<div key="pq" style={{ gridColumn: 2, gridRow: "3 / span 4", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto auto", gap: "22px 14px", alignContent: "center", padding: "8px var(--pad)" }}>{[0, 1, 2, 3].map(pressCell)}</div>);
-  if (big) {
-    const share = max ? clamp(((car?.fuel_litres ?? 0) / max) * 100, 0, 100) : 0, add = max ? clamp((plan.fuel / max) * 100, 0, 100 - share) : 0;
-    grid.push(
-      <div key="ff"><div style={{ flex: 1 }}><div className="pb" style={{ height: 8, gap: 0, background: "var(--ln)" }}><i style={{ flex: "none", width: share + "%", background: "var(--t2)", padding: 0 }} /><i style={{ flex: "none", width: add + "%", background: "var(--ac)", padding: 0 }} /></div></div><span className="v di" style={{ fontSize: 10.5 }}>of {max ? nf(max, 0) : NONE} L</span></div>,
-      <div key="ft"><span className="mu">Strategy</span><span className="sp" /><span className="v">{st?.press_line ? `${fv("press", st.press_line.psi?.[0], units)}` : NONE}</span></div>,
-      <div key="fs" className={four ? "" : "lc"}><span className="v di">Each toggle sends with its column</span></div>,
-    );
-    if (four) grid.push(<div key="fm" className="lc"><span className="v di">{when ? `Last send ${when}` : "No send yet"}</span></div>);
-  }
+  const winTxt = `${pu.f(lo).toFixed(pu.d)} to ${pu.f(hi).toFixed(pu.d)} ${pu.u}`;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div className="pg" style={{ gridTemplateColumns: `repeat(${cols},1fr)`, gridTemplateRows: rowsCss }}>{grid}</div>
+    <div className="pw">
+      <div className="pwb">
+        <section className="pwb-fuel">
+          <header className="pwb-h"><span className="lab">Fuel</span>{sendBtn(["fuel"])}</header>
+          <div className="pwb-gauge" title={max ? `Tank ${nf(max, 0)} L` : ""}>
+            <svg viewBox="0 0 240 190" aria-hidden="true">
+              <path className="trk" d={arcPath(120, 105, 92, -135, 135)} strokeWidth="14" />
+              {nowL > 0 ? <path className="now" d={arcPath(120, 105, 92, -135, aNow)} strokeWidth="14" /> : null}
+              {plan.fuel > 0 ? <path className="add" d={arcPath(120, 105, 92, aNow, aEnd)} strokeWidth="14" /> : null}
+            </svg>
+            <div className="pwb-gc">
+              <span className="lab">Add</span>
+              <span className="pwb-gn">{plan.fuel}<small> L</small></span>
+              <span className="mu pwb-tl">{car ? <>tank {nf(nowL, 1)} → <b>{nf(tankAfter ?? 0, 1)} L</b></> : null}</span>
+            </div>
+            <div className="pwb-pin">{pill}</div>
+          </div>
+          <div className="pwb-pr">{pill}</div>
+          <div className="pwb-xs">
+            <div className="pwb-xn"><span className="pwb-gn">{plan.fuel}<small> L</small></span>{pill}</div>
+            <div className="pwb-bar" title={max ? `Tank ${nf(max, 0)} L` : ""}><i className="now" style={{ width: nowPct + "%" }} /><i className="add" style={{ width: addPct + "%" }} /></div>
+          </div>
+          <div className="pwb-pre">
+            {[5, 10, 20].map((d) => <button key={d} type="button" className="pwb-chip" onClick={() => bump(d)}>+{d}</button>)}
+            <button type="button" className="pwb-chip" disabled={!max || !car} title="Fill the tank" onClick={() => set({ fuel: Math.max(0, Math.floor(max - nowL)) })}>Fill</button>
+          </div>
+          <div className="pwb-pick">
+            <button type="button" className="pwb-chip" disabled={st?.add_at_box_l == null} aria-pressed={st?.add_at_box_l != null && plan.fuel === Math.ceil(st.add_at_box_l)} title="What the strategy says to add" onClick={() => planStore.patch({ fuel: Math.ceil(st!.add_at_box_l) })}>Strategy {st?.add_at_box_l != null ? nf(st.add_at_box_l, 1) : NONE}</button>
+            <button type="button" className="pwb-chip" disabled={!planned} aria-pressed={!!planned && plan.fuel === Math.ceil(planned.add)} title={planned ? `Your race plan, stop ${planned.n}: box after lap ${planned.lap}` : "No race plan"} onClick={() => planStore.patch({ fuel: Math.ceil(planned!.add) })}>Plan {planned ? nf(planned.add, 0) : NONE}</button>
+          </div>
+          <div className="pwb-figs">
+            <div><span className="lab">Laps added</span><span className="v">{fpl > 0 ? "+" + nf(plan.fuel / fpl, 1) : NONE}</span></div>
+            <div><span className="lab">At the flag</span><span className={"v " + (atFlag != null ? (atFlag < 0 ? "up" : "dn") : "")}>{atFlag != null ? (atFlag >= 0 ? "+" : MINUS) + nf(Math.abs(atFlag), 1) + " L" : NONE}</span></div>
+          </div>
+        </section>
+
+        <section className="pwb-tyres">
+          <header className="pwb-h pwb-th">
+            <span className="lab">Tyres</span>
+            <span className="pwb-ctl">
+            {sw("Change tyres", plan.tyres, (v) => set({ tyres: v }))}
+            <span className="pwb-dv" />
+            <span className="pwb-grp" style={plan.tyres ? undefined : { opacity: 0.5 }}>
+              <span className="seg">{(["dry", "wet"] as const).map((k) => <button key={k} type="button" aria-pressed={plan.compound === k} onClick={() => { const [l, h] = k === "wet" ? c.th.wet_psi : c.th.dry_psi, mid = +((l + h) / 2).toFixed(1); planStore.set({ ...plan, compound: k, pressures: [mid, mid, mid, mid] }, ["p0", "p1", "p2", "p3"]); }}>{k === "dry" ? "Dry" : "Wet"}</button>)}</span>
+              <span className="pwb-set" style={wet ? { opacity: 0.4 } : undefined} title={wet ? "Wet tyres have no sets in ACC" : undefined}>
+                <span className="lab">Set</span>
+                <Stepper cls="sm" value={plan.tyre_set} min={1} max={50} step={1} label="Tyre set" disabled={wet} onValue={(v) => set({ tyre_set: v })} />
+                <span className="mu pwb-oc">on car {live ? nf(p!.current_set, 0) : NONE}</span>
+              </span>
+            </span>
+            </span>
+            <span className="sp" />
+            {sendBtn(["tyres", "pressures"])}
+          </header>
+          <div className="pwb-dials">{[0, 1, 2, 3].map(dial)}</div>
+          <div className="pwb-legend"><span><i className="w" />window {winTxt}</span><span><i className="m" />MFD now</span><span><i className="p" />plan</span></div>
+        </section>
+      </div>
+
+      <div className="pwb-svc">
+        <span className="lab pwb-sl">Service</span>
+        {sw("Brake pads", plan.brakes, (v) => set({ brakes: v }))}
+        <span className="pwb-slot">{plan.brakes ? <>{padSeg("F", "front_pad")}{padSeg("R", "rear_pad")}</> : null}</span>
+        <span className="pwb-dv" />
+        {sw(<><span className="pwb-long">Repair suspension</span><span className="pwb-short">Suspension</span></>, plan.flip_suspension, (v) => set({ flip_suspension: v }))}
+        {sw(<><span className="pwb-long">Repair bodywork</span><span className="pwb-short">Bodywork</span></>, plan.flip_bodywork, (v) => set({ flip_bodywork: v }))}
+        <span className="sp" />
+        {sendBtn(["brakes", "repairs"])}
+      </div>
       {pending ? (
         <div className="f" style={{ padding: 8, gap: 8, borderTop: "1px solid var(--warn)", background: "color-mix(in srgb, var(--warn) 14%, transparent)", flex: "none" }}>
           <span style={{ flex: 1 }}>{pending.text}</span>
@@ -227,11 +269,11 @@ function PitPlanBody({ c, confirmDefault, w, h }: { c: Ctx; confirmDefault: bool
           <button type="button" className="btn" onClick={() => setPending(null)}>Cancel</button>
         </div>
       ) : null}
-      <div className="f" style={{ padding: big ? 12 : 8, borderTop: "1px solid var(--ln)", gap: big ? 10 : 8, flex: "none", flexWrap: "wrap" }}>
-        <button type="button" className={"btn pr " + lg} disabled={sendOff} title={sendTitle} onClick={() => send()}>Send whole plan</button>
-        <button type="button" className={"btn " + lg} disabled={!live} onClick={copyMfd}>Copy MFD into plan</button>
-        <button type="button" className={"btn gh " + lg} disabled={closeDisabled} title={noKey ? "Needs the access key: Settings › Connection" : closing ? "The pit page is being closed" : CLOSE_TITLE} onClick={closePage}>Close pit page</button>
-        <label className="f v mu" style={{ gap: 6, marginLeft: 8 }}><Switch label="Confirm before sending" on={confirm} onSet={setConfirm} />Confirm</label>
+      <div className="pwb-foot">
+        <button type="button" className="btn pr" disabled={sendOff} title={sendTitle} onClick={() => send()}>Send whole plan</button>
+        <button type="button" className="btn" disabled={!live} onClick={copyMfd}>Copy MFD into plan</button>
+        <button type="button" className="btn" disabled={closeDisabled} title={noKey ? "Needs the access key: Settings › Connection" : closing ? "The pit page is being closed" : CLOSE_TITLE} onClick={closePage}>Close pit page</button>
+        <label className="f v mu" style={{ gap: 6, marginLeft: 6 }}><Switch label="Confirm before sending" on={confirm} onSet={setConfirm} />Confirm</label>
         <span className="sp" />
         <span className={"v " + (job && job.state === "error" && !msg ? "up" : busy ? "wn" : "mu")} role="status">{stateText || (n ? `${n} change${n === 1 ? "" : "s"}` : "No changes")}</span>
       </div>
@@ -239,16 +281,17 @@ function PitPlanBody({ c, confirmDefault, w, h }: { c: Ctx; confirmDefault: bool
   );
 }
 
+
 export const pitPlan = defineModule({
   type: "pit-plan", title: "Pit stop", group: "Pit", blurb: "The next stop, typed into the driver's MFD: the whole plan or one block.",
-  size: { w: 7, h: 13, minW: 6, minH: 12, maxH: 14 }, multi: false, needs: ["pit", "reading", "summary", "config", "units"], requires: ["pit"], rate: 4,
+  size: { w: 7, h: 13, minW: 6, minH: 9, maxH: 24 }, multi: false, needs: ["pit", "reading", "summary", "config", "units"], requires: ["pit"], rate: 4,
   options: [{ key: "confirm", label: "Confirm before sending", type: "toggle", def: true }],
-  view({ ctx: c, opts, size }) {
+  view({ ctx: c, opts }) {
     const p = c.pit, lap = c.st?.box_by_lap;
     return {
       flush: true,
       info: [p && p.status === "live" ? <span key="o" className="p">● MFD OPEN</span> : p ? `ACC ${p.status}` : "", p && p.status === "live" && p.in_pit_lane ? "IN PIT LANE" : "", lap != null ? `BOX LAP ${lap}` : "", accessKey.value ? "" : "NO KEY"],
-      body: <PitPlanBody c={c} confirmDefault={!!opts.confirm} w={size.w} h={size.h} />,
+      body: <PitPlanBody c={c} confirmDefault={!!opts.confirm} />,
     };
   },
 });
@@ -310,15 +353,16 @@ export const pressFix = defineModule({
     const line = size.h < 5, fs = size.h >= 7 ? 24 : size.h >= 5 ? 20 : 16;
     return {
       flush: true,
+      quick: <button type="button" className="btn sm" onClick={use}>Use in pit plan</button>,
       alert: [all ? 0 : 1],
       info: size.w >= 3 ? [`WINDOW ${pu(lo)}–${pu(hi)} ${u.u.toUpperCase()}`] : [],
       body: (
         <div className="fc" style={{ flex: 1, minHeight: 0 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: line ? "1fr 1fr" : "auto auto", alignContent: line ? "stretch" : "start", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: line ? "1fr 1fr" : "auto auto", alignContent: line ? "stretch" : "center", gap: 4, padding: 6, flex: 1, minHeight: 0 }}>
             {[0, 1, 2, 3].map((i) => {
-              const v = (pl.psi as number[])[i]!, s = pressState(v, sc), out = v > hi ? v - hi : v < lo ? v - lo : 0, cl = s === "ok" ? "" : s === "cold" ? "cd" : "wn";
+              const v =(pl.psi as number[])[i]!, s = pressState(v, sc), out = v > hi ? v - hi : v < lo ? v - lo : 0, cl = s === "ok" ? "" : s === "cold" ? "cd" : "wn";
               return (
-                <div className={"dk " + (s === "ok" ? "o" : s === "bad" ? "b" : "w")} key={i} style={{ padding: line ? "2px 10px" : "6px 10px", gap: line ? 2 : 3, justifyContent: line ? "space-between" : "center", flexDirection: line ? "row" : "column", alignItems: line ? "center" : undefined, minWidth: 0, overflow: "hidden" }}>
+                <div className={"dk " + (s === "ok" ? "o" : s === "bad" ? "b" : "w")} key={i} style={{ padding: line ? "2px 10px" : "9px 10px 6px", gap: line ? 2 : 3, justifyContent: line ? "space-between" : "center", flexDirection: line ? "row" : "column", alignItems: line ? "center" : undefined, minWidth: 0, overflow: "hidden" }}>
                   <div style={{ height: line ? undefined : 16, lineHeight: "16px", whiteSpace: "nowrap", overflow: "hidden", flex: "none" }}><span className="lab" style={{ color: "var(--t2)" }}>{size.h >= 5 ? NAMES[i] : CORNERS[i]}</span>{!line && out ? <span className="v up">{dp(out)}</span> : null}</div>
                   {line ? <span className="big ac" style={{ fontSize: fs }}>{pu(prop[i]!)}</span> : <>
                     <span className={"big " + cl} style={{ display: "block", flex: "none", height: Math.round(fs * 1.15), fontSize: fs, whiteSpace: "nowrap", lineHeight: 1.15, overflow: "hidden" }}><span style={{ display: "inline-block", minWidth: "3.4ch" }}>{pu(v)}</span><span className="u" style={{ fontSize: 11, marginLeft: 3 }}>{u.u}</span></span>
@@ -327,7 +371,7 @@ export const pressFix = defineModule({
               );
             })}
           </div>
-          <div className="f" style={{ padding: "6px var(--pad)", flex: "none" }}>{size.w >= 4 ? <span className="v di">{all ? "● In the window" : "Set = MFD or plan + correction"}</span> : null}<span className="sp" /><button type="button" className="btn sm" onClick={use}>Use in pit plan</button></div>
+          {size.w >= 4 ? <div className="f" style={{ padding: "6px var(--pad)", flex: "none" }}><span className="v di">{all ? "● In the window" : "Set = MFD or plan + correction"}</span></div> : null}
         </div>
       ),
     };

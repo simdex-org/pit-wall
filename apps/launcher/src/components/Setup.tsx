@@ -1,6 +1,7 @@
 import { useState } from "react";
 import * as bridge from "../lib/bridge";
 import { isLoopback, linkFor, Prefs } from "../lib/settings";
+import { SimCard } from "./SimCard";
 import { Button, Card, Label, TextInput, Toggle } from "./ui";
 
 export type Message = { text: string; tone: "bad" | "ok" | "muted" };
@@ -117,6 +118,8 @@ export function Setup({ prefs, onChange, addresses, failed, message, onStart, on
         <label htmlFor="vj" className="flex-1 cursor-pointer text-[15px] font-semibold">Press the pit page through vJoy</label>
         <Button onClick={bind} disabled={!prefs.vjoy || binding} className="h-9 px-3.5 font-semibold">{binding ? "Binding..." : "Bind in ACC"}</Button>
       </Card>
+
+      <SimCard prefs={prefs} onChange={onChange} />
 
       <div className="flex-1" />
 
