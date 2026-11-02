@@ -18,14 +18,14 @@ import { unit } from "../lib/units";
 const views = new Map<string, MapView>();
 const outs = new Map<string, MapOut>();
 
-function MapCanvas({ id, opts }: { id: string; opts: MapOpts & { follow: boolean } }) {
+function MapCanvas({ id, opts }: { id: string; opts: MapOpts }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
   useEffect(() => {
     const el = cv.current!;
-    const view: MapView = { zoom: optsRef.current.follow ? 4 : 1, follow: optsRef.current.follow, dx: 0, dy: 0 };
+    const view: MapView = { zoom: 1, follow: false, dx: 0, dy: 0 };
     views.set(id, view);
     let raf = 0, dead = false;
     const paint = () => {
@@ -72,7 +72,7 @@ function MapQuick({ id }: { id: string }) {
   );
 }
 
-function MapBody({ id, opts, cap }: { id: string; opts: MapOpts & { follow: boolean }; cap: boolean }) {
+function MapBody({ id, opts, cap }: { id: string; opts: MapOpts; cap: boolean }) {
   const on = useLabelsOpen(id);
   return (
     <div className="map-body">
@@ -100,7 +100,6 @@ export const trackMap = defineModule({
     { key: "yellows", label: "Flashing stripe on yellow sectors", type: "toggle", hidden: true, def: true },
     { key: "badge", label: "Car marker", type: "select", hidden: true, choices: [["dot", "Race number"], ["code", "Driver code"]], def: "dot" },
     { key: "battle", label: "Highlight the cars racing you", type: "toggle", hidden: true, def: true },
-    { key: "follow", label: "Start following the car", type: "toggle", def: false },
   ],
   tools: [],
   tool(tool, { id }) {
@@ -118,7 +117,7 @@ export const trackMap = defineModule({
       quick: <MapQuick id={id} />,
       info: [(c.r?.fixed.track ?? "").replace(/_/g, "-").toUpperCase(), vw?.follow ? "FOLLOWING YOU" : "WHOLE TRACK"],
       state: out?.empty ? { kind: "empty", msg: "No layout for this track." } : undefined,
-      body: <MapBody id={id} opts={opts as MapOpts & { follow: boolean }} cap={size.w >= 6 && size.h >= 14} />,
+      body: <MapBody id={id} opts={opts as MapOpts} cap={size.w >= 6 && size.h >= 14} />,
     };
   },
 });
