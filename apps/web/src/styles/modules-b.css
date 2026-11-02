@@ -12,6 +12,7 @@
 .map-body{flex:1;min-height:0;display:flex;margin:calc(var(--pad) * -1)}
 .map-body>.cv{flex:1;min-width:0}
 .ml{width:280px;flex:none;border-left:1px solid var(--line);background:var(--panel);overflow:auto}
+.mod.no-header .ml{padding-top:32px}
 .ml-sec{padding:10px 14px 8px;border-top:1px solid var(--line2);display:flex;flex-direction:column;gap:2px}
 .ml-sec:first-child{border-top:0}
 .ml-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:30px}
