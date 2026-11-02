@@ -16,7 +16,7 @@ details[open]>summary:before{content:"▾"}
 .pop [aria-checked=true]:after{content:"in use";font-size:var(--t-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--acc);font-weight:600}
 #kpi{border-bottom:1px solid var(--line);background:var(--panel);align-items:stretch;gap:0;min-width:0;height:56px;padding:0;display:flex;overflow:hidden}
 #editBar{border-bottom:1px solid var(--line);height:56px;box-shadow:inset 0 2px 0 var(--acc);align-items:center;gap:8px;min-width:0;padding:0 8px 0 16px;display:flex}
-.ws:not(.editing):not(.narrow){grid-template-rows:repeat(var(--rows,1),minmax(var(--row),1fr))}
+.ws:not(.editing):not(.narrow){grid-template-rows:repeat(var(--rows,1),minmax(var(--row),calc(var(--row) * 1.15)));align-content:start}
 .ws.editing:not(.narrow){grid-auto-rows:var(--rh,var(--row))}
 .ws.narrow{flex-direction:column;display:flex}
 .ws.narrow>.mod{flex:none}
@@ -362,7 +362,7 @@ table.tt{border-collapse:collapse;width:100%}
 .mod .ac{color:var(--ac)}
 .mod .wn{color:var(--warn)}
 .mod .cd{color:var(--cold)}
-.mod .tag{height:16px;line-height:1;font:600 9px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;vertical-align:middle;border:1px solid;border-radius:2px;align-items:center;padding:0 5px;display:inline-flex}
+.mod .tag{height:16px;line-height:1;font:600 9px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;vertical-align:middle;border:1px solid;border-radius:var(--r);align-items:center;padding:0 5px;display:inline-flex}
 .mod .tag.n{color:var(--t2)}
 .mod .t{border-collapse:collapse;width:100%}
 .mod .t th{height:22px;font:600 var(--lab)/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--t3);text-align:right;border-bottom:1px solid var(--ln);white-space:nowrap;background:var(--p1);padding:0 6px}
@@ -372,7 +372,7 @@ table.tt{border-collapse:collapse;width:100%}
 .mod .t td:last-child,.mod .t th:last-child{padding-right:var(--pad)}
 .mod .t tr.own td{background:#ffd40012}
 .mod .t tr.own td:first-child{box-shadow:inset 2px 0 0 var(--me)}
-.mod .t tr.foc td{background:#2ad4c414}
+.mod .t tr.foc td{background:#4a8cf214}
 .mod .t tr.foc td:first-child{box-shadow:inset 2px 0 0 var(--ac)}
 .mod .t tr.sep td{border-bottom:1px solid var(--ln);height:0;padding:0}
 .mod .t tr.cur td{background:var(--p3)}
@@ -402,27 +402,27 @@ table.tt{border-collapse:collapse;width:100%}
 .mod .bar.cd i{background:var(--cold)}
 .mod .bar.tk:after{content:"";background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--p1) calc(10% - 1px) 10%);position:absolute;inset:0}
 .mod .bar.tall{height:8px}
-.mod .btn{border:1px solid var(--ln);background:var(--p2);height:26px;color:var(--tx);font:600 11.5px/1 var(--sans);letter-spacing:.05em;white-space:nowrap;border-radius:2px;flex:none;justify-content:center;align-items:center;gap:6px;padding:0 10px;display:inline-flex}
+.mod .btn{border:1px solid var(--ln);background:var(--p2);height:26px;color:var(--tx);font:600 11.5px/1 var(--sans);letter-spacing:.05em;white-space:nowrap;border-radius:var(--r);flex:none;justify-content:center;align-items:center;gap:6px;padding:0 10px;display:inline-flex}
 .mod .btn:hover{border-color:var(--t3)}
 .mod .btn.pr{background:var(--ac);border-color:var(--ac);color:#06201e}
 .mod .btn.gh{background:0 0}
 .mod .btn.sm{height:22px;padding:0 7px;font-size:10.5px}
 .mod .btn.ic{width:26px;color:var(--t2);background:0 0;border-color:#0000;padding:0}
 .mod .btn.lg{height:32px;padding:0 16px;font-size:12.5px}
-.mod .inp{border:1px solid var(--ln);background:var(--p2);width:72px;height:26px;color:var(--tx);font:400 12px var(--mono);text-align:right;border-radius:2px;padding:0 8px}
+.mod .inp{border:1px solid var(--ln);background:var(--p2);width:72px;height:26px;color:var(--tx);font:400 12px var(--mono);text-align:right;border-radius:var(--r);padding:0 8px}
 .mod .inp.w{text-align:left;width:120px;font-family:var(--sans)}
 .mod .inp.sm{width:60px;height:22px;font-size:11px}
 .mod .inp::placeholder{color:var(--t3)}
 .mod .inp:focus-visible,.mod .btn:focus-visible,.mod .seg button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
-.mod .seg{border:1px solid var(--ln);border-radius:2px;flex:none;align-self:center;display:inline-flex;overflow:hidden}
+.mod .seg{border:1px solid var(--ln);border-radius:var(--r);flex:none;align-self:center;display:inline-flex;overflow:hidden}
 .mod .seg button{height:24px;font:600 11px/1 var(--sans);letter-spacing:.05em;color:var(--t2);border-right:1px solid var(--ln);align-items:center;padding:1px 10px 0;display:inline-flex}
 .mod .seg button:last-child{border-right:0}
 .mod .seg button[aria-pressed=true]{background:var(--p3);color:var(--tx);box-shadow:inset 0 -2px 0 var(--ac)}
-.mod .sw{appearance:none;border:1px solid var(--ln);background:var(--p2);cursor:pointer;border-radius:2px;flex:none;width:28px;height:14px;margin:0;position:relative}
+.mod .sw{appearance:none;border:1px solid var(--ln);background:var(--p2);cursor:pointer;border-radius:var(--r);flex:none;width:28px;height:14px;margin:0;position:relative}
 .mod .sw:before{content:"";background:var(--t3);width:8px;height:8px;position:absolute;top:2px;left:2px}
 .mod .sw:checked{border-color:var(--ac)}
 .mod .sw:checked:before{background:var(--ac);left:16px}
-.mod .step{border:1px solid var(--ln);background:var(--p2);border-radius:2px;flex:none;display:inline-flex}
+.mod .step{border:1px solid var(--ln);background:var(--p2);border-radius:var(--r);flex:none;display:inline-flex}
 .mod .step button{text-align:center;width:26px;height:26px;font:500 14px/26px var(--mono);color:var(--t2)}
 .mod .step input{border:0;border-left:1px solid var(--ln);border-right:1px solid var(--ln);background:var(--p1);width:64px;height:26px;color:var(--tx);font:400 12.5px var(--mono);text-align:center;min-width:0;padding:0}
 .mod svg text{font-family:var(--mono);fill:var(--t3);font-size:9px}
@@ -457,6 +457,9 @@ table.tt{border-collapse:collapse;width:100%}
 .mod .pr.pln{color:var(--t2)}
 .mod .step.sm button{width:22px;height:22px;font-size:12px;line-height:22px}
 .mod .step.sm input{width:54px;height:22px;font-size:11.5px}
+.mod .step.fw{width:100%}
+.mod .step.fw input{flex:1;width:auto}
+.mod .step.fw button{flex:none}
 .mod .step.lg button{width:36px;height:40px;font-size:20px;line-height:40px}
 .mod .step.lg input{width:110px;height:40px;font:500 24px var(--mono)}
 .mod .chip{border:1px solid var(--ln);background:var(--p2);height:26px;font:600 11px/1 var(--sans);letter-spacing:.05em;white-space:nowrap;color:var(--t2);flex:none;align-items:center;gap:6px;padding:1px 10px 0;display:inline-flex}
@@ -489,7 +492,7 @@ table.tt{border-collapse:collapse;width:100%}
 .mod svg.ln .tr{fill:none;stroke-width:1.5px}
 .mod .tag.fx{min-width:var(--tw,56px);justify-content:center}
 .mod .tag.me{color:var(--me)}
-.mod .sw{background:var(--p2);border:1px solid var(--ln);border-radius:2px;width:28px;height:14px;transition:none}
+.mod .sw{background:var(--p2);border:1px solid var(--ln);border-radius:var(--r);width:28px;height:14px;transition:none}
 .mod .sw:before{background:var(--t3);border-radius:0;width:8px;height:8px;transition:none;top:2px;left:2px;transform:none}
 .mod .sw:checked{background:var(--p2);border-color:var(--ac)}
 .mod .sw:checked:before{background:var(--ac);left:16px;transform:none}
@@ -761,3 +764,109 @@ dialog{background:var(--panel)}
 .mod .co-more{padding:9px var(--pad);color:var(--t3);cursor:pointer}
 .mod .co-more:hover{color:var(--tx)}
 .mod .co-empty{padding:14px var(--pad);color:var(--t2)}
+
+
+
+/* ================================================================ header: top bar and figures strip
+   Plain words in sentence case, bigger type, one separator between the two rows. */
+#top{gap:14px;padding:0 16px}
+.wordmark{font-size:17px;font-weight:700;letter-spacing:0}
+#tplBtn{font-size:14px;font-weight:500}
+#tabs{margin-left:6px;padding-left:0;border-left:0;gap:2px}
+#tabs [role=tab]{padding:0 14px;font-size:15px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--mut)}
+#tabs [role=tab][aria-selected=true]{font-weight:600;box-shadow:inset 0 -3px 0 var(--acc)}
+#clock{border:0;padding:0 4px;font:600 16px var(--num)}
+#link{height:28px;gap:7px;padding:0 11px;font:500 13px var(--font);color:var(--txt)}
+#link::before,#link:before{width:8px;height:8px;border-radius:50%}
+#sessionSel{font-size:13px}
+#top .btn{height:32px;font-size:14px}
+#top .btn.icon{width:32px;height:32px}
+.kc{gap:6px;padding:10px 18px}
+.kl{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--mut)}
+.kn{font:600 24px/1 var(--num);letter-spacing:-.01em}
+.kn .u{font-size:.58em;font-weight:500}
+@media (min-width:561px){
+  #top{height:52px}
+  #kpi{height:68px}
+  #editBar{height:68px}
+}
+
+/* ================================================================ figures strip: fixed cells
+   Every figure has a minimum width sized for its longest value; spare width is shared out evenly, so it depends on the window and never on the numbers. */
+@media (min-width:561px){
+  #kpi .kc{flex:1 0 var(--w,116px);padding:10px 16px;overflow:hidden;border-right-color:var(--line2)}
+  #kpi .kc .kn{min-width:0;white-space:nowrap}
+  #kpi .kc[data-k=pos]{--w:92px}
+  #kpi .kc[data-k=lap]{--w:108px}
+  #kpi .kc[data-k=left],#kpi .kc[data-k=stintTime]{--w:124px}
+  #kpi .kc[data-k=last],#kpi .kc[data-k=best]{--w:140px}
+  #kpi .kc[data-k=delta]{--w:116px}
+  #kpi .kc[data-k=ahead],#kpi .kc[data-k=behind]{--w:116px}
+  #kpi .kc[data-k=fuel]{--w:188px}
+  #kpi .kc[data-k=fuelLaps],#kpi .kc[data-k=boxIn]{--w:124px}
+  #kpi .kc[data-k=flag]{--w:76px}
+  #kpi .kc[data-k=temps]{--w:140px}
+  #kpi .kc[data-k=stint]{--w:184px}
+  #kpi .kc[data-k=session],#kpi .kc[data-k=rain]{--w:168px}
+  #kpi .kc[data-k=grip],#kpi .kc[data-k=penalty]{--w:108px}
+  #kpi .kc-more{margin-left:auto}
+}
+
+/* ================================================================ driver tables: fixed columns
+   The driver column has a set width, the figure columns share the rest evenly, so a name or a time never moves a column.
+   Tags sit at the left of their cell and the figure stays on the right edge. */
+.mod .t.fx{table-layout:fixed}
+.mod .t.fx th{width:auto}
+.mod .t.fx th.s{width:44px}
+.mod .t.fx th.d{width:150px}
+.mod .t.fx td{overflow:hidden;text-overflow:ellipsis}
+.mod .t.fx td:not(.l){position:relative}
+.mod .t.fx td:not(.l)>.tag{position:absolute;left:6px;top:50%;translate:0 -50%;margin:0}
+.mod .dl{display:inline-flex;align-items:center;justify-content:space-between;width:64px}
+.mod .dl>i{font-style:normal;width:12px;text-align:left}
+
+/* ================================================================ module header tools
+   The tools sit against the right edge as far as the title sits from the left, and each button is as big as its glyph needs. */
+.mod .mh{padding:0 3px 0 var(--pad);gap:8px}
+.mod .mh .btn.icon,.mod .mquick .btn.icon{width:24px;height:24px;padding:0}
+.mod .mh .mtools,.mod .mh .mquick,.mod .mh .medit{gap:2px}
+.mod .mh .btn.icon svg{width:16px;height:16px}
+.mod .mh .btn.icon,.mod .mquick .btn.icon{border-radius:var(--r)}
+.mod .mh .btn.icon:hover:not(:disabled){background:var(--p3)}
+.mod .mh .btn.icon[aria-pressed=true]{background:var(--acc-soft);color:var(--acc)}
+
+/* ================================================================ module alerts
+   A module that has something to say tints its title; no badges and no coloured edge. */
+.mod[data-alert],.mod[data-alert=bad],:root[data-panel=ruled] .mod[data-alert],:root[data-panel=ruled] .mod[data-alert=bad]{box-shadow:none}
+.mod[data-alert=warn]>.mh .mt{color:var(--warn)}
+.mod[data-alert=bad]>.mh .mt{color:var(--bad)}
+
+/* ================================================================ lap picker: a compact table, centred */
+.mod .t.lp :is(th,td){padding:0 6px}
+
+/* ================================================================ pit stop bars
+   The lane part and the box part each keep room for their label, however long the lane is. */
+.mod .pb i{min-width:64px;overflow:hidden;text-overflow:ellipsis}
+.mod .pb i.bx{min-width:84px;flex-shrink:0;justify-content:center}
+
+/* ================================================================ every other table: fixed columns
+   Text columns keep a share, the figure columns split the rest, so a changing number never resizes a column.
+   A table with more columns keeps a minimum width and scrolls sideways before it squeezes them.
+   Tables with three or more text columns keep automatic widths. */
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)){table-layout:fixed}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)) th.l{width:26%}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)) td{overflow:hidden;text-overflow:ellipsis}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(4)){min-width:272px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(5)){min-width:340px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(6)){min-width:408px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(7)){min-width:476px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(8)){min-width:544px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(9)){min-width:612px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(10)){min-width:680px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(11)){min-width:748px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(12)){min-width:816px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(13)){min-width:884px}
+.mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(14)){min-width:952px}
+
+/* ================================================================ tyre history: figures centred under their headers */
+.mod .t.ctr :is(th,td){text-align:center}
