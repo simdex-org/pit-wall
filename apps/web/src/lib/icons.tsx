@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-// One drawn set on a 24 grid: square caps, mitred joins and a flat 2px stroke, like technical drawing symbols.
 const P: Record<string, ReactNode> = {
   activity: <path d="M2 12h5l3-8 4 16 3-8h5" />,
   disc: <><circle r="9" cx="12" cy="12" /><path d="M12 8v8M8 12h8" /></>,
@@ -44,7 +43,6 @@ const P: Record<string, ReactNode> = {
   x: <path d="M5 5l14 14M19 5L5 19" />,
 };
 
-/** An icon by name; modules name their tool icons as strings. */
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   const g = P[name];
   return g ? (

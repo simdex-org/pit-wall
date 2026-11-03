@@ -24,7 +24,6 @@ export function Field({ op, value, mid }: { op: OptionDef; value: unknown; mid?:
   if (op.type === "text") {
     return <label className="fld"><span>{op.label}</span><input type="text" id={id} maxLength={40} defaultValue={String(value ?? "")} onBlur={(e) => set(e.target.value)} /></label>;
   }
-  // multi: the chosen ones first in their order, then the rest
   const ch = pairs(op), on = Array.isArray(value) ? (value as string[]) : [];
   const rows = [...on.filter((x) => ch.some((c) => c[0] === x)), ...ch.map((c) => c[0]).filter((x) => !on.includes(x))];
   const move = (x: string, d: number) => { const a = on.slice(), i = a.indexOf(x), j = i + d; if (i < 0 || j < 0 || j >= a.length) return; a.splice(j, 0, a.splice(i, 1)[0]!); set(a); };
@@ -44,7 +43,6 @@ export function Field({ op, value, mid }: { op: OptionDef; value: unknown; mid?:
   );
 }
 
-/** A module's title, header and options. Every change applies live. */
 export function ModuleOptions() {
   const ed = useEditor();
   const { tpl } = useNav();

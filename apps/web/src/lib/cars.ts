@@ -2,7 +2,6 @@ import type { Car } from "../feed/types";
 
 type Form = "full" | "last" | "code" | "short";
 
-/** A driver's name in one of four forms; the car number when the entry list has no driver yet. */
 export function carName(car: Car | null | undefined, form: Form = "short"): string {
   if (!car) return "";
   const ds = car.drivers ?? [];

@@ -27,14 +27,12 @@ const KEY_MSG = "Needs the access key (Settings › Connection) to change shared
 const postMsg = (r: { status: number; text: string }) =>
   r.status === 200 ? "Saved for everyone watching this bridge." : r.status === 403 ? "Wrong or missing access key: Settings › Connection." : r.status === 0 ? r.text : "Refused: " + r.text;
 
-/** Stop options, best first: the ones the fuel reaches, then fewest stops to the flag, then rejoin, then time lost. Race plan names the same first row. */
 function rankOpts(st: Json | null): Json[] {
   return ((st?.options as Json[] | undefined) ?? []).slice().sort((a, b) =>
     Number(b.reach !== false) - Number(a.reach !== false) || (a.more_stops || 0) - (b.more_stops || 0)
     || Number(a.rejoin_pos == null) - Number(b.rejoin_pos == null) || (a.rejoin_pos || 0) - (b.rejoin_pos || 0) || a.loss_s - b.loss_s);
 }
 
-// ---------- fuel ----------
 export const fuel = defineModule({
   type: "fuel", title: "Fuel", group: "Strategy", blurb: "Laps of fuel left, litres in the tank and consumption.",
   size: { w: 3, h: 5, minW: 3, minH: 5, maxW: 4, maxH: 6 }, needs: ["reading", "summary", "config"], requires: ["reading"],
@@ -73,7 +71,6 @@ export const fuel = defineModule({
   },
 });
 
-// ---------- fuel to the flag ----------
 const SHARED = [
   { key: "reserve_laps", label: "Reserve laps", min: 0, max: 10, step: 0.1, ph: "" },
   { key: "laps_override", label: "Laps override", min: 1, max: 999, step: 1, ph: "auto" },
@@ -87,7 +84,6 @@ function SharedInputs({ cfg }: { cfg: Json | null }) {
   const [msg, setMsg] = useState("");
   const noKey = !accessKey.value;
 
-  // The shared values show until the person starts typing; then they stay put.
   useEffect(() => {
     if (!S || edited.current) return;
     setVals(Object.fromEntries(SHARED.map((f) => [f.key, S[f.key] == null ? "" : String(S[f.key])])));
@@ -119,11 +115,9 @@ function SharedInputs({ cfg }: { cfg: Json | null }) {
   );
 }
 
-/** The race as one line, left to right from lap 0 to the flag. The legend under it says what each mark is. */
 function RaceLine({ total, now, box, win, plan }: { total: number; now: number; box: number | null; win: { open_lap: number; close_lap: number } | null; plan: number[] }) {
   const W = 600, x = (lap: number) => Math.max(0, Math.min(W, (lap / total) * W));
   const marks: [number, string, string][] = [[now, "NOW", "var(--txt)"], ...(box != null && box > now ? [[box, (plan.length ? "FUEL " : "BOX ") + box, "var(--acc)"] as [number, string, string]] : []), [total, "FLAG", "var(--txt)"]];
-  // Marks closer than a label is wide share one label, so they never print over each other.
   const labels: { at: number; anchor: "start" | "middle" | "end"; text: string; col: string }[] = [];
   let last = -Infinity;
   for (const [lap, label, col] of [...marks].sort((p, q) => p[0] - q[0])) {
@@ -175,11 +169,9 @@ export const racePlan = defineModule({
     const sev = Math.max(0, ...((c.s?.advice as Json[] | undefined) ?? []).filter((a) => /^fuel_(low|box|flag)$/.test(a.id)).map((a) => a.severity | 0));
     const large = size.h >= 9;
     const ns = nextStop(mine, ((c.s?.stops as Json[] | undefined) ?? []).length);
-    // With a race plan the headline is the planned lap, as long as the fuel lasts to it; otherwise the fuel limit stays and says why.
     const planLap = race && box && ns && st.box_by_lap != null && ns.lap <= st.box_by_lap ? ns.lap : null, planLate = !!(race && box && ns && st.box_by_lap != null && ns.lap > st.box_by_lap);
     const total = lapNow != null && st.laps_to_go != null ? lapNow - 1 + Math.ceil(st.laps_to_go) : mine && lapNow != null ? mine.total : null;
     const fpl = st.fuel_per_lap || 0;
-    // Stints: the ones done, this one to the box (or the flag), and the one after it.
     const stops = (c.s?.stops as Json[] | undefined) ?? [];
     const rows: { n: string; cls?: string; laps: string; start: ReactNode; end: ReactNode; rejoin: ReactNode }[] = [];
     let from = 1;
@@ -228,11 +220,9 @@ export const racePlan = defineModule({
   },
 });
 
-// ---------- stop options ----------
 interface Group { k: string; o: Json; laps: number[] }
 
 function Options({ st, ranked, large, planLap }: { st: Json; ranked: Json[]; large: boolean; planLap: number | null }) {
-  // Rows that differ only in the lap are one row ("Box L11–L18, fuel + tyres"), unless another option's lap lies inside that range.
   const kOf = (o: Json) => [String(o.id).endsWith("_ft"), nf(o.add_l, 1), nf(o.stationary_s, 1), nf(o.loss_s, 1), o.rejoin_pos, o.more_stops, o.reach !== false, !!o.outside_window].join();
   const groups: Group[] = [];
   for (const o of ranked) {
@@ -288,7 +278,6 @@ export const stopOptions = defineModule({
   },
 });
 
-// ---------- rejoin ----------
 export const rejoin = defineModule({
   type: "rejoin", title: "Rejoin", group: "Strategy", blurb: "Where you come out if you box at the end of this lap, and who is around you.",
   size: { w: 4, h: 7, minW: 3, minH: 6, maxW: 6, maxH: 8 }, needs: ["summary", "field", "entries"], requires: ["field"],
@@ -341,8 +330,6 @@ export const rejoin = defineModule({
   },
 });
 
-// ---------- stops made ----------
-/** One stop: the time in the pit lane as bars (lane, box), a planned stop dashed. */
 function StopRow({ k, lap, plan, lane, box, loss, big, fuelL, tyres }: { k: number; lap: number; plan?: boolean; lane: number; box: number; loss: number | null; big: boolean; fuelL?: number; tyres?: string }) {
   const rest = Math.max(0.1, lane - box);
   const label = (t: string) => t;
@@ -364,7 +351,6 @@ export const stops = defineModule({
     const list = (c.s?.stops as Json[] | undefined) ?? [];
     const st = c.st, top = rankOpts(st)[0], race = isRace(c);
     const rp = useRacePlan();
-    // With a race plan the planned rows are its remaining stops; without one, the bridge's best option.
     const planned = rp ? rp.stints.filter((t) => t.add != null).slice(list.length) : [];
     const plan = race && st && st.stops_needed > 0 && top ? top : null;
     if (!list.length && !plan && !planned.length) return { state: { kind: "empty", msg: "No stops yet." } };
@@ -411,7 +397,6 @@ export const stops = defineModule({
   },
 });
 
-// ---------- weather ----------
 const stageColor = (l: number) => (l >= 3 ? "var(--warn)" : l ? "var(--cold)" : "var(--ln)");
 
 export const weather = defineModule({
@@ -480,10 +465,8 @@ export const weather = defineModule({
   },
 });
 
-// ---------- pace (degradation) ----------
 type Pt = [number, number];
 
-/** Least squares: slope in ms per lap and intercept. */
 function fit(pts: Pt[]): [number, number] | null {
   if (pts.length < 3) return null;
   const n = pts.length, mx = pts.reduce((a, p) => a + p[0], 0) / n, my = pts.reduce((a, p) => a + p[1], 0) / n;
@@ -504,7 +487,6 @@ function PaceChart({ cur, prev, o, pts, f, pf, cc }: { cur: Json[]; prev: Json[]
     const vals = pts.length ? pts.map((p) => p[1]) : cur.map(cc);
     let lo = Math.min(...vals) - 300, hi = Math.max(...vals) + 300;
     if (hi - lo < 1000) { const m = (hi + lo) / 2; lo = m - 500; hi = m + 500; }
-    // One dot per lap at its time; invalid, out and in laps are hollow and named. The y labels sit in a gutter, never over the data.
     const n0 = cur[0]!.n, n1 = Math.max(cur[cur.length - 1]!.n + 2, n0 + 4), gl = 62, top = 6, bot = H - 14, step0 = (W - gl - 6) / (n1 - n0 + 1);
     const X = (n: number) => gl + (n - n0 + 0.5) * step0, Y = (v: number) => bot - (bot - top) * clamp((v - lo) / (hi - lo), 0, 1);
     const gs = [100, 200, 500, 1000, 2000, 5000].find((k) => (hi - lo) / k <= 5) ?? 10000, ys: number[] = [];
@@ -564,8 +546,7 @@ export const degradation = defineModule({
     const cc = corr(cur), pc = corr(prev);
     const pts: Pt[] = cur.filter(clean).map((l) => [l.n, cc(l)]);
     const f = fit(pts);
-    const pf = fit(prev.filter(clean).map((l): Pt => [l.n - prev[0]!.n + cur[0]!.n, pc(l)])); // the previous stint laid over this one
-    // Under five clean laps the slope is shown, dim, but not judged: one out-lap or traffic lap moves it a lot.
+    const pf = fit(prev.filter(clean).map((l): Pt => [l.n - prev[0]!.n + cur[0]!.n, pc(l)]));
     const slope = f ? f[0] : null, few = pts.length < 5;
     const cls = slope == null || few ? "mu" : slope > 150 ? "up" : slope > 60 ? "wn" : "dn";
     const sl = (v: number | null) => (v == null ? NONE : `${v >= 0 ? "+" : MINUS}${Math.abs(v / 1000).toFixed(3)} s /lap`);

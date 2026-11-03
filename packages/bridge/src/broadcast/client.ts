@@ -1,5 +1,3 @@
-// The broadcasting client: registers with ACC on 127.0.0.1 and hands every message to the sink. It only listens: it sends
-// the registration and requests 9-11, never a focus, camera, HUD or replay message.
 import { createSocket, Socket } from "node:dgram";
 import { isIPv4 } from "node:net";
 import { Rec, ValueError } from "../util.js";
@@ -8,7 +6,6 @@ import { packRegister, packRequest, parse } from "./wire.js";
 export type Sink = (kind: number, d: Rec) => void;
 export interface BroadcastState { state: string; msg: string; port: number }
 
-/** What bridge.ts needs from the real client and from FakeField alike. */
 export interface FieldSource {
   state: BroadcastState;
   start(sink: Sink): void;
@@ -34,7 +31,7 @@ export class Client implements FieldSource {
   }
 
   private send(b: Buffer): void {
-    this.sock?.send(b, (e) => { void e; }); // ACC not listening: the next error says so
+    this.sock?.send(b, (e) => { void e; });
   }
 
   private askEntries(now: number): void {
@@ -43,7 +40,7 @@ export class Client implements FieldSource {
 
   start(sink: Sink): void {
     const sock = (this.sock = createSocket("udp4"));
-    sock.on("error", () => { // ICMP port unreachable: ACC is not listening
+    sock.on("error", () => {
       this.state = Object.assign(this.state, { state: "waiting", msg: `ACC is not answering on port ${this.port}` });
       this.pauseUntil = performance.now() / 1000 + 5;
     });
@@ -62,7 +59,7 @@ export class Client implements FieldSource {
         if (this.sidx !== null && d.session_idx !== this.sidx) this.askEntries(now);
         this.sidx = d.session_idx;
       } else if (kind === 3) {
-        if ((this.known.get(d.i) ?? -1) !== d.drivers) this.askEntries(now); // unknown car or a driver count that disagrees: entry list again
+        if ((this.known.get(d.i) ?? -1) !== d.drivers) this.askEntries(now);
       } else if (kind === 4) {
         this.known = new Map((d.cars as number[]).map((i) => [i, -1]));
       } else if (kind === 6) {
@@ -75,7 +72,7 @@ export class Client implements FieldSource {
       const tick = () => {
         const now = performance.now() / 1000;
         if (now < this.pauseUntil) return;
-        if (now - this.heard > 5 && now - this.reg > 5) { // nothing for 5 s: register (again)
+        if (now - this.heard > 5 && now - this.reg > 5) {
           if (this.state.state === "live") Object.assign(this.state, { state: "waiting", msg: `ACC stopped sending on port ${this.port}` });
           this.conn = null; this.reg = now;
           this.send(packRegister(this.name, this.password, this.interval, this.cmd));
@@ -92,6 +89,6 @@ export class Client implements FieldSource {
     this.sock = null;
     if (this.timer) clearInterval(this.timer);
     if (this.conn !== null) sock.send(packRequest(9, this.conn), () => {});
-    setTimeout(() => { try { sock.close(); } catch { /* already closed */ } }, 50).unref();
+    setTimeout(() => { try { sock.close(); } catch {  } }, 50).unref();
   }
 }

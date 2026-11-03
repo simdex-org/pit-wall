@@ -8,11 +8,10 @@ import { ui } from "../state/ui";
 
 interface Actions { toggleDrawer: (on?: boolean) => void; drawerOpen: boolean; showKeys: () => void }
 
-/** Single-key shortcuts. Dialogs and text fields keep their own keys. */
 export function useShortcuts({ toggleDrawer, drawerOpen, showKeys }: Actions): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (ui.get().settings) return; // the settings screen has its own Esc
+      if (ui.get().settings) return;
       if (document.querySelector("dialog[open]") || document.querySelector(":popover-open")) return;
       if (editor.get().active && editor.key(e)) return;
       const t = e.target as HTMLElement;
@@ -38,7 +37,6 @@ export function useShortcuts({ toggleDrawer, drawerOpen, showKeys }: Actions): v
   }, [toggleDrawer, drawerOpen, showKeys]);
 }
 
-/** Enter or leave edit mode; the grid is one column in a narrow window, so there is nothing to edit there. */
 export function toggleEdit(): void {
   if (!editor.get().active && document.getElementById("ws")?.classList.contains("narrow")) {
     say("Widen the window to edit layouts", 1);

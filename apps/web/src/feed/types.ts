@@ -1,4 +1,3 @@
-// The shapes the bridge sends. Fields the page does not read are left out; unknown ones pass through untouched.
 export interface Car {
   i: number;
   pos: number;
@@ -18,7 +17,6 @@ export interface Car {
   net: number | null;
   drv: number;
   xz: [number, number] | null;
-  // merged from the entry list and the slow fields
   num?: number;
   team?: string;
   cup?: number;
@@ -60,7 +58,6 @@ export interface Advice { id: string; severity: number; text: string }
 export interface LogLine { seq: number; t: number; lap: number; sev: number; cat: string; text: string; src?: string }
 export interface BroadcastState { state: string; msg: string; port: number }
 
-/** The reading is large and its sections are only used by name, so it stays loosely typed. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Json = Record<string, any>;
 

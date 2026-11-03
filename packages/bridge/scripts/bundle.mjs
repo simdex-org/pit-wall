@@ -21,7 +21,6 @@ await build({
   logLevel: "info",
 });
 
-// koffi loads a native binary, so it ships as files next to the bundle instead of being bundled
 const pkgRoot = (file) => {
   let d = dirname(realpathSync(file));
   while (!existsSync(join(d, "package.json"))) d = dirname(d);

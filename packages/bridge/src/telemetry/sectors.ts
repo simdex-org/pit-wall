@@ -1,4 +1,3 @@
-// --sectors: watches the sector lines while someone drives and keeps where each one is, per track, in a JSON file.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { AccPages } from "./pages.js";
 
@@ -14,7 +13,7 @@ export async function recordSectors(file = SECTORS_FILE): Promise<never> {
     const r = pages.read();
     if (r.track !== track) { track = r.track; prev = r.sector; at.length = 0; }
     const n = (r.sectors || 3) - 1;
-    if (track && !r.pit_lane && r.sector === prev + 1 && prev < n) { // a jump of more than one sector is not a line crossed
+    if (track && !r.pit_lane && r.sector === prev + 1 && prev < n) {
       at[prev] = Math.round(r.track_pos * 1e5) / 1e5;
       console.log(`${track}: sector ${prev + 1} ends at ${at[prev]}`);
       if (Array.from({ length: n }, (_, i) => at[i]).every((v) => v !== undefined)) {

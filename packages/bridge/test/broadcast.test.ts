@@ -49,7 +49,6 @@ describe("wire", () => {
     expect(packRegister("Pit Wall", "pw", 250).subarray(0, 2)).toEqual(Buffer.from([1, 4]));
     expect(packRequest(10, 5)).toEqual(Buffer.from([0x0a, 5, 0, 0, 0]));
     expect(() => packRequest(7 * 7 + 1, 1)).toThrow(ValueError);
-    // no message type that moves the driver's camera, HUD or replay may sit next to a packer
     const src = readFileSync(new URL("../src/broadcast/wire.ts", import.meta.url), "utf-8").split("\n").filter((l) => l.includes("pack") && !l.trim().startsWith("//"));
     expect(src.filter((l) => /0x3[123]|\b(49|5[01])\b/.test(l))).toEqual([]);
   });
@@ -95,10 +94,10 @@ describe("simulated field", { timeout: 60000 }, () => {
     const ff = new FakeField(pages);
     const phases: string[] = [];
     let pitted = false, left = false, exit = false;
-    for (let k = 0; k < 34 * 60 * 4; k++) { // thirty-four simulated minutes at 4 Hz
+    for (let k = 0; k < 34 * 60 * 4; k++) {
       now[0]! += 0.25;
       ff.step();
-      if (k === 4 * 10) expect(ff.snapshot(hint(pages), 1, 25000).cars.every((c: Rec) => c.laps === 0)).toBe(true); // still on the grid
+      if (k === 4 * 10) expect(ff.snapshot(hint(pages), 1, 25000).cars.every((c: Rec) => c.laps === 0)).toBe(true);
       pitted = pitted || [...ff.cars].some(([i, c]) => i !== 7 && PIT_LOCS.includes(c.loc));
       exit = exit || ff.events.some(([, , text]) => text.includes("lane"));
       left = left || ff.events.some(([, , text]) => text.includes("Session phase: green"));
@@ -126,8 +125,8 @@ describe("simulated field", { timeout: 60000 }, () => {
     expect(ff.slowSince(seq)[0]).toEqual({});
     expect(Object.keys(ff.entries().cars)).toHaveLength(20);
     expect([...ff.cars.keys()].some((i) => ff.carLaps(i).length)).toBe(true);
-    expect([...ff.cars.values()].some((c) => c.pits > 0 && c.lane_ms > 30000)).toBe(true); // a stop is a whole trip down the lane
-    expect(snap.xz_ok).toBe(true); // shared memory has every car's position
+    expect([...ff.cars.values()].some((c) => c.pits > 0 && c.lane_ms > 30000)).toBe(true);
+    expect(snap.xz_ok).toBe(true);
     expect(cars.every((c) => c.xz && Number.isFinite(c.xz[0]))).toBe(true);
     expect(exit && left).toBe(true);
   });

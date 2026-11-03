@@ -3,7 +3,6 @@ import { useLink } from "../feed/connection";
 import { useFeed } from "../feed/useFeed";
 import { accessKey } from "../state/bridge";
 
-/** The first screen: what is connected, and in a moment the dashboard. */
 export function Welcome({ onEnter }: { onEnter: () => void }) {
   const up = useLink();
   const c = useFeed();

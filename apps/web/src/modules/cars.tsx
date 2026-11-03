@@ -10,7 +10,6 @@ import { State } from "../lib/states";
 export const sortedCars = (c: Ctx): Car[] => [...c.cars.values()].filter((x) => x.pos > 0).sort((a, b) => a.pos - b.pos);
 export const fieldOn = (c: Ctx): boolean => !!(c.field && c.bc?.state === "live");
 
-/** A driver with no surname shows the first name. */
 export function driver(car: Car, form: "full" | "last" | "short" | "code" = "short"): string {
   const n = carName(car, form);
   return /^\S\. *$/.test(n) ? carName(car, "full") : n;
@@ -21,7 +20,6 @@ export const carTitle = (car: Car): string => [carName(car, "full"), car.team, c
 
 const carLoc = (car: Car): string => (IN_LANE.includes(car.loc) ? car.loc : car.loc === "track" ? (car.out ? "out" : "track") : "none");
 
-/** One state: in the lane, then out-lap, then in-lap. */
 export function CarTags({ car }: { car: Car }) {
   if (IN_LANE.includes(car.loc)) return <b className="tag pit">PIT</b>;
   if (car.out) return <b className="tag out">OUT</b>;
@@ -31,7 +29,6 @@ export function CarTags({ car }: { car: Car }) {
 
 export const YouTag = () => <b className="tag you">YOU</b>;
 
-/** Up and down move a row cursor, Enter makes that car the focus car. */
 export function useRowCursor(order: number[]): { cursor: number | null; onKey: (e: KeyboardEvent) => boolean } {
   const [cursor, setCursor] = useState<number | null>(null);
   const onKey = (e: KeyboardEvent): boolean => {
@@ -48,7 +45,6 @@ export function useRowCursor(order: number[]): { cursor: number | null; onKey: (
   return { cursor, onKey };
 }
 
-/** The row every car table shares: status bar, own car, focus car and keyboard cursor. */
 export function CarTr({ car, c, cursor, extra, p, children }: { car: Car; c: Ctx; cursor?: number | null; extra?: string; p?: number; children: ReactNode }) {
   const me = car.i === c.me, foc = c.focus !== "self" && car.i === c.focus;
   const cls = [me && "own", foc && "foc", cursor === car.i && "kcur", extra].filter(Boolean).join(" ");
@@ -73,7 +69,6 @@ export function CarTr({ car, c, cursor, extra, p, children }: { car: Car; c: Ctx
   );
 }
 
-/** A line of a small line chart: 1.5 px, the last point dotted, min and max at the right. */
 export function Spark({ values, fmt }: { values: (number | null | undefined)[] | null | undefined; fmt: (v: number) => string }) {
   const v = (values ?? []).filter((x): x is number => x != null && isFinite(x));
   if (v.length < 2) return null;
@@ -102,4 +97,3 @@ export function Kv({ rows, className }: { className?: string; rows: ([ReactNode,
   );
 }
 
-/** The state arrow, small, after the unit. */

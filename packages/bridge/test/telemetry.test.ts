@@ -27,7 +27,7 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
   });
 
   test("the grid, the start and three laps: debrief, sectors, fuel, advice, strategy", () => {
-    run(pages, tel, 20 + 4 * 100); // twenty seconds of grid, then lights out
+    run(pages, tel, 20 + 4 * 100);
     expect(raw.laps).toBeGreaterThanOrEqual(3);
     reading = tel.update(raw);
     const s = tel.summary(raw);
@@ -60,7 +60,7 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
     expect(st.options.map((o: Rec) => o.id)).toEqual(expect.arrayContaining(["now_f", "now_ft"]));
     expect(st.options[1].stationary_s).toBe(30.0);
     expect(st.drive_loss_src).toBe("config"); expect(s.best_src).toBe("bridge");
-    const d2 = tel.strategy({ ...raw, missing_pits: 0 }); // the mandatory stop made
+    const d2 = tel.strategy({ ...raw, missing_pits: 0 });
     expect(d2.mandatory_left).toBe(0);
     const q = new Telemetry(undefined, clock).strategy({ ...raw, session: 1 });
     expect(q.laps_to_go).toBeNull(); expect(q.options).toEqual([]); expect(q.box_by_lap).not.toBeNull();
@@ -69,7 +69,7 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
   test("traces, saved layout and log categories", () => {
     const traced = tel.laps.filter((l) => l.trace);
     expect(traced.length).toBeGreaterThan(0);
-    expect(tel.laps[0]!.trace).toBe(false); // the standing start lap has no whole trace to compare
+    expect(tel.laps[0]!.trace).toBe(false);
     const lt = tel.lapTrace(traced[traced.length - 1]!.n)!;
     expect(lt.ch.t).toHaveLength(NB);
     for (const k of LCH) expect(lt.ch[k]).toHaveLength(NB);
@@ -115,7 +115,7 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
   test("a reset mid-lap gives that lap no trace", () => {
     const tp = new FakePages({ clock }), tt = new Telemetry(undefined, clock);
     run(tp, tt, 20 + 4 * 100, 30, (r) => { if (r.laps % 2 && 0.5 < r.track_pos && r.track_pos < 0.52) r.xyz = [r.xyz[0] + 500, r.xyz[1], r.xyz[2]]; });
-    const jumped = tt.laps.filter((l) => l.n % 2 === 0).map((l) => l.n); // lap n is driven while raw.laps is n - 1
+    const jumped = tt.laps.filter((l) => l.n % 2 === 0).map((l) => l.n);
     expect(jumped.length).toBeGreaterThan(0);
     expect(jumped.every((n) => tt.lapTrace(n) === null)).toBe(true);
     expect(tt.laps.some((l) => l.trace)).toBe(true);
@@ -146,7 +146,7 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
   test("the driver's own stop: the lane, the box, the fuel and the tyres, measured from the pages", () => {
     const tp = new FakePages({ clock, seed: 3 }), tt = new Telemetry(undefined, clock);
     const w = tp.world;
-    w.rainAt = () => 0; // a dry race, so the one stop is the planned one
+    w.rainAt = () => 0;
     run(tp, tt, 50 * 60, 10, () => {});
     expect(tt.stops).toHaveLength(1);
     const st = tt.stops[0]!;

@@ -1,5 +1,3 @@
-// How one car moves in a step: the speed it could hold, the traffic in front of it, the pit lane, the laps it completes
-// and the mistakes it makes.
 import { clamp, mod } from "../util.js";
 import { CAR_LEN, Lap, SimCar } from "./car.js";
 import { LANE_IN, LANE_OFFSET, LANE_OUT } from "./circuit.js";
@@ -9,10 +7,9 @@ import type { World } from "./world.js";
 
 export const LANE_V = 60 / 3.6;
 const FCY_V = 80 / 3.6;
-const BOX_SIDE = -5; // metres further from the lane than a car driving through
+const BOX_SIDE = -5;
 
 const smooth = (x: number): number => x * x * (3 - 2 * x);
-/** Signed metres from `from` to `to` round a lap of len, in (-len/2, len/2]. */
 const rel = (len: number, from: number, to: number): number => mod(to - from + len / 2, len) - len / 2;
 const lanePath = (l: number): number => LANE_OFFSET * smooth(Math.min(clamp((l - LANE_IN) / 60, 0, 1), clamp((LANE_OUT - l) / 60, 0, 1)));
 
@@ -31,16 +28,15 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
 
   if (!c.inLane && c.wantPit && c.p > len / 2 && c.lane >= LANE_IN) {
     c.inLane = true; c.stopHere = c.wantStop; c.servingPen = !c.wantStop && c.penalty !== null;
-    if (c.stopHere && c.id !== w.playerId && w.rnd.normal() * (0.5 + c.spec.aggr) * (1.4 - c.spec.comp) > 2.2) penalize(w, c, 7, "speeding in the pit lane"); // misjudging the limiter
+    if (c.stopHere && c.id !== w.playerId && w.rnd.normal() * (0.5 + c.spec.aggr) * (1.4 - c.spec.comp) > 2.2) penalize(w, c, 7, "speeding in the pit lane");
   }
 
-  // the speed this car could hold, then what the others and the pit lane leave of it
   const toBox = c.boxLp - c.lane;
   let free = c.st === "stopped" ? 0 : circ.speed(c.d) * c.pace(t, w.evo, w.wet);
   if (c.st !== "stopped") {
     if (c.inLane) {
       free = Math.min(free, c.stopHere ? Math.min(LANE_V, Math.sqrt(2 * 8 * k * Math.max(0, toBox))) : LANE_V);
-      if (!c.stopHere && c.lane > LANE_OUT - 80 && trackBusy(w, c)) free = Math.min(free, Math.sqrt(2 * 8 * k * Math.max(0, LANE_OUT - 8 - c.lane))); // waits at the end of the lane
+      if (!c.stopHere && c.lane > LANE_OUT - 80 && trackBusy(w, c)) free = Math.min(free, Math.sqrt(2 * 8 * k * Math.max(0, LANE_OUT - 8 - c.lane)));
     }
     else {
       if (w.yellow[c.sector]! > t) free *= 0.8;
@@ -52,7 +48,7 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
   if (c.giveWay) free *= 0.97;
   free = traffic(w, c, free, dt);
 
-  const u = c.v / k, load = circle(Math.abs(c.ay) / (latMax(u) * k * k)); // the car's limits, shared with the corner it is in
+  const u = c.v / k, load = circle(Math.abs(c.ay) / (latMax(u) * k * k));
   const brMax = c.st === "stopped" ? 22 * k : brakeCap(u) * k * k * 1.1 * load, accMax = accCap(u) * k * k * 1.1 * load;
   const a = clamp((free - c.v) / dt, -brMax, accMax);
   c.a += (a - c.a) * clamp(dt * 15, 0, 1);
@@ -60,12 +56,10 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
   c.v = Math.max(0, c.v + a * dt);
   const ds = ((v0 + c.v) / 2) * dt, d0 = c.d;
   c.d += ds;
-  const lat = latMax(u) * k * k, grip = lat * 1.03; // past this the tyres slide: the car cannot pull more
+  const lat = latMax(u) * k * k, grip = lat * 1.03;
   c.ay += (clamp(c.v * c.v * circ.curvature(c.d), -grip, grip) - c.ay) * clamp(dt * 8, 0, 1);
   const use = Math.min(1, Math.abs(c.ay) / lat);
   if (c.finishT === null) c.burn(ds, w.wet, use);
-  // Drag slows the car by itself: below that it is a lift, not the brake. Only a real braking zone gets the pedal,
-  // and the throttle is full except where the corner asks for the grip.
   const coast = drag(u) * k * k;
   const g = c.a > 0.5 ? 1 : c.a >= -coast ? 1 - 1.6 * Math.max(0, use - 0.5) ** 2 : 0;
   const b = -c.a - coast > 1.2 ? clamp((-c.a - coast) / 13, 0, 1) : 0;
@@ -87,13 +81,11 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
   if (c.st === "limp" && !c.inLane) w.yellow[c.sector] = t + 1500;
 }
 
-/** A car on the track is about to pass the end of the lane. */
 function trackBusy(w: World, c: SimCar): boolean {
   const len = w.circuit.len;
   return w.cars.some((o) => !o.inLane && o.running && rel(len, c.d, o.d) > -90 && rel(len, c.d, o.d) < 20);
 }
 
-/** The nearest car ahead decides the speed: close up behind it, tow, and go past when the pace is there. */
 function traffic(w: World, c: SimCar, free: number, dt: number): number {
   const len = w.circuit.len, t = w.t;
   let near: SimCar | null = null, gap = 1e9;
@@ -101,25 +93,25 @@ function traffic(w: World, c: SimCar, free: number, dt: number): number {
     if (o === c || o.inLane !== c.inLane || o.box || o.st === "garage" || o.st === "retired") continue;
     const r = mod(o.d - c.d, len);
     if (r > 70 || r - CAR_LEN >= gap) continue;
-    if (Math.abs(c.lat - o.lat) >= 2) continue; // alongside, not in the way
+    if (Math.abs(c.lat - o.lat) >= 2) continue;
     near = o; gap = r - CAR_LEN;
   }
   if (c.pass && w.fcyOn) c.pass = null;
   if (c.pass) {
     const o = w.cars[c.pass.id - 1]!;
     const r = rel(len, c.d, o.d);
-    const alongside = Math.abs(r) < CAR_LEN + 1 && Math.abs(w.circuit.curvature(c.d)) > 0.004; // side by side into a corner
+    const alongside = Math.abs(r) < CAR_LEN + 1 && Math.abs(w.circuit.curvature(c.d)) > 0.004;
     if (alongside && w.rnd.random() < 0.001 * (1 + 3 * c.spec.aggr) * (1 + o.spec.defence) * (2 - c.grip(w.wet)) * (c.laps === 0 ? 3 : 1) * (1 + 3 * w.wet) * dt) { contact(w, c, o); return free; }
     if (r < -(CAR_LEN + 2) || t > c.pass.until || o.inLane !== c.inLane) { c.passCool = r < 0 ? 5 : 2.5; c.pass = null; }
   }
   c.passCool = Math.max(0, c.passCool - dt);
-  if (c.pass) free *= 1.04; // the run on the car being passed: late braking, the tow, the better exit
+  if (c.pass) free *= 1.04;
   if (!near) { c.heldFor = Math.max(0, c.heldFor - dt); return free; }
   const o = near, stuck = o.v < 8;
   if (gap < 0.3 && c.v > o.v + 2 && t >= c.hitUntil) collide(w, c, o);
-  const tw = gap > 3 && gap < 40 && free > 35 && c.st === "race" ? 0.03 * (1 - gap / 40) : 0; // slipstream: up to ~3 % at 3 m, fading out by 40 m
+  const tw = gap > 3 && gap < 40 && free > 35 && c.st === "race" ? 0.03 * (1 - gap / 40) : 0;
   free *= 1 + tw;
-  const brake = 0.7 * brakeCap(c.v / w.circuit.k) * w.circuit.k ** 2; // can always stop behind it if it brakes flat out
+  const brake = 0.7 * brakeCap(c.v / w.circuit.k) * w.circuit.k ** 2;
   const cap = Math.max(0, Math.min(o.v + (gap - (1.5 + 0.06 * o.v)) * 0.9, Math.sqrt(o.v * o.v + 2 * brake * Math.max(0, gap - 0.5))));
   const held = cap < free && (gap < 10 || (stuck && gap < 45));
   free = Math.min(free, cap);
@@ -128,7 +120,7 @@ function traffic(w: World, c: SimCar, free: number, dt: number): number {
     const need = stuck ? 0 : c.kind === "push" && o.kind !== "push" ? 0.6 : 1.2;
     const faster = stuck || c.pace(t, w.evo, w.wet) * (1 + tw) > o.pace(t, w.evo, w.wet) * 1.002;
     const circ = w.circuit;
-    const open = Math.abs(circ.curvature(c.d)) < 0.006 && Math.abs(circ.curvature(c.d + 90)) < 0.012; // a straight, or the braking zone into a corner
+    const open = Math.abs(circ.curvature(c.d)) < 0.006 && Math.abs(circ.curvature(c.d + 90)) < 0.012;
     if (faster && (open || stuck) && c.heldFor >= need && w.rnd.random() < (0.3 + 0.7 * c.spec.aggr) * (1 - 0.5 * o.spec.defence) * 1.5 * dt) {
       c.pass = { id: o.id, side: w.rnd.random() < 0.5 ? 1 : -1, until: t + 14000 };
     }
@@ -142,14 +134,13 @@ function lateral(w: World, c: SimCar, dt: number): void {
   else if (c.pass) to = c.pass.side * 2.3;
   else if (c.giveWay) to = (c.id % 2 ? 1 : -1) * 2.2;
   const next = c.lat + clamp(to - c.lat, -1.6 * dt, 1.6 * dt), len = w.circuit.len;
-  for (const o of w.cars) { // never close the side gap on a car that is alongside
+  for (const o of w.cars) {
     if (o === c || o.inLane !== c.inLane) continue;
     if (Math.abs(rel(len, c.d, o.d)) < CAR_LEN + 1.5 && Math.abs(o.lat - next) < 2 && Math.abs(o.lat - next) < Math.abs(o.lat - c.lat)) return;
   }
   c.lat = next;
 }
 
-/** Standing in the lane at its box, not moving. */
 function parked(w: World, c: SimCar, dt: number): void {
   c.v = 0; c.a = 0; c.gas = c.brake = 0;
   c.lat += clamp(LANE_OFFSET + BOX_SIDE - c.lat, -1.6 * dt, 1.6 * dt);
@@ -174,7 +165,6 @@ function servicing(w: World, c: SimCar, dt: number): void {
   if (b.park || (w.kind !== "race" && w.durMs - w.t < c.lapSec * 1000 * 0.9)) { c.st = "garage"; c.releaseAt = Infinity; }
 }
 
-/** The car is at its box: stop for service, or park (a car that has finished, or is out of the race). */
 function arrive(w: World, c: SimCar): void {
   c.v = 0; c.a = 0;
   if (c.st === "limp" && c.fuel > 0) { c.st = "retired"; c.stopHere = false; w.say(3, c, `#${c.spec.num} retired`); return; }
@@ -206,24 +196,21 @@ function crossLine(w: World, c: SimCar, idx: number): void {
     w.lapDone(c, lap);
     if (lap.in) c.runLap = 0;
   }
-  if (idx === 0 && c.lapStart !== null) return; // a grid car's first lap began with the lights
+  if (idx === 0 && c.lapStart !== null) return;
   c.lapStart = w.t; c.splits = []; c.secIdx = 0; c.valid = true; c.out = c.inLane;
   if (w.ending(c)) { finish(w, c); return; }
   lapStarted(w, c);
   c.newLap();
 }
 
-/** The chequered flag: one more lap in, then to the box. */
 function finish(w: World, c: SimCar): void {
   c.finishT = w.t; c.finishRank = ++w.finished;
   c.st = "finished"; c.wantPit = c.wantStop = true; c.kind = "race";
 }
 
-/** Errors come from the state of the car: the cornering load it carries, the grip left, the water and how hard the driver pushes. */
 function mistakes(w: World, c: SimCar, dt: number, use: number): void {
   if (c.st !== "race" || c.inLane || w.t < 0) return;
   const grip = c.grip(w.wet), press = c.pressure(), rnd = w.rnd;
-  // spec.slip is the chance of a moment in a lap; a lap has only a few seconds right at the limit
   const slip = (c.spec.slip / 20) * use ** 4 * press * (1 + 6 * (1 - grip) + 2 * w.wet) * dt;
   if (w.t >= c.slipUntil && rnd.random() < slip) {
     c.slipUntil = w.t + 2200;
@@ -232,7 +219,7 @@ function mistakes(w: World, c: SimCar, dt: number, use: number): void {
     c.valid = false;
     if (w.kind === "race" && ++c.cuts >= 2) { c.cuts = 0; penalize(w, c, 1, "track limits"); }
   }
-  const worn = Math.max(0, c.wear - 0.85) / 0.15; // a set that is past its life can let go on a kerb
+  const worn = Math.max(0, c.wear - 0.85) / 0.15;
   if (rnd.random() < worn * 0.0004 * use * dt * 60) {
     c.tyreDist += c.circuit.len * c.tyreLife * 0.5; c.wantPit = c.wantStop = true; c.slipUntil = w.t + 4000;
     w.say(3, c, `#${c.spec.num} puncture`);
@@ -242,7 +229,6 @@ function mistakes(w: World, c: SimCar, dt: number, use: number): void {
   }
 }
 
-/** The car goes round. How hard it hits depends on the speed it had. */
 export function spin(w: World, c: SimCar): void {
   const hit = (c.v / 60) ** 2 * w.rnd.uniform(0.7, 1.3), hurt = 6 + 40 * hit;
   c.st = "stopped"; c.until = w.t + 3000 + 6000 * hit; c.valid = false;
@@ -250,7 +236,7 @@ export function spin(w: World, c: SimCar): void {
   c.suspDamage[w.rnd.randint(0, 3)]! += 0.05 * hit;
   c.tyreDist += w.circuit.len * 0.04;
   c.pass = null; c.heldFor = 0;
-  if (w.kind === "race" && !w.fcyOn && hurt > 38) { // a hard hit: the car is wrecked and has to be recovered
+  if (w.kind === "race" && !w.fcyOn && hurt > 38) {
     c.wrecked = true; c.until = w.t + 25000 + 30000 * hit;
     c.damage[w.rnd.randint(0, 4)]! += hurt * 1.2;
     w.startFcy(c.until - w.t);
@@ -259,7 +245,6 @@ export function spin(w: World, c: SimCar): void {
   w.say(4, c, "");
 }
 
-/** The marshals take the wrecked car off the track and into its garage. */
 function tow(w: World, c: SimCar): void {
   const len = w.circuit.len;
   c.d = Math.floor(c.d / len) * len + (c.boxLp < 0 ? len + c.boxLp : c.boxLp);
@@ -267,14 +252,12 @@ function tow(w: World, c: SimCar): void {
   w.say(3, c, `#${c.spec.num} recovered, out of the race`);
 }
 
-/** Races only: a drive-through to serve within three laps, or a time added after the flag. */
 function penalize(w: World, c: SimCar, id: number, why: string): void {
   if (w.kind !== "race" || c.penalty) return;
   c.penalty = { id, due: c.laps + 3 };
   w.say(3, c, `#${c.spec.num} drive-through: ${why}`);
 }
 
-/** A lapped car with the leaders coming up behind it, on a straight, moves over and lifts. */
 function yielding(w: World, c: SimCar): boolean {
   if (w.kind !== "race" || c.inLane || c.st !== "race") return false;
   const len = w.circuit.len;
@@ -282,9 +265,8 @@ function yielding(w: World, c: SimCar): boolean {
   return w.cars.some((o) => o !== c && !o.inLane && o.st === "race" && o.dist > c.dist + 0.98 && mod(c.d - o.d, len) > 3 && mod(c.d - o.d, len) < 70);
 }
 
-/** Ran into the back of a slower car: both are hurt, and the car behind goes round. */
 function collide(w: World, c: SimCar, o: SimCar): void {
-  c.hitUntil = w.t + 4000; // one bump is one collision, however many steps the cars stay in contact
+  c.hitUntil = w.t + 4000;
   c.v = o.v + (c.v - o.v) * 0.3;
   if (w.kind === "race") { c.timePen += 5000; w.say(3, c, `#${c.spec.num} +5 s: causing a collision`); }
   o.damage[w.rnd.randint(0, 4)]! += w.rnd.uniform(2, 14);

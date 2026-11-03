@@ -1,4 +1,3 @@
-// ACC enums and display strings.
 export const SESSIONS: Record<number, string> = { 0: "Practice", 1: "Qualifying", 2: "Race", 3: "Hotlap", 4: "Time attack", 7: "Hotstint", 8: "Superpole" };
 export const STATUS = ["Off", "Replay", "Live", "Pause"];
 export const CORNERS = ["FL", "FR", "RL", "RR"];
@@ -12,9 +11,7 @@ export const PENALTIES: [string, string][] = [
   ["TIME", "post-race time"], ["DSQ", "trolling"], ["DSQ", "pit entry"], ["DSQ", "pit exit"], ["DSQ", "wrong way"],
   ["DT", "ignored driver stint"], ["DSQ", "ignored driver stint"], ["DSQ", "exceeded driver stint limit"],
 ];
-/** Served in the pit lane, within 3 laps. */
 export const SERVABLE = new Set([1, 2, 3, 4, 7, 8, 9, 10, 19]);
-/** Lap traces: as recorder.js resample(). */
 export const NB = 400;
 export const LCH = ["t", "speed", "thr", "brk", "steer", "gear", "rpm", "glat", "glon", "tc", "abs"] as const;
 
@@ -23,10 +20,8 @@ export function carClass(model: string): string {
   return m.includes("gt4") ? "GT4" : m.includes("gt2") ? "GT2" : m.includes("cup") ? "GTC" : m.includes("m2_cs") ? "TCX" : "GT3";
 }
 
-/** A number with its sign, +0.123. */
 export const signed = (x: number, d = 3): string => (x >= 0 ? "+" : "-") + Math.abs(x).toFixed(d);
 
-/** A number that always shows a decimal: 26 -> "26.0". */
 export const floatText = (x: number): string => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 
 export function fmtLap(ms: number | null): string {

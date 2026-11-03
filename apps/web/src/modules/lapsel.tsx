@@ -3,7 +3,6 @@ import { Sel, selection } from "../state/selection";
 
 export const lapName = (l: RecLap): string => (l.src === "import" ? `${l.label} L${l.n}` : `L${l.n}`);
 
-/** The lap picker keeps choosing REF and CMP until the person picks one by hand. */
 export const autoSel = { ref: true, cmp: true };
 
 export function pick(which: "ref" | "cmp", id: string): void {
@@ -13,7 +12,6 @@ export function pick(which: "ref" | "cmp", id: string): void {
   if (n) void recorder.ensureLap(n);
 }
 
-/** The REF and CMP laps, or the reason they cannot be drawn. */
 export function selState(sel: Sel): { ref: RecLap; cmp: RecLap | null } | { msg: string } {
   const ref = recorder.lapById(sel.ref), cmp = recorder.lapById(sel.cmp);
   if (!sel.ref && !sel.cmp) return { msg: "Pick a reference and a comparison lap in the lap picker or the Laps table." };

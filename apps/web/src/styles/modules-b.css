@@ -1,14 +1,10 @@
-/* Geometry for the car, laps, analysis and log modules. Tokens only; the shared classes are in base.css. */
 
-/* ---------- track map ---------- */
 .cv.map>canvas{cursor:grab;touch-action:none}
 .cv.map>canvas:active{cursor:grabbing}
 .mtools [aria-pressed=true]{color:var(--acc)}
 
-/* ---------- traces ---------- */
 .tr-lg{display:flex;gap:12px;margin-bottom:4px}
 
-/* ---------- track map: the Labels panel ---------- */
 .map-body{flex:1;min-height:0;display:flex;margin:calc(var(--pad) * -1)}
 .map-body>.cv{flex:1;min-width:0}
 .ml{width:280px;flex:none;border-left:1px solid var(--line);background:var(--panel);overflow:auto}

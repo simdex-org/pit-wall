@@ -1,32 +1,21 @@
-// The race fuel and stint calculator. The live strategy figures come from the bridge; this one plans a whole race from typed
-// inputs, so it is a pure function here. Laps are split evenly over the stints, a stop never changes the pace and the pit window is not planned.
 
 export interface PlanInputs {
   raceMin: number | null;
   raceLaps: number | null;
-  /** Laps after the timer reaches zero. */
   extra: number;
   lapS: number | null;
-  /** Litres per lap. */
   fpl: number | null;
-  /** Tank, litres; 0 or null = unknown. */
   cap: number | null;
-  /** Laps of fuel kept at every stop and at the flag. */
   reserve: number;
-  /** Fuel burnt before lap 1. */
   formL: number;
   mand: number;
   maxStintMin: number | null;
-  /** Drive-through loss, seconds. */
   lossS: number;
   refuelSpl: number;
   tyreS: number;
-  /** Tyres are changed at every stop. */
   tyres: boolean;
-  /** Fuel, then tyres, instead of both at once. */
   seq: boolean;
   minStat: number;
-  /** Seconds per lap per 10 L carried. */
   wt: number;
 }
 
@@ -38,9 +27,7 @@ export interface FuelPlan {
   options: StopOption[];
   best: StopOption | null;
   save: { fpl: number; pct: number; gainS: number } | null;
-  /** The plan for stops after these laps (strictly rising, inside the race), instead of an even split. */
   build: (stops: number[]) => StopOption;
-  /** The most laps one stint may run on a full tank: the first stint carries the formation fuel. */
   maxStint: { first: number; rest: number };
 }
 
@@ -87,7 +74,6 @@ export function fuelPlan(i: PlanInputs): FuelPlan {
   out.options = all.slice(Math.max(0, first - 1), first + 3);
   out.best = all.filter((o) => o.ok).reduce((a, b) => (b.timeS < a.timeS ? b : a));
   const n = out.best.n;
-  // The consumption that saves a stop: the heaviest stint of n-1 stops must fit the tank.
   if (n > 0 && n - 1 >= nMin && cap < Infinity) {
     const fmax = (cap - (i.formL || 0)) / (Math.ceil(total / n) + i.reserve);
     out.save = { fpl: fmax, pct: (1 - fmax / fpl) * 100, gainS: out.best.timeS - all[n - 1]!.timeS };

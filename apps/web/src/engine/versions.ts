@@ -2,10 +2,6 @@ import type { Channel } from "./types";
 
 type AuxChannel = Extract<Channel, "sel" | "rec" | "tick" | "units" | "theme" | "resize">;
 
-/**
- * Version counters for the channels that do not come from the bridge feed (selection, recordings, the one-second tick, units,
- * theme, resize). A module that needs one re-renders when its counter moves.
- */
 class Aux {
   private v: Record<AuxChannel, number> = { sel: 0, rec: 0, tick: 0, units: 0, theme: 0, resize: 0 };
   private subs = new Set<() => void>();

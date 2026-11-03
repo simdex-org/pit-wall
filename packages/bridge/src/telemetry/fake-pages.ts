@@ -1,4 +1,3 @@
-// The simulated ACC session behind --simulate-acc, as the shared-memory pages show it to the driver's car.
 import type { FakeMfd } from "../pit/fake-mfd.js";
 import { clamp, mod, Rec } from "../util.js";
 import { gearAt, rpmAt, TANK } from "../sim/car.js";
@@ -11,7 +10,6 @@ export class FakePages {
   readonly world: World;
   readonly clock: () => number;
 
-  /** session: ACC's kind, 2 race, 1 qualifying, 0 practice. clock is in seconds. */
   constructor({ clock = () => performance.now() / 1000, session = 2, track, mfd, minutes, weekend, seed, field }: { clock?: () => number; session?: number; track?: string; mfd?: FakeMfd; minutes?: number; weekend?: boolean; seed?: number; field?: Field } = {}) {
     this.clock = clock;
     this.world = new World(weekend || session === 0 ? "practice" : session === 1 ? "quali" : "race", { track, minutes, seed, field, sequence: weekend ? ["practice", "quali", "race"] : undefined });
@@ -22,7 +20,6 @@ export class FakePages {
   private mfd: FakeMfd | null = null;
   private mfdBase: { fuel: number; set: number; wet: boolean } | null = null;
 
-  /** The stop the driver makes takes the fuel and tyre set typed into the pit page, once they differ from what it showed. */
   private wire(mfd: FakeMfd): void {
     this.mfdBase = { fuel: mfd.fuel, set: mfd.set, wet: mfd.s.wet };
     this.world.customize = (box, c) => {
@@ -88,13 +85,11 @@ export class FakePages {
   }
 }
 
-/** Kerbs, bumps and engine vibration: a little noise that grows with speed. */
 function shake(t: number, seed: number, v: number): number {
   const s = t / 1000;
   return (0.035 * Math.sin(s * 53 + seed) + 0.025 * Math.sin(s * 131 + seed * 2.1) + 0.015 * Math.sin(s * 307 + seed * 3.7)) * Math.min(1, v / 40);
 }
 
-/** Milliseconds to the nearest car ahead and behind on the track (the lane is another road). */
 function neighbours(w: World, c: { d: number; v: number; inLane: boolean; id: number }): [number, number] {
   const len = w.circuit.len;
   let ahead = len, behind = len;

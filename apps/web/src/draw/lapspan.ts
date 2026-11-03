@@ -1,4 +1,3 @@
-/** How much of a lap a recorded line covers: the forward steps of its lap fraction, with the jump over the start line counted once. */
 export function lapSpan(pts: ArrayLike<number[]>): number {
   let span = 0;
   for (let i = 1; i < pts.length; i++) {

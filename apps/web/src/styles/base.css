@@ -1,47 +1,30 @@
-/* Pit Wall: a timing sheet and a MoTeC workbook, not a SaaS dashboard. Data sits on hairline grids; labels are small uppercase
-   over mono values; one accent carries the focus car everywhere; the own car has its own colour. No gradients, no glow, no
-   shadows (the inset box-shadows below are bars, not depth). Colour is never the only cue: every state also has a glyph or a word.
-   Every colour is a token on :root; the appearance settings overwrite them on <html>, so these are the defaults.
-   Font: Barlow Semi Condensed, SIL OFL, self-hosted in public/fonts.
-   Module-specific geometry lives in modules-a.css and modules-b.css; this file styles the shell, the module frame, the dialogs
-   and the shared classes. */
 
 @font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-sc-400.woff2) format("woff2");font-weight:400;font-display:swap}
 @font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-sc-500.woff2) format("woff2");font-weight:500;font-display:swap}
 @font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-sc-600.woff2) format("woff2");font-weight:600;font-display:swap}
 @font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-sc-700.woff2) format("woff2");font-weight:700;font-display:swap}
 
-/* ================================================================ tokens */
 :root{
-  /* surface */
   --bg:#0a0b0d;--panel:#111316;--raise:#171a1e;--line:#272b32;--line2:#1b1e23;--txt:#e9ebee;--mut:#a4aab2;--dim:#7f8690;
-  /* identity, timing, state */
   --acc:#4a8cf2;--acc-ink:#08090b;--me:#ffd400;
   --best:#c58bff;--pb:#3ddc84;--slow:#f5c518;--inv:#6b717a;
   --ok:#3ddc84;--warn:#ff9f1a;--bad:#ff5c6c;--cold:#5aaeff;
-  /* traces */
   --c-speed:#e6e8eb;--c-thr:#3ecf7a;--c-brk:#ff5e57;--c-steer:#f2c230;--c-gear:#a98bff;--c-rpm:#8a929c;
   --c-ref:#e6e8eb;--c-cmp:#ff9f1a;--c-lap:#5aaeff;--c-fl:#4b9be0;--c-fr:#3ecf7a;--c-rl:#f2c230;--c-rr:#f06ab8;
-  /* derived: tints for the focus row and alert rows */
   --acc-soft:color-mix(in srgb,var(--acc) 14%,transparent);
   --bad-soft:color-mix(in srgb,var(--bad) 14%,transparent);
   --warn-soft:color-mix(in srgb,var(--warn) 14%,transparent);
-  /* density (compact), scale, radius */
   --row:28px;--trow:24px;--pad:8px;--hh:32px;--fs:1;--r:4px;
-  /* type */
   --font:"Barlow Semi Condensed",system-ui,sans-serif;
   --num:"Barlow Semi Condensed",system-ui,sans-serif;
   --t-xs:.625rem;--t-sm:.6875rem;--t-md:.8125rem;--t-lg:.9375rem;--t-xl:1.25rem;--t-2xl:1.75rem;--t-3xl:2.75rem;
-  /* the fill behind sticky table headers and overlays inside a module: the page in "ruled", the panel otherwise */
   --mbg:var(--bg);
-  /* the names design.css (from the design canvas) uses, pointing at the tokens above */
   --p1:var(--panel);--p2:var(--raise);--p3:#1e2227;--ln:var(--line);--ln2:var(--line2);--tx:var(--txt);--t2:var(--mut);--t3:var(--dim);
   --ac:var(--acc);--sans:var(--font);--mono:var(--num);
   color-scheme:dark;
 }
 :root[data-panel=boxed],:root[data-panel=flat]{--mbg:var(--panel)}
 
-/* ================================================================ base */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none!important}
 html{font-size:calc(16px * var(--fs));height:100%}
@@ -62,7 +45,6 @@ code{color:var(--txt);background:var(--raise);padding:0 4px;border-radius:var(--
 kbd{display:inline-block;min-width:20px;height:20px;line-height:18px;padding:0 4px;text-align:center;color:var(--txt);border:1px solid var(--line);border-bottom-width:2px;border-radius:var(--r)}
 ul,ol{list-style:none}
 
-/* ---------- form controls: 28 px in dialogs and the topbar, 24 px inside modules ---------- */
 input:is([type=text],[type=number],[type=search],[type=password]),select,textarea{
   height:28px;min-width:0;padding:0 8px;background:var(--raise);color:var(--txt);border:1px solid var(--line);border-radius:var(--r);
   font:400 var(--t-md) var(--font);caret-color:var(--acc)}
@@ -75,16 +57,13 @@ select{padding-right:4px;cursor:pointer}
 input::placeholder,textarea::placeholder{color:var(--dim)}
 html{color-scheme:dark;scrollbar-color:var(--line) transparent;scrollbar-width:thin}
 *{scrollbar-color:var(--line) transparent;scrollbar-width:thin}
-/* number: no native spinner (the pit plan has its own − / + buttons) */
 input[type=number]{-moz-appearance:textfield;appearance:textfield}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-/* select: own chevron; the open list takes the dark scheme */
 select{-webkit-appearance:none;appearance:none;padding-right:24px;
   background:var(--raise) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a1a7b0' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 8px center}
 select:hover:not(:disabled){background-color:var(--line2)}
 option,optgroup{background:var(--raise);color:var(--txt);font:400 var(--t-md) var(--font)}
 option:checked{background:var(--acc-soft)}
-/* Chromium (WebView2 too): the open list is drawn by the page, not the OS */
 @supports (appearance:base-select){
   select,select::picker(select){appearance:base-select}
   select{background-image:none;padding:0 8px;display:inline-flex;align-items:center;justify-content:space-between;gap:8px}
@@ -96,7 +75,6 @@ option:checked{background:var(--acc-soft)}
   option:checked{background:var(--acc-soft);box-shadow:inset 2px 0 var(--acc)}
   option::checkmark{display:none}
 }
-/* checkbox = switch (the knob position says on/off as well as the colour), radio = ring with a dot */
 input[type=checkbox]{-webkit-appearance:none;appearance:none;position:relative;flex:none;cursor:pointer;width:30px;height:16px;margin:0;
   background:var(--raise);border:1px solid var(--line);border-radius:var(--r);transition:background-color .12s,border-color .12s}
 input[type=checkbox]::before{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:1px;background:var(--dim);transition:transform .12s,background-color .12s}
@@ -114,7 +92,6 @@ input[type=color]::-webkit-color-swatch-wrapper{padding:0}
 input[type=color]::-webkit-color-swatch{border:0;border-radius:1px}
 .mb :is(input:is([type=text],[type=number],[type=search],[type=password]),select){height:24px}
 
-/* ---------- buttons ---------- */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;padding:0 12px;flex:none;white-space:nowrap;
   border:1px solid var(--line);border-radius:var(--r);background:var(--raise);color:var(--txt);font:500 var(--t-md)/1 var(--font)}
 .btn:hover:not(:disabled){border-color:var(--dim)}
@@ -136,7 +113,6 @@ label.btn{cursor:pointer}
 .top-gap{flex:1 1 auto}
 .ico-gap{display:inline-block;width:16px;flex:none}
 
-/* ================================================================ welcome */
 #welcome{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px 16px;overflow:auto;transition:opacity .25s}
 #welcome.leaving{opacity:0}
 .w-inner{width:100%;max-width:560px}
@@ -160,13 +136,11 @@ label.btn{cursor:pointer}
 .w-help ul{list-style:disc;margin:8px 0 0 16px;display:flex;flex-direction:column;gap:4px}
 .w-help b{color:var(--txt)}
 
-/* ================================================================ the shell: topbar, KPI strip / edit bar, workspace, engineer bar */
 .app{position:relative;display:flex;flex-direction:column;height:100vh;height:100dvh}
 .app>*{flex:none}
 .app>#ws{flex:1 1 auto}
 #ws:empty::before{content:"This workspace is empty. Press E or Edit to add modules.";grid-column:1 / -1;padding:24px;color:var(--mut)}
 
-/* ---------- topbar (40 px) ---------- */
 #top{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px 0 16px;border-bottom:1px solid var(--line);background:var(--panel);min-width:0}
 .brand{display:inline-flex;align-items:center;gap:10px;flex:none;cursor:default}
 .logo{width:28px;height:28px;flex:none}
@@ -190,7 +164,7 @@ label.btn{cursor:pointer}
 #sessionSel[data-past]{border-color:var(--warn);color:var(--warn)}
 .tabw{position:relative}
 .tab-menu{position:absolute;right:0;top:50%;translate:0 -50%;width:20px!important;height:24px;font-size:var(--t-lg);line-height:1;opacity:0}
-#tabs .tabw:has(.tab-menu)>[role=tab]{padding-right:26px}   /* edit mode: room for the ⋯, shown on the selected or hovered tab only */
+#tabs .tabw:has(.tab-menu)>[role=tab]{padding-right:26px}
 .tabw:hover .tab-menu,.tabw:focus-within .tab-menu,.tabw:has([aria-selected=true]) .tab-menu{opacity:1}
 .tab-add{display:inline-flex;align-items:center;justify-content:center;line-height:1;width:28px;height:28px;margin:0 4px;align-self:center;flex:none;border:1px dashed var(--line);border-radius:var(--r);color:var(--mut);font-size:var(--t-lg)}
 .tab-add:hover{color:var(--txt);border-color:var(--dim)}
@@ -200,7 +174,6 @@ label.btn{cursor:pointer}
 #link[data-state=live]::before{background:var(--ok)}#link[data-state=stale]::before{background:var(--warn)}
 #top>.btn.icon{flex:none}
 
-/* ---------- popovers: template switcher, workspace menu ---------- */
 .pop{min-width:240px;max-width:min(360px,calc(100vw - 16px));max-height:70vh;overflow:auto;padding:4px 0;
   background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:var(--r)}
 .pop:popover-open{animation:fadein .12s}
@@ -219,8 +192,6 @@ label.btn{cursor:pointer}
 .pop .pop-act:hover,.pop .pop-act:focus-visible{color:var(--txt)}
 .pop hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 
-/* ---------- KPI strip (64 px): instrument tiles in three groups (race, timing, car); the key figures are big.
-   Tiles drop from the end when narrow (measured in the KPI strip) ---------- */
 #kpi{display:flex;align-items:stretch;gap:0;height:56px;padding:0;border-bottom:1px solid var(--line);background:var(--panel);overflow:hidden;min-width:0}
 .kc{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;flex:1 0 auto;padding:8px 14px;white-space:nowrap;border-right:1px solid var(--line)}
 .kl{font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);line-height:1}
@@ -231,35 +202,26 @@ label.btn{cursor:pointer}
 .kc-more{align-self:center;padding:0 8px;font-size:var(--t-sm);color:var(--dim);cursor:help;flex:none}
 .kpi-edit:hover{color:var(--txt)}
 
-/* ---------- edit bar (64 px, replaces the KPI strip in edit mode) ---------- */
 #editBar{display:flex;align-items:center;gap:8px;height:56px;padding:0 8px 0 16px;border-bottom:1px solid var(--line);box-shadow:inset 0 2px 0 var(--acc);min-width:0}
 .eb-title{font-size:var(--t-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-right:8px}
 .eb-name{display:inline-flex;align-items:center;gap:8px;margin-right:8px}
 .eb-name input{width:160px}
 .eb-hint{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px}
 
-/* ---------- banners (one-time thresholds banner under the KPI strip, and inside Settings) ---------- */
 #banner,.banner{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--raise);color:var(--txt)}
 #banner svg,.banner svg{color:var(--acc)}
 #banner>span,.banner>span{flex:1 1 auto}
 .banner{border:1px solid var(--line);border-left:2px solid var(--acc);border-radius:var(--r);padding:8px 12px;margin:8px 0}
 
-/* ================================================================ workspace: 12-column module grid */
 .ws{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:var(--row);gap:8px;padding:8px;
   overflow:auto;min-height:0;align-content:start;position:relative;overscroll-behavior:contain}
-/* view mode: the rows the layout uses (--rows, set by WS.place) share the window's height, never below --row. Edit mode uses
-   the same pitch as fixed rows (--rh, worked out by WS.place), so nothing jumps when you press E and the empty rows below
-   the layout keep that pitch too */
 .ws:not(.editing):not(.narrow){grid-template-rows:repeat(var(--rows,1),minmax(var(--row),1fr))}
 .ws.editing:not(.narrow){grid-auto-rows:var(--rh,var(--row))}
 .ws.narrow{display:flex;flex-direction:column}
 .ws.narrow>.mod{flex:none}
 .ws.narrow .mod.auto-h{height:auto}
-.ws.narrow .mod.auto-h>.mb{overflow-x:auto;overflow-y:hidden}   /* wider than a phone: the table scrolls sideways, not the page */
+.ws.narrow .mod.auto-h>.mb{overflow-x:auto;overflow-y:hidden}
 .ws.narrow table.tt{min-width:100%}
-/* edit mode: dashed cell outlines on every column and row. A grid item that spans the 12 columns and 60 rows (which also leaves
-   empty rows to drag into), painted under the modules. The lines are a mask over a --line2 fill, so they follow the theme without
-   a gradient: two SVG tiles one column wide (left and right cell edges), two one row high (top and bottom edges). */
 .ws.editing::before{content:"";grid-column:1 / -1;grid-row:1 / span 60;pointer-events:none;background:var(--line);
   --cw:calc((100% + 8px) / 12);--rp:calc(var(--rh,var(--row)) + 8px);
   -webkit-mask-image:var(--gv),var(--gv),var(--gh),var(--gh);mask-image:var(--gv),var(--gv),var(--gh),var(--gh);
@@ -268,7 +230,6 @@ label.btn{cursor:pointer}
   --gv:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Crect width='1' height='4'/%3E%3C/svg%3E");
   --gh:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 36' preserveAspectRatio='none'%3E%3Crect width='4' height='1'/%3E%3C/svg%3E")}
 
-/* ---------- module frame ---------- */
 .mod{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-radius:0}
 :root[data-panel=ruled] .mod{border-top:1px solid var(--line)}
 :root[data-panel=boxed] .mod{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
@@ -286,8 +247,6 @@ label.btn{cursor:pointer}
 .malert.s-warn{color:var(--warn)}.malert.s-bad{color:var(--bad)}
 .mod[data-alert]{box-shadow:inset 2px 0 0 var(--warn)}
 .mod[data-alert=bad]{box-shadow:inset 2px 0 0 var(--bad)}
-/* ruled panels have no side padding: the bar goes in the grid gutter (an outer shadow is painted only outside the box), so
-   nothing inside moves when the alert comes and goes */
 :root[data-panel=ruled] .mod[data-alert]{box-shadow:-6px 0 0 -4px var(--warn)}
 :root[data-panel=ruled] .mod[data-alert=bad]{box-shadow:-6px 0 0 -4px var(--bad)}
 .mhid{color:var(--dim);border-style:dashed}
@@ -300,13 +259,11 @@ label.btn{cursor:pointer}
 .mb{flex:1 1 auto;min-height:0;min-width:0;overflow:auto;padding:var(--pad);display:flex;flex-direction:column}
 .mod.stale .mb{opacity:.45}
 .mod.no-header .mh{display:none}
-/* the no-data / not-available state: centred in the body */
 .mstate{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;text-align:center;min-height:0;overflow:auto}
 .mstate svg{width:24px;height:24px;color:var(--dim)}
 .mstate p{color:var(--mut);max-width:44ch;overflow-wrap:anywhere}
 .mod[data-state=na] .mstate p{white-space:pre-line}
 
-/* ---------- edit mode affordances ---------- */
 .ws.editing .mod{outline:1px solid var(--line);outline-offset:-1px;background:var(--mbg)}
 :root[data-panel=boxed] .ws.editing .mod,:root[data-panel=flat] .ws.editing .mod{background:var(--panel)}
 .ws.editing .mod.no-header .mh{display:flex}
@@ -325,16 +282,14 @@ label.btn{cursor:pointer}
 :root[data-panel=ruled] .ws.editing .mod{outline-offset:3px}
 :root[data-panel=ruled] .ws.editing .mod.sel{outline-offset:2px}
 .ws.editing .mod:has(.mh:active){cursor:grabbing}
-/* drag/resize target */
 .ghost{position:relative;z-index:3;pointer-events:none;display:flex;align-items:center;justify-content:center;
   border:1px dashed var(--acc);background:var(--acc-soft);color:var(--acc);border-radius:var(--r);
   font:600 var(--t-xs) var(--num);letter-spacing:.08em;text-transform:uppercase}
 .ghost.bad{border-color:var(--bad);color:var(--bad);background:var(--mbg)}
-.ghost.bad::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--bad);opacity:.35;   /* hatch: SVG mask, not a gradient */
+.ghost.bad::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--bad);opacity:.35;
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2l4-4M0 8l8-8M6 10l4-4' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E");
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M-2 2l4-4M0 8l8-8M6 10l4-4' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E")}
 
-/* ---------- engineer bar (28 px) and drawer ---------- */
 #eng{display:flex;align-items:stretch;height:32px;border-top:1px solid var(--line);min-width:0;position:relative;z-index:6;background:var(--raise)}
 .eng-main{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;color:var(--txt);text-align:left}
 .eng-main:hover{background:var(--raise)}
@@ -357,7 +312,6 @@ label.btn{cursor:pointer}
 .ed-col>.mt{display:block;padding-bottom:4px;border-bottom:1px solid var(--line);margin-bottom:4px}
 #engClose{position:absolute;top:8px;right:8px}
 
-/* ---------- advice and debrief lines (.sev) ---------- */
 .sev{display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--line2);min-width:0;overflow-wrap:anywhere}
 .sev svg{align-self:flex-start;margin-top:1px}
 .sev>b{flex:none;min-width:4ch;font-size:var(--t-xs);font-weight:700;letter-spacing:.08em}
@@ -370,7 +324,6 @@ label.btn{cursor:pointer}
 .lap h3 .n{font-family:var(--num);font-weight:500}
 .lap h3 .note{font-family:var(--num);font-size:var(--t-xs)}
 
-/* ================================================================ dialogs, drawer, settings */
 dialog{margin:auto;width:min(560px,calc(100vw - 32px));max-height:min(85vh,900px);padding:0;overflow:hidden;
   background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:var(--r)}
 dialog[open]{animation:fadein .12s}
@@ -395,7 +348,6 @@ dialog>.dlg-body{max-height:min(85vh,900px)}
 #dlgKeys .tt td:first-child{width:1%;white-space:nowrap}
 #dlgKeys .dlg-body{overflow:auto}
 
-/* ---------- labelled fields (module options, settings) ---------- */
 .fld{display:flex;align-items:center;gap:8px;min-height:32px;padding:4px 0;border-bottom:1px solid var(--line2)}
 .fld>span:first-child{flex:1 1 auto;min-width:0;color:var(--mut)}
 .fld>:is(select,input[type=text]){flex:0 1 200px}
@@ -412,7 +364,6 @@ dialog>.dlg-body{max-height:min(85vh,900px)}
 label.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .dlg-scroll>.fld:last-child{border-bottom:0}
 
-/* ---------- add-module drawer (#drawer, 320 px from the right; between the edit bar and the engineer bar, so Save and Pit.say stay visible) ---------- */
 #drawer{position:fixed;top:100px;right:0;bottom:33px;z-index:25;width:min(320px,100vw);display:flex;flex-direction:column;
   background:var(--bg);border-left:1px solid var(--line);animation:fadein .12s}
 #drawer>input{margin:12px 16px 8px;flex:none}
@@ -425,7 +376,6 @@ label.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .dr-item:hover:not(:disabled){background:var(--raise)}
 .dr-item:disabled{opacity:.5}
 
-/* ---------- settings overlay ---------- */
 #settings{position:fixed;inset:0;z-index:30;background:var(--bg);animation:fadein .12s}
 .set{display:grid;grid-template-columns:200px minmax(0,1fr);grid-template-rows:44px minmax(0,1fr);height:100%}
 .set-h{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 16px;border-bottom:1px solid var(--line)}
@@ -453,7 +403,6 @@ label.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .kpi-pick li>label{flex:1}
 .kpi-pick .btn.icon{width:24px;height:24px;font-family:var(--num)}
 
-/* ---------- appearance editor (Settings › Appearance) ---------- */
 .ap{display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;align-items:start}
 .ap-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:32px;padding-bottom:4px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .ap-h .mt{white-space:normal}
@@ -479,7 +428,6 @@ label.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .ap-lay{display:flex;align-items:center;gap:12px;min-height:36px;border-bottom:1px solid var(--line2)}
 .ap-lay>.lbl{width:112px;flex:none}
 
-/* ---------- shared classes ---------- */
 .n{font-family:var(--num);font-variant-numeric:tabular-nums}
 .u{font-size:.75em;font-weight:500;color:var(--mut)}
 .lbl{font-size:var(--t-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);line-height:1.2}
@@ -495,7 +443,6 @@ label.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .mb>.note{margin-top:8px;max-width:80ch}
 .empty{color:var(--mut);padding:8px 0}
 
-/* ---------- kv lists ---------- */
 dl.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;align-content:start}
 .kv>dt,.kv>dd{min-height:var(--trow);display:flex;align-items:center;border-bottom:1px solid var(--line2);min-width:0}
 .kv>dt{color:var(--mut);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -505,7 +452,6 @@ dl.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;align-content:start}
 dl.kv.cols2{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto}
 .kv.cols2>dt:nth-of-type(2n){padding-left:24px;border-left:1px solid var(--line2);margin-left:12px}
 
-/* ---------- timing tables ---------- */
 table.tt{width:100%;border-collapse:collapse}
 .tt th{position:sticky;top:0;z-index:1;height:22px;padding:0 8px;background:var(--mbg);border-bottom:1px solid var(--line);
   font-size:var(--t-xs);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-align:left;white-space:nowrap}
@@ -543,7 +489,6 @@ table.tt{width:100%;border-collapse:collapse}
 .fold[aria-expanded=false]::before{content:"▸"}
 .fold:hover{color:var(--txt)}
 
-/* ---------- tags: 16 px, 1 px border, uppercase ---------- */
 .tag{display:inline-flex;align-items:center;height:16px;padding:0 4px;border:1px solid var(--line);border-radius:var(--r);vertical-align:1px;
   font:600 var(--t-xs)/1 var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);white-space:nowrap}
 .tag:is(.pit){color:var(--cold);border-color:var(--cold)}
@@ -555,7 +500,6 @@ table.tt{width:100%;border-collapse:collapse}
 .tag:is(.pen,.low){color:var(--bad);border-color:var(--bad)}
 .tag.est{color:var(--dim);border-style:dashed;text-transform:none;letter-spacing:0}
 
-/* ---------- meters and gauges ---------- */
 .bar{position:relative;height:8px;background:var(--line);overflow:hidden;min-width:24px}
 .bar::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--panel) calc(10% - 1px) 10%)}
 .bar>i{position:absolute;inset:0 auto 0 0;width:0;background:var(--mut)}
@@ -569,11 +513,9 @@ table.tt{width:100%;border-collapse:collapse}
 .gauge>b{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--txt)}
 :is(.bar,.gauge)>i:is(.s-ok,.s-warn,.s-bad,.s-cold,.s-dim){background:currentColor}
 
-/* ---------- compound ring, flag swatch, legend, diff ---------- */
 .cmp-ring{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none;border:1.5px solid var(--txt);border-radius:50%;
   font:700 10px/1 var(--font);color:var(--txt);vertical-align:-3px}
 .cmp-ring[data-c=W]{border-color:var(--cold);color:var(--cold)}
-/* real flag colours, not theme tokens; the word always follows the swatch */
 .flag{display:inline-block;width:14px;height:10px;flex:none;border:1px solid var(--line);vertical-align:-1px;background:transparent}
 .flag[data-flag=green]{background:#1f9d55}.flag[data-flag=yellow]{background:#f5c518}.flag[data-flag=blue]{background:#2f6fde}
 .flag[data-flag=white]{background:#f2f2f2}.flag[data-flag=black]{background:#000}.flag[data-flag=orange]{background:#ff7a1a}.flag[data-flag=red]{background:#d61f2c}
@@ -586,7 +528,6 @@ table.tt{width:100%;border-collapse:collapse}
 .diff>s{color:var(--dim)}
 .diff>b{color:var(--txt);font-weight:600}
 
-/* ---------- severity lines inside modules; layout helpers ---------- */
 .cv{position:relative;flex:1 1 auto;min-height:0;min-width:0}
 .cv>canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
 .split{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;min-width:0}
@@ -596,7 +537,6 @@ table.tt{width:100%;border-collapse:collapse}
 .split>.split-v{flex:0 1 240px}
 .split-v>.btn{align-self:flex-start}
 
-/* ---------- segmented control ---------- */
 .seg{display:inline-flex;align-self:flex-start;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;flex:none}
 .seg>button{height:24px;padding:0 12px;font-size:var(--t-sm);font-weight:500;color:var(--mut);white-space:nowrap}
 .seg>button+button{border-left:1px solid var(--line)}
@@ -604,7 +544,6 @@ table.tt{width:100%;border-collapse:collapse}
 .seg>button[aria-pressed=true]{background:var(--acc);color:var(--acc-ink);font-weight:600}
 .seg>button:focus-visible{outline-offset:-2px}
 
-/* ---------- chips (always with an icon or a word) ---------- */
 .chip{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r);white-space:nowrap;
   font:600 var(--t-xs)/1 var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
 .chip svg{width:12px;height:12px}
@@ -614,11 +553,10 @@ table.tt{width:100%;border-collapse:collapse}
 #link.s-ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
 #link.s-warn{border-color:var(--warn);background:var(--warn-soft)}
 
-/* ---------- tyre widget: car from above; blocks coloured by state, value written on each ---------- */
 :is(.tyre-svg,.tyreviz){min-height:0}
 :is(.tyre-svg,.tyreviz) svg,svg.tyre-svg{display:block;width:100%;max-width:520px;max-height:100%;height:auto;margin:0 auto}
 :is(.tyre-svg,.tyreviz) .chassis{fill:none;stroke:var(--line);stroke-width:2}
-:is(.tyre-svg,.tyreviz) :is(.t-ok,.t-cold,.t-warn,.t-bad){--c:var(--ok);fill:color-mix(in srgb,var(--c) 28%,transparent);stroke:var(--c);stroke-width:2}   /* a tint and a stroke, not four solid blocks */
+:is(.tyre-svg,.tyreviz) :is(.t-ok,.t-cold,.t-warn,.t-bad){--c:var(--ok);fill:color-mix(in srgb,var(--c) 28%,transparent);stroke:var(--c);stroke-width:2}
 :is(.tyre-svg,.tyreviz) .t-cold{--c:var(--cold)}:is(.tyre-svg,.tyreviz) .t-warn{--c:var(--warn)}:is(.tyre-svg,.tyreviz) .t-bad{--c:var(--bad)}:is(.tyre-svg,.tyreviz) .t-none{fill:var(--line2)}
 :is(.tyre-svg,.tyreviz) .b-ok{fill:var(--ok)}:is(.tyre-svg,.tyreviz) .b-cold{fill:var(--cold)}
 :is(.tyre-svg,.tyreviz) .b-warn{fill:var(--warn)}:is(.tyre-svg,.tyreviz) .b-bad{fill:var(--bad)}:is(.tyre-svg,.tyreviz) .b-none{fill:var(--line2)}
@@ -630,10 +568,8 @@ table.tt{width:100%;border-collapse:collapse}
 :is(.tyre-svg,.tyreviz) .ty-psi .u{fill:var(--mut);font-size:12px;font-family:var(--font)}
 :is(.tyre-svg,.tyreviz) .ty-comp{fill:var(--txt);font:700 15px var(--font);letter-spacing:.08em}
 
-/* ---------- textarea in a module (notes) ---------- */
 .mb>textarea{flex:1 1 auto;min-height:96px;resize:none;width:100%}
 
-/* ================================================================ timing and state colours: last, single class, so they win */
 .t-best{color:var(--best)}
 .t-pb{color:var(--pb)}
 .t-slow{color:var(--slow)}
@@ -644,7 +580,6 @@ table.tt{width:100%;border-collapse:collapse}
 .s-cold{color:var(--cold)}
 .s-dim{color:var(--dim)}
 
-/* labels in sentence case (appearance "labels: sentence"): module titles, table headers, KPI and field labels */
 :root[data-labels=sentence] :is(.mt,.tt th,.kl,.lbl,.pop-h,.pc h3>span){text-transform:none;letter-spacing:0}
 :root[data-labels=sentence] :is(.mt,.tt th){font-weight:500}
 :root[data-labels=sentence] .tt th{font-size:var(--t-sm)}
@@ -652,7 +587,6 @@ table.tt{width:100%;border-collapse:collapse}
 
 @keyframes fadein{from{opacity:0}}
 
-/* ================================================================ responsive: structure changes, not fluid type */
 @media (max-width:1400px){.eb-hint{display:none}}
 @media (max-width:1100px){
   .wordmark{display:none}
@@ -682,7 +616,7 @@ table.tt{width:100%;border-collapse:collapse}
   #tabs .tabw,#tabs .tab-add{display:none}
   #tabs .tab-sel{display:block}
   #tabs [role=tab]{padding:0 8px}
-  #link{max-width:20px;padding:0 5px;overflow:hidden}   /* the glyph only (■ ◐ ○, coloured); the words stay in the title and the status text */
+  #link{max-width:20px;padding:0 5px;overflow:hidden}
   #kpi{height:auto;flex-wrap:wrap;gap:4px;padding:4px}
   #kpi .kc{flex:1 0 calc(50% - 4px);height:40px;padding:4px 8px;margin-left:0!important}
   #kpi .kc[data-k] .kn{font-size:var(--t-lg)}
@@ -697,9 +631,7 @@ table.tt{width:100%;border-collapse:collapse}
   .mh .btn.icon,.mb .btn.icon{width:32px;height:32px}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
-/* stepper: − [value] + as one segmented control */
 
-/* the Flag KPI cell fills with the flag's colour and blinks (chequered: steady) */
 #kpi .kc:where([data-flag]:not([data-flag=""])){animation:flagBlink 1s steps(1) infinite;color:#fff}
 #kpi .kc:where([data-flag]:not([data-flag=""])) .kl{color:inherit}
 #kpi .kc[data-flag=green]{background:#1f9d55}#kpi .kc[data-flag=yellow]{background:#f5c518;color:#111}#kpi .kc[data-flag=blue]{background:#2f6fde}
@@ -711,10 +643,8 @@ table.tt{width:100%;border-collapse:collapse}
 @keyframes flagBlink{50%{opacity:.3}}
 @media (prefers-reduced-motion:reduce){#kpi .kc[data-k=flag]{animation:none!important}}
 
-/* ---------- design pass: small buttons, engineer bar ---------- */
 .btn.sm{height:22px;padding:0 7px;font-size:var(--t-sm)}
 
-/* ---------- design pass: settings as a framed dialog over a dimmed page, flat caps navigation ---------- */
 #settings{display:flex;align-items:center;justify-content:center;background:rgb(0 0 0 / .55)}
 #settings .set{width:min(1100px,calc(100vw - 48px));height:min(720px,calc(100vh - 48px));background:var(--bg);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;grid-template-columns:180px minmax(0,1fr)}
 .set-nav{padding:8px 0}
@@ -722,14 +652,11 @@ table.tt{width:100%;border-collapse:collapse}
 .set-nav button[aria-selected=true]{background:var(--line2)}
 .set-pane>h3.mt{letter-spacing:.12em}
 
-/* a module 6 columns or wider reads at the comfortable density when the density follows size; narrower ones stay compact */
 
 
-/* a drag never selects the dashboard; fields and text areas still select */
 body{user-select:none;-webkit-user-select:none}
 input,textarea,[contenteditable]{user-select:text;-webkit-user-select:text}
 
-/* scrolling works, but no scrollbar is ever drawn */
 *{scrollbar-width:none}
 ::-webkit-scrollbar{display:none}
 [data-p][hidden]{display:none!important}

@@ -33,7 +33,6 @@ function Seg({ items, on, onPick }: { items: [string, string][]; on: string; onP
 const Row = ({ label, children }: { label: string; children: ReactNode }) => <div className="ml-row"><span>{label}</span>{children}</div>;
 const Sw = ({ label, on, onSet }: { label: string; on: boolean; onSet: (v: boolean) => void }) => <input type="checkbox" aria-label={label} checked={on} onChange={(e) => onSet(e.target.checked)} />;
 
-/** The track map's label options as a panel over the map; every change is saved with the layout at once. */
 export function LabelsPanel({ id, opts }: { id: string; opts: Record<string, unknown> }) {
   const fields = (opts.fields as string[]) ?? [], on = (k: string) => fields.includes(k);
   const same = (a: string[]) => a.length === fields.length && a.every((x, i) => x === fields[i]);

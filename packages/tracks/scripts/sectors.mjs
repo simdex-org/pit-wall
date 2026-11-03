@@ -1,5 +1,3 @@
-// Puts the sector lines from files made by the bridge's --sectors into tracks.json.
-// Usage: node scripts/sectors.mjs <pitwall-sectors.json> [more files]
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -17,7 +17,6 @@ export interface Prefs {
   lastWs: Record<string, string>;
 }
 
-// Time left is the top bar's clock; rain and temperatures are off so the default fits 1440 px.
 export const DEFAULT_PREFS: Prefs = {
   units: DEFAULT_UNITS, sound: false, hz: 30,
   kpi: ["pos", "lap", "left", "last", "best", "delta", "fuelLaps", "boxIn", "flag", "temps"],

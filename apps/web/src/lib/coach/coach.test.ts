@@ -5,7 +5,6 @@ import { buildReport, CoachLap, progress, Report, snapshot } from "./report";
 
 const LEN = 399 * 12.5, BM = binMOf(LEN), TOP = 250;
 const TRACK = [{ a: 40, v: 80 }, { a: 100, v: 120 }, { a: 150, v: 70 }, { a: 210, v: 140 }, { a: 270, v: 90 }, { a: 340, v: 110 }];
-/** Per corner: braking starts this many bins earlier, the slowest point is this many km/h faster, the throttle comes this many bins later. */
 interface Fault { onset?: number; min?: number; pick?: number }
 
 function synth(faults: Record<number, Fault> = {}): LapData {

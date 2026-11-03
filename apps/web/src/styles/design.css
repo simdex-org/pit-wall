@@ -711,7 +711,6 @@ dialog{background:var(--panel)}
 .map-body{display:flex;flex:1;min-height:0}
 .map-main{flex:1;min-width:0;display:flex;flex-direction:column}
 
-/* Lap coach */
 .mod .co{display:flex;flex-direction:column;flex:1;min-height:0}
 .mod .co-top{display:flex;flex-direction:column;gap:8px;padding:var(--pad) var(--pad) 0}
 .mod .co-hd{display:flex;align-items:baseline;gap:10px;min-width:0}
@@ -762,8 +761,6 @@ dialog{background:var(--panel)}
 
 
 
-/* ================================================================ header: top bar and figures strip
-   Plain words in sentence case, bigger type, one separator between the two rows. */
 #top{gap:14px;padding:0 16px}
 .wordmark{font-size:17px;font-weight:700;letter-spacing:0}
 #tplBtn{font-size:14px;font-weight:500}
@@ -786,8 +783,6 @@ dialog{background:var(--panel)}
   #editBar{height:68px}
 }
 
-/* ================================================================ figures strip: fixed cells
-   Every figure has a minimum width sized for its longest value; spare width is shared out evenly, so it depends on the window and never on the numbers. */
 @media (min-width:561px){
   #kpi .kc{flex:1 0 var(--w,116px);padding:10px 16px;overflow:hidden;border-right-color:var(--line2)}
   #kpi .kc .kn{min-width:0;white-space:nowrap}
@@ -807,9 +802,6 @@ dialog{background:var(--panel)}
   #kpi .kc-more{margin-left:auto}
 }
 
-/* ================================================================ driver tables: fixed columns
-   The driver column has a set width, the figure columns share the rest evenly, so a name or a time never moves a column.
-   Tags sit at the left of their cell and the figure stays on the right edge. */
 .mod .t.fx{table-layout:fixed}
 .mod .t.fx th{width:auto}
 .mod .t.fx th.s{width:44px}
@@ -820,8 +812,6 @@ dialog{background:var(--panel)}
 .mod .dl{display:inline-flex;align-items:center;justify-content:space-between;width:64px}
 .mod .dl>i{font-style:normal;width:12px;text-align:left}
 
-/* ================================================================ module header tools
-   The tools sit against the right edge as far as the title sits from the left, and each button is as big as its glyph needs. */
 .mod .mh{padding:0 3px 0 var(--pad);gap:8px}
 .mod .mh .btn.icon,.mod .mquick .btn.icon{width:24px;height:24px;padding:0}
 .mod .mh .mtools,.mod .mh .mquick,.mod .mh .medit{gap:2px}
@@ -830,24 +820,15 @@ dialog{background:var(--panel)}
 .mod .mh .btn.icon:hover:not(:disabled){background:var(--p3)}
 .mod .mh .btn.icon[aria-pressed=true]{background:var(--acc-soft);color:var(--acc)}
 
-/* ================================================================ module alerts
-   A module that has something to say tints its title; no badges and no coloured edge. */
 .mod[data-alert],.mod[data-alert=bad],:root[data-panel=ruled] .mod[data-alert],:root[data-panel=ruled] .mod[data-alert=bad]{box-shadow:none}
 .mod[data-alert=warn]>.mh .mt{color:var(--warn)}
 .mod[data-alert=bad]>.mh .mt{color:var(--bad)}
 
-/* ================================================================ lap picker: a compact table, centred */
 .mod .t.lp :is(th,td){padding:0 6px}
 
-/* ================================================================ pit stop bars
-   The lane part and the box part each keep room for their label, however long the lane is. */
 .mod .pb i{min-width:64px;overflow:hidden;text-overflow:ellipsis}
 .mod .pb i.bx{min-width:84px;flex-shrink:0;justify-content:center}
 
-/* ================================================================ every other table: fixed columns
-   Text columns keep a share, the figure columns split the rest, so a changing number never resizes a column.
-   A table with more columns keeps a minimum width and scrolls sideways before it squeezes them.
-   Tables with three or more text columns keep automatic widths. */
 .mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)){table-layout:fixed}
 .mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)) th.l{width:26%}
 .mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)) td{overflow:hidden;text-overflow:ellipsis}
@@ -863,10 +844,8 @@ dialog{background:var(--panel)}
 .mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(13)){min-width:884px}
 .mod .t:not(.fx,.lp,:has(th.l~th.l~th.l)):has(th:nth-child(14)){min-width:952px}
 
-/* ================================================================ tyre history: figures centred under their headers */
 .mod .t.ctr :is(th,td){text-align:center}
 
-/* ================================================================ edit mode: the Edit button, the edit bar, the module catalogue */
 #top #btnEdit{gap:6px;padding:0 14px}
 #top #btnEdit[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--acc-ink);font-weight:600}
 #editBar{height:48px;margin:0;padding:0 16px;gap:8px;border:0;border-bottom:1px solid var(--acc);border-radius:0;background:var(--panel)}

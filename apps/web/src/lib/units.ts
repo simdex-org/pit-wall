@@ -1,6 +1,5 @@
 import { NONE } from "./format";
 
-// Values arrive in km/h, degrees C and psi; they are converted only for display.
 export interface Unit { f: (v: number) => number; b: (v: number) => number; u: string; d: number }
 
 export const UNITS = {
@@ -28,14 +27,12 @@ export function unit(kind: UnitKind, choice: UnitChoice = DEFAULT_UNITS): Unit {
   return table[choice[kind]] ?? Object.values(table)[0]!;
 }
 
-/** The converted value with its unit's decimals, no unit text. */
 export function fv(kind: UnitKind, v: number | null | undefined, choice?: UnitChoice, digits?: number): string {
   if (v == null || !Number.isFinite(v)) return NONE;
   const u = unit(kind, choice);
   return u.f(v).toFixed(digits ?? u.d);
 }
 
-/** The converted value followed by its unit's name. */
 export function fvu(kind: UnitKind, v: number | null | undefined, choice?: UnitChoice, digits?: number): string {
   return v == null || !Number.isFinite(v) ? NONE : `${fv(kind, v, choice, digits)} ${unit(kind, choice).u}`;
 }

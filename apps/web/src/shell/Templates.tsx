@@ -12,7 +12,6 @@ import { ask } from "./confirm";
 
 const date = (s: string) => { const t = Date.parse(s); return isNaN(t) ? "" : new Date(t).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" }); };
 
-// A change in the template list has no store of its own, so the dialog keeps a counter.
 let version = 0;
 const subs = new Set<() => void>();
 const bump = () => { version++; subs.forEach((fn) => fn()); };
@@ -24,7 +23,6 @@ function exportTemplate(t: Template, withAppearance: boolean): string {
   o.created = t.created; o.updated = t.updated; o.workspaces = deep(t.workspaces);
   if (withAppearance) o.appearance = appearance.pack(appearance.cur);
   const text = JSON.stringify(o, null, 1), key = accessKey.value;
-  // The key as a whole JSON string (a template name or text field equal to it), or anywhere when it is long enough not to be a word.
   if (key && (text.includes(JSON.stringify(key)) || (key.length >= 12 && text.includes(key)))) return "Export blocked: it would contain the access key";
   download(`${slug(t.name)}.pitwall.json`, text);
   return `Exported '${t.name}'.`;
@@ -42,7 +40,7 @@ async function importTemplate(file: File): Promise<string> {
   try { res = sanitize(raw, { keepAppearance: true }); } catch { return "Not a Pit Wall template file."; }
   const t = res.t, ap = t.appearance;
   delete t.appearance;
-  if (!(await editor.leave())) return ""; // before the appearance question: 'Keep editing' must leave nothing adopted
+  if (!(await editor.leave())) return "";
   t.id = newId("t-");
   t.name = templates.uniqueName(t.name);
   t.created = t.updated = new Date().toISOString();
@@ -87,7 +85,6 @@ function Row({ t, curId, renaming, setRenaming, act, rename }: {
   );
 }
 
-/** Use, duplicate, rename, delete, export and import templates. */
 export function Templates() {
   const { open } = { open: useUi().templates };
   const { tpl } = useNav();
@@ -119,7 +116,7 @@ export function Templates() {
   };
 
   const blank = async () => {
-    if (!(await editor.leave())) return; // first: cancelling "Discard changes?" must not leave a 'New template' behind
+    if (!(await editor.leave())) return;
     const n = templates.save({ format: "pitwall-template", schemaVersion: SCHEMA, id: newId("t-"), name: templates.uniqueName("New template"), created: new Date().toISOString(), updated: "", workspaces: [{ id: "w-workspace", name: "Workspace", modules: [] }] });
     nav.useTemplate(n.id);
     setRenaming(n.id);

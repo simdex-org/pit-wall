@@ -2,11 +2,9 @@ import { clamp, fmtLap, fmtSector } from "./format";
 import { Icon } from "./icons";
 import type { Advice } from "../feed/types";
 
-/** Severity 0 to 2: icon name and word. */
 export const SEV: [icon: string, word: string][] = [["info", "NOTE"], ["triangle-alert", "WARN"], ["octagon-alert", "CRIT"]];
 export const sevOf = (s: number): number => clamp(s | 0, 0, 2);
 
-// Most severe first; a tie goes to the topic that matters first (running dry before a pressure note), so bar and drawer agree.
 const PRIORITY = ["fuel_box", "fuel_low", "fuel_flag", "penalty", "damage", "window_closing", "stint_limit", "rain_coming", "brakes_hot", "pads_low", "press_front", "press_rear", "tyres_cold"];
 const rank = (a: Advice): number => { const i = PRIORITY.indexOf(a.id); return i < 0 ? 99 : i; };
 export const sortAdvice = (items: Advice[] | null | undefined): Advice[] => (items ?? []).slice().sort((a, b) => b.severity - a.severity || rank(a) - rank(b));

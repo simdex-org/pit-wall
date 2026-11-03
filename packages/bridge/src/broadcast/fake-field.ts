@@ -1,5 +1,3 @@
-// The simulated session's twenty cars as ACC's broadcasting would send them: an entry list once, then a realtime update
-// and every car's update each time, and the race control events as they happen.
 import { gearAt, SimCar } from "../sim/car.js";
 import { LANE_IN, LANE_OUT } from "../sim/circuit.js";
 import { World } from "../sim/world.js";
@@ -9,7 +7,6 @@ import { BroadcastState, FieldSource, Sink } from "./client.js";
 import { Field } from "./field.js";
 import { PIT_LOCS, RACE } from "./models.js";
 
-/** ACC's session type for qualifying. */
 const QUALI = 4;
 
 export class FakeField extends Field implements FieldSource {
@@ -34,7 +31,6 @@ export class FakeField extends Field implements FieldSource {
     return l < LANE_IN + 25 ? 3 : l > LANE_OUT - 25 ? 4 : 2;
   }
 
-  /** One batch as ACC would send it: (entry list and track data once,) a realtime update, the events, then every car. */
   messages(): [number, Rec][] {
     const w = this.world, t = w.t, out: [number, Rec][] = [];
     w.sync(this.pages.clock());

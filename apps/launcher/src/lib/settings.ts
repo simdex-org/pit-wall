@@ -9,7 +9,6 @@ const STORE = "pitwall.launcher";
 
 export const isLoopback = (ip: string): boolean => ip.startsWith("127.");
 
-/** The first address that is not loopback; loopback when there is none. */
 export function pickIp(ips: string[]): string {
   return ips.find((ip) => !isLoopback(ip)) ?? "127.0.0.1";
 }
@@ -20,7 +19,6 @@ export function newKey(): string {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 }
 
-/** The first problem with the form, or null when it can start. */
 export function validate(port: string, key: string, ip = "127.0.0.1"): string | null {
   if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip.trim()) || ip.trim().split(".").some((n) => Number(n) > 255)) return "The address is four numbers from 0 to 255, like 192.168.1.24.";
   const n = Number(port.trim());
@@ -37,7 +35,7 @@ export const linkFor = (p: Prefs): string => `http://${p.ip.trim()}:${p.port.tri
 
 export function loadPrefs(addresses: string[]): Prefs {
   let saved: Partial<Prefs> = {};
-  try { saved = JSON.parse(localStorage.getItem(STORE) ?? "{}"); } catch { /* private window or bad data */ }
+  try { saved = JSON.parse(localStorage.getItem(STORE) ?? "{}"); } catch {  }
   return {
     ip: saved.ip || pickIp(addresses),
     port: saved.port ?? "8765",
@@ -47,5 +45,5 @@ export function loadPrefs(addresses: string[]): Prefs {
 }
 
 export function savePrefs(p: Prefs): void {
-  try { localStorage.setItem(STORE, JSON.stringify(p)); } catch { /* storage unavailable */ }
+  try { localStorage.setItem(STORE, JSON.stringify(p)); } catch {  }
 }

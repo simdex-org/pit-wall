@@ -24,7 +24,6 @@ function Clock() {
   return <span id="clock" className="n" title="Session time left">{c.r ? fmtClock(c.r.session.session_time_left_ms) : NONE}</span>;
 }
 
-/** Live, or one of the earlier sessions (practice, qualifying, race) kept by the bridge. Shown once there is an earlier one. */
 function SessionPicker() {
   const c = useFeed();
   if (!c.past.length && !c.view) return null;
@@ -70,7 +69,6 @@ function Tabs() {
   );
 }
 
-/** The workspace menu shown beside a tab in edit mode. */
 function WsMenu({ wsId, count }: { wsId: string; count: number }) {
   const pop = useRef<HTMLDivElement>(null);
   const id = "wsMenu-" + wsId;
@@ -116,7 +114,6 @@ function TemplateMenu() {
   );
 }
 
-/** The logo; five quick clicks open the Tests workspace. */
 function Brand() {
   const n = useRef({ k: 0, t: 0 });
   const click = () => {

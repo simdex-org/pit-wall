@@ -1,6 +1,5 @@
 import { clamp } from "./format";
 
-// A gauge sweeps 270 degrees, from -135 (lower left) to +135 (lower right), 0 at twelve o'clock.
 export const SWEEP = 135;
 
 export const angleOf = (v: number, lo: number, hi: number) => -SWEEP + 2 * SWEEP * clamp((v - lo) / (hi - lo || 1), 0, 1);

@@ -1,4 +1,3 @@
-// The page, GET /events (SSE), /lap, /session, /field/laps, /track (signed in) and POST /auth, /pit, /config, /mfd/close.
 import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { isIP } from "node:net";
@@ -22,8 +21,6 @@ function reply(res: Res, code: number, text: string, kind = "text/plain; charset
 }
 const replyJson = (res: Res, code: number, obj: unknown) => reply(res, code, JSON.stringify(rnd(obj)), "application/json");
 
-/** Only requests addressed to an IP or localhost: a page on some other site that rebinds its DNS name to this PC sends its
- * own name as Host, and is turned away. */
 export function hostOk(host: string | undefined): boolean {
   const h = (host ?? "").replace(/:\d*$/, "").replace(/^\[|\]$/g, "").trim();
   return isIP(h) !== 0 || h === "localhost";
@@ -33,7 +30,7 @@ function pitSnapshot(): Rec | null {
   try {
     if (!PIT.mfd) return null;
     const s: Rec = PIT.mfd.read();
-    s.busy = PIT.busy ? PIT.doing : ""; // "plan" or "close" (a Close pit page has no pit_job)
+    s.busy = PIT.busy ? PIT.doing : "";
     return s;
   } catch { return null; }
 }
@@ -43,8 +40,8 @@ async function closePage(): Promise<void> {
   try {
     await PIT.mfd!.press("close");
     PIT.closed_at = Date.now() / 1000;
-    sev = 0; text = "Cycle MFD sent to close the pit page"; // what was pressed: ACC does not say which MFD page is showing
-  } catch (e) { // not focused, vJoy gone: said in the log rather than lost
+    sev = 0; text = "Cycle MFD sent to close the pit page";
+  } catch (e) {
     sev = 2; text = `Could not close the pit page: ${(e as Error).message}`;
   } finally {
     PIT.busy = false;
@@ -57,12 +54,12 @@ async function runPlan(plan: ReturnType<typeof cleanPlan>, by: string): Promise<
   setJob({ state: "running", plan, by, only: plan.only });
   let end: Rec;
   try {
-    const car = (STATE.reading as Rec | null)?.reading as Rec | undefined; // the pads fitted on the car
+    const car = (STATE.reading as Rec | null)?.reading as Rec | undefined;
     const cs = car?.car as Rec | undefined;
     const res = await applyPlan(plan, PIT.mfd!, [cs?.front_pad_compound as number | undefined, cs?.rear_pad_compound as number | undefined]);
     end = { state: "done", res };
     console.log("pit plan applied:", res);
-  } catch (e) { // anything: the page must hear it rather than see "running" forever
+  } catch (e) {
     end = { state: "error", msg: (e as Error).message };
     console.log("pit plan failed:", (e as Error).message);
   }
@@ -70,7 +67,7 @@ async function runPlan(plan: ReturnType<typeof cleanPlan>, by: string): Promise<
   STATE.pit_log = [...STATE.pit_log, { ...end, t: Date.now() / 1000, by, only: plan.only, plan }].slice(-50);
   STATE.pit_log_ver++;
   log(end.state === "done" ? 0 : 2, "PLAN", `Pit plan (${plan.only.join(", ")}) ` + (end.state === "done" ? `applied, sent by ${by}` : `failed, sent by ${by}: ${end.msg}`));
-  if (end.state === "done") { PIT.doing = "close"; await closePage(); } // a failed plan leaves the page open to see where it stopped
+  if (end.state === "done") { PIT.doing = "close"; await closePage(); }
   else PIT.busy = false;
 }
 
@@ -90,16 +87,16 @@ async function post(req: IncomingMessage, res: Res, path: string): Promise<void>
   if (blocked(from)) return reply(res, 429, "too many wrong keys; wait a minute");
   if (!keyOk(req)) { miss(from); return reply(res, 403, "wrong or missing access key"); }
   forgive(from);
-  if (path === "/auth") { // trades the key for the session cookie the event stream and the other reads use
+  if (path === "/auth") {
     res.setHeader("Set-Cookie", sessionCookie(tls));
     return reply(res, 204, "");
   }
-  if (path === "/mfd/close") { // take the pit page off the driver's screen (ACC's Cycle MFD)
+  if (path === "/mfd/close") {
     if (!PIT.mfd) return reply(res, 503, "pit control is not available on this PC");
-    const snap = pitSnapshot(); // outside a live session Cycle MFD would only move the driver's MFD to another page
+    const snap = pitSnapshot();
     if (!snap || snap.status !== "live") return reply(res, 409, "ACC is not live on the driver's PC");
     if (PIT.busy) return reply(res, 409, PIT.doing === "plan" ? "a plan is still being applied" : "the pit page is already being closed");
-    if (Date.now() / 1000 - PIT.closed_at < 2) return reply(res, 409, "the pit page was just closed; wait 2 s"); // a second Cycle MFD would move the driver's MFD on
+    if (Date.now() / 1000 - PIT.closed_at < 2) return reply(res, 409, "the pit page was just closed; wait 2 s");
     PIT.busy = true; PIT.doing = "close";
     void closePage();
     return reply(res, 202, "closing");
@@ -159,13 +156,13 @@ function get(req: IncomingMessage, res: Res): void {
     }
     return replyJson(res, 200, { car: v, laps: FIELD.f ? FIELD.f.carLaps(v) : [] });
   }
-  if (u.pathname === "/session") { // an earlier session's field: standings, slow fields, entries and every car's laps
+  if (u.pathname === "/session") {
     const id = intParam(u.searchParams, "id", 1, 99999);
     if (id === null) return reply(res, 400, "id must be a whole number");
     const f = TEL.t?.vault.get(id)?.field;
     return f ? replyJson(res, 200, f) : replyJson(res, 404, {});
   }
-  if (u.pathname === "/track") { // the saved layout of the track being driven: the map needs no lap of its own
+  if (u.pathname === "/track") {
     const name = STATE.reading?.reading?.fixed?.track;
     const lay = name && loadLayout(name);
     return lay ? replyJson(res, 200, lay) : replyJson(res, 404, {});
@@ -179,11 +176,10 @@ function events(req: IncomingMessage, res: Res, q: URLSearchParams): void {
   const fast = hz === "60";
   if (fast) FAST.n++;
   res.writeHead(200, secure({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" }));
-  // what this client was last sent; -1: everything on the first message
   const sent = { ver: -1, summary: null as number | null, laps: -1, field: -1, slow: -1, entries: -1, log: 0, pit_log: -1, config: -1 };
-  let lastBeat = 0, due = 0; // due: when the next reading may go, on a fixed beat so polling never rounds the rate down
+  let lastBeat = 0, due = 0;
   const timer = setInterval(() => {
-    if (res.writableNeedDrain) return; // a slow client is sent the whole difference next time, not a queue of frames
+    if (res.writableNeedDrain) return;
     const now = Date.now();
     const changed = STATE.ver !== sent.ver;
     if (!((changed && now >= due) || now - lastBeat > 1000)) return;
@@ -195,7 +191,7 @@ function events(req: IncomingMessage, res: Res, q: URLSearchParams): void {
       slowSeq = seq;
     }
     const s = STATE;
-    const payload = { // each key only when it changed for this client; the reading at most hz times a second
+    const payload = {
       reading: s.reading,
       summary: s.t_summary !== sent.summary ? s.summary : null,
       laps: s.laps_ver !== sent.laps ? s.laps : null,

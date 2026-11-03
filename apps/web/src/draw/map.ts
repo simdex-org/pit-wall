@@ -1,4 +1,3 @@
-// The track map: the track, your car and the field; zoom, pan, follow.
 import type { Ctx } from "../feed/store";
 import type { Car } from "../feed/types";
 import { carName } from "../lib/cars";
@@ -9,11 +8,9 @@ import { Ctx2D, fitCanvas, Tokens, tokens } from "./canvas";
 import { lapSpan } from "./lapspan.js";
 
 type Pt = [number, number];
-/** `acc`: recorded in the game, so already in ACC's own frame and starting on the real start/finish line. */
 export interface TrackDrawing { box: number[]; loop: Pt[]; pit: Pt[]; labels: [number, number, string][]; sec?: number[]; acc?: boolean }
 let TRACKS: Record<string, TrackDrawing> | null = null;
 
-/** The track drawings are a large file, so they load the first time a map is shown. */
 export async function loadTracks(): Promise<void> {
   if (TRACKS) return;
   TRACKS = ((await import("@pitwall/tracks")).default as unknown) as Record<string, TrackDrawing>;
@@ -27,7 +24,6 @@ function trackFor(name: string | undefined): TrackDrawing | null {
 }
 
 const cums = new WeakMap<object, Float64Array>();
-/** Cumulative distance along a line, cached on the array. */
 function cumOf(pts: ArrayLike<number[]>): Float64Array {
   let c = cums.get(pts);
   if (c) return c;
@@ -37,7 +33,6 @@ function cumOf(pts: ArrayLike<number[]>): Float64Array {
   return c;
 }
 
-/** The point a fraction f of the way along the line, by distance. */
 function atFrac(pts: Pt[], f: number): Pt {
   const c = cumOf(pts), d = (((f % 1) + 1) % 1) * c[c.length - 1]!;
   let lo = 0, hi = c.length - 1;
@@ -46,11 +41,6 @@ function atFrac(pts: Pt[], f: number): Pt {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
 
-/**
- * The field comes every 250 ms or so: each dot travels in a straight line from where it is drawn to its newest position, taking as
- * long as the last update took to arrive, so it moves steadily and is one update behind. A jump of 100 m or more (a reset or a pit
- * teleport) snaps.
- */
 interface Glide { a: Pt; b: Pt; t: number; dt: number }
 const GLIDE = new Map<string | number, Glide>();
 function glide(key: string | number, q: Pt, now: number): Pt {
@@ -61,16 +51,11 @@ function glide(key: string | number, q: Pt, now: number): Pt {
   return f();
 }
 
-/**
- * The drawn layouts have their own frame and ACC's x/z another. A line whose points carry the lap fraction (a third of a lap is
- * enough) fixes the similarity between them: rotation, scale, shift, mirrored or not, and a start line up to 5 % off.
- * A growing line refits every 50 points; a later bad fit never throws away a good one.
- */
 interface Aligned { loop: Pt[]; pit: Pt[]; labels: [number, number, string][]; inv?: (p: Pt) => Pt }
 const ALIGN = new Map<string, { key: string; B: Aligned | null }>();
 
 function alignLayout(name: string, t: TrackDrawing, pts: ArrayLike<number[]>): Aligned | null {
-  if (t.acc) { // nothing to fit
+  if (t.acc) {
     const had = ALIGN.get(name);
     if (had?.B) return had.B;
     const B: Aligned = { loop: [...t.loop, t.loop[0]!], pit: t.pit, labels: t.labels };
@@ -79,7 +64,7 @@ function alignLayout(name: string, t: TrackDrawing, pts: ArrayLike<number[]>): A
   }
   const had = ALIGN.get(name);
   if (!pts || pts.length < 30 || pts[0]!.length < 3) return had ? had.B : null;
-  if (lapSpan(pts) < 0.3) return had ? had.B : null; // a short stretch across the start line, as a race starts, fits the drawing almost anywhere
+  if (lapSpan(pts) < 0.3) return had ? had.B : null;
   const key = `${Math.floor(pts.length / 50)}:${pts[0]![0]}`;
   if (had && had.key === key) return had.B;
   const N = Math.min(200, pts.length), S: number[][] = [];
@@ -102,13 +87,11 @@ function alignLayout(name: string, t: TrackDrawing, pts: ArrayLike<number[]>): A
         inv: ([x, z]) => { const dx = x - bx, dz = z - bz; return [(co * dx + si * dz) / k2 + ax, f * ((co * dz - si * dx) / k2 + ay)]; } }; }
     }
   };
-  // The drawings start wherever the source way did, so the real start line can be anywhere on them: coarse over the whole loop, then fine.
   for (let d = -0.5; d < 0.5; d += 0.01) tryD(d);
   const d0 = bestD;
   for (let d = d0 - 0.01; d <= d0 + 0.0101; d += 0.0025) tryD(d);
-  const len = fit!.sc * cumOf(t.loop)[t.loop.length - 1]!, ok = Math.sqrt(fit!.e / N) < Math.max(40, 0.03 * len); // a wrong layout or config: no drawing under the line
+  const len = fit!.sc * cumOf(t.loop)[t.loop.length - 1]!, ok = Math.sqrt(fit!.e / N) < Math.max(40, 0.03 * len);
   const map = fit!.map;
-  // Turn the loop so it starts at the fitted start line.
   const open = t.loop, cum = cumOf(t.loop), tot = cum[cum.length - 1]!, s = (((bestD % 1) + 1) % 1) * tot;
   const k = open.findIndex((_, i) => cum[i]! >= s);
   const turned: Pt[] = k < 0 ? open : [atFrac(t.loop, bestD), ...open.slice(k), ...open.slice(0, k)];
@@ -117,7 +100,6 @@ function alignLayout(name: string, t: TrackDrawing, pts: ArrayLike<number[]>): A
   return B || (had?.B ?? null);
 }
 
-/** A recorded line from the start line round to the finish, in ACC's own frame, with the lap fraction of each point. */
 const WHOLE = new WeakMap<object, { n: number; road: number[][] | null }>();
 export function wholeLine(pts: ArrayLike<number[]> | null | undefined): number[][] | null {
   if (!pts) return null;
@@ -128,14 +110,9 @@ export function wholeLine(pts: ArrayLike<number[]> | null | undefined): number[]
   return road;
 }
 
-const WARP_REACH = 100, WARP_MAX = 150; // metres: the stretch whose offsets are averaged; the largest offset believed
+const WARP_REACH = 100, WARP_MAX = 150;
 const WARPED = new WeakMap<Aligned, { road: number[][]; out: Aligned }>();
 
-/**
- * The drawing keeps its shape and detail but is pulled onto the track where the cars are. Each vertex is matched to the nearest
- * recorded point of about the same lap fraction; the offsets are averaged over WARP_REACH metres, so the drawing follows the slow
- * error of the fit and not the driver's wobble, and the pit ways and corner names move with the vertex nearest to them.
- */
 export function warp(B: Aligned, road: number[][]): Aligned {
   const had = WARPED.get(B);
   if (had && had.road === road) return had.out;
@@ -159,7 +136,7 @@ export function warp(B: Aligned, road: number[][]): Aligned {
     }
     return k ? [sx / k, sy / k] : [0, 0];
   });
-  sm[n - 1] = sm[0]!; // the loop stays closed
+  sm[n - 1] = sm[0]!;
   const at = (p: Pt): Pt => {
     let j = 0, bd = Infinity;
     for (let i = 0; i < n; i++) { const d = (L[i]![0] - p[0]) ** 2 + (L[i]![1] - p[1]) ** 2; if (d < bd) { bd = d; j = i; } }
@@ -170,9 +147,8 @@ export function warp(B: Aligned, road: number[][]): Aligned {
   return out;
 }
 
-export interface MapView { zoom: number; follow: boolean; dx: number; dy: number; sc?: number; mid?: Pt; c?: Pt; /** The corner the view was last centred on (the lap map). */ fk?: string }
+export interface MapView { zoom: number; follow: boolean; dx: number; dy: number; sc?: number; mid?: Pt; c?: Pt;  fk?: string }
 
-/** The drawn layout's corner names in ACC's own frame, once the layout fits a recorded line. */
 export function cornerNames(track: string): [number, number, string][] | null {
   const t = trackFor(track), L = recorder.layoutFor(track);
   const lines: ArrayLike<number[]>[] = [recorder.curLine as number[][], ...recorder.lines.map((l) => l.pts as number[][])];
@@ -183,7 +159,6 @@ export function cornerNames(track: string): [number, number, string][] | null {
   return (road ? warp(B, road) : B).labels;
 }
 
-/** One colour per label field when the map colours them. */
 export const FIELD_COLOUR: Record<string, string> = { pos: "#f5b942", num: "#6cb6ff", code: "#e8ecf1", name: "#c3a6ff", gap: "#5fd38d" };
 
 export interface MapOpts { field: boolean; fields: string[]; which: string; dim: boolean; colours: boolean; size: string; road: string; ticks: boolean; badge: string; battle: boolean; yellows: boolean }
@@ -191,12 +166,10 @@ export interface MapHit { i: number; x: number; y: number }
 export interface MapOut { hits: MapHit[]; info: string; empty: boolean }
 
 export const mapScale = (o: { size?: string }): number => ({ s: 0.75, l: 1.4 } as Record<string, number>)[o.size ?? "m"] ?? 1;
-/** A car is "near" when it is within this many ms of you on track. */
 const NEAR_MS = 30000;
 const BATTLE_MS = 2500;
 const fieldOn = (c: Ctx) => !!(c.field && c.bc?.state === "live");
 
-/** Only positions: the track drawing or the layout the bridge saved, your car and the field. */
 export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts): MapOut {
   const [g, w, h] = fitCanvas(cv), tk = tokens(), r = c.r, out: MapOut = { hits: [], info: "", empty: false };
   if (!r) return out;
@@ -205,29 +178,25 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
   const F = o.field && fieldOn(c) ? c.field : null;
   const lines: ArrayLike<number[]>[] = [recorder.curLine as number[][], ...recorder.lines.map((l) => l.pts as number[][])];
   const src: ArrayLike<number[]> = L ? L.pts : lines.reduce((a, b) => (b.length > a.length ? b : a), [] as number[][]);
-  const B = t && (own || ALIGN.get(r.fixed.track)?.B) ? alignLayout(r.fixed.track, t, src) : null; // once aligned the frame stays, so the track never turns when the position reads 0 for a moment
-  // One rotation and scale only puts the drawing roughly on the track; a whole recorded line (ACC's own frame, where the cars are)
-  // lets warp() pull each stretch of the drawing onto where the track really is.
+  const B = t && (own || ALIGN.get(r.fixed.track)?.B) ? alignLayout(r.fixed.track, t, src) : null;
   const road = own && B ? wholeLine(L?.pts) ?? wholeLine(recorder.bestLine()?.pts as number[][] | undefined) : null;
   const world = (own || !!B) && (B || (!t && L));
   const W: Aligned | null = world ? (B ? (road ? warp(B, road) : B) : { loop: L!.pts.map((q) => [q[0], q[1]] as Pt), pit: [], labels: [] }) : null;
-  // The drawing is always shown in its own orientation, so the track never turns whatever the fit does: the fit only carries ACC's
-  // positions into it.
   const inv = W?.inv, T = (q: Pt): Pt => (inv ? inv(q) : q);
   const D: Aligned | null = W ? (inv ? { loop: W.loop.map(T), pit: W.pit.map(T), labels: W.labels.map(([x, y, n]) => [...T([x, y]), n] as [number, number, string]) } : W) : t ? { loop: [...t.loop, t.loop[0]!], pit: t.pit, labels: t.labels } : null;
   if (!D) { out.empty = true; return out; }
   const now = performance.now(), cars: [Car, Pt][] = [], xz = new Map<number, Pt>();
   const rxz = (r.xz as number[] | undefined) ?? [];
-  for (let k = 0; k + 2 < rxz.length; k += 3) xz.set(rxz[k]!, [rxz[k + 1]!, rxz[k + 2]!]); // 30 Hz positions beat the field's 4 Hz ones
+  for (let k = 0; k + 2 < rxz.length; k += 3) xz.set(rxz[k]!, [rxz[k + 1]!, rxz[k + 2]!]);
   const sp = r.session;
   const me: Pt = world && own ? T(glide("me", [p![0]!, p![2]!], now)) : atFrac(world ? D.loop : t!.loop, sp.track_position);
   if (F) {
     for (const car of c.cars.values()) {
       if (car.i === c.me) continue;
-      if (IN_LANE.includes(car.loc)) continue; // cars in the pit lane are not drawn
+      if (IN_LANE.includes(car.loc)) continue;
       const q: Pt | null = (world && F.xz_ok ? xz.get(car.i) ?? (Array.isArray(car.xz) ? car.xz : null) : null) ?? (car.spl != null ? atFrac(world ? D.loop : t!.loop, car.spl) : null);
       if (!q) continue;
-      const wq = world && F.xz_ok && (xz.has(car.i) || Array.isArray(car.xz)); // ACC's own frame, to be carried into the drawing
+      const wq = world && F.xz_ok && (xz.has(car.i) || Array.isArray(car.xz));
       const gq = glide(car.i, q, now);
       cars.push([car, wq ? T(gq) : gq]);
     }
@@ -238,11 +207,10 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
   const pad = 20, base = Math.min((w - 2 * pad) / Math.max(400, x1 - x0), (h - 2 * pad) / Math.max(400, z1 - z0)), sc = base * view.zoom;
   const tgt = foc ? foc[1] : me, cx = view.follow ? tgt[0] : (x0 + x1) / 2 + view.dx, cz = view.follow ? tgt[1] : (z0 + z1) / 2 + view.dy;
   const X = (x: number) => w / 2 + (x - cx) * sc, Y = (z: number) => h / 2 + (z - cz) * sc;
-  view.sc = sc; view.mid = [(x0 + x1) / 2, (z0 + z1) / 2]; view.c = [cx, cz]; // for panning out of follow
+  view.sc = sc; view.mid = [(x0 + x1) / 2, (z0 + z1) / 2]; view.c = [cx, cz];
   const path = (pts: ArrayLike<number[]>, width: number, color: string) => {
     if (pts.length < 2) return;
     g.strokeStyle = color; g.lineWidth = width; g.beginPath();
-    // Curves through the midpoints of the segments, so a close zoom shows a smooth road and not its 5 m corners.
     let from = 0;
     for (let i = 1; i <= pts.length; i++) {
       if (i < pts.length && Math.hypot(pts[i]![0]! - pts[i - 1]![0]!, pts[i]![1]! - pts[i - 1]![1]!) < 60) continue;
@@ -255,13 +223,13 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
     g.stroke();
   };
   g.lineJoin = g.lineCap = "round";
-  const rw = (({ s: 8, l: 20 } as Record<string, number>)[o.road] ?? 13); // the same at every zoom, so the markers keep their distance from it
-  path(D.loop, rw + 3, tk.muted); path(D.loop, rw, tk.bg); // a dark road between two light edge lines
-  const live = c.s?.sector_pos as number[] | undefined, ends = t?.sec?.length ? t.sec : live?.length ? live : []; // the track's own sector lines first, what the driver's laps have shown only for a track without them
+  const rw = (({ s: 8, l: 20 } as Record<string, number>)[o.road] ?? 13);
+  path(D.loop, rw + 3, tk.muted); path(D.loop, rw, tk.bg);
+  const live = c.s?.sector_pos as number[] | undefined, ends = t?.sec?.length ? t.sec : live?.length ? live : [];
   if (o.yellows && ends.length) drawYellows(g, tk, D.loop, ends, r.session.global_flags as Record<string, boolean> | undefined, r.session.flag === 2 ? sp.track_position : null, path, rw);
   if (o.ticks && ends.length) drawTicks(g, tk, D.loop, ends, X, Y, rw);
   const sf = D.loop[0]!;
-  { // start/finish: a two-row chequered strip across the road, turned to the direction of travel
+  {
     const q = atFrac(D.loop, 0.002), ang = Math.atan2(Y(q[1]) - Y(sf[1]), X(q[0]) - X(sf[0])), sq = 2.5, n = Math.max(3, Math.round((rw + 4) / sq));
     g.save(); g.translate(X(sf[0]), Y(sf[1])); g.rotate(ang);
     for (let r = 0; r < 2; r++) for (let k = 0; k < n; k++) { g.fillStyle = (r + k) % 2 ? "#000" : "#fff"; g.fillRect(-sq + r * sq, (k - n / 2) * sq, sq, sq); }
@@ -286,7 +254,6 @@ export function drawMap(cv: HTMLCanvasElement, view: MapView, c: Ctx, o: MapOpts
   return out;
 }
 
-/** Where the car points: the way it has moved over the last 4 m, the drawing's tangent until it has moved (or when it jumps). */
 const HEAD = { ref: null as Pt | null, a: null as number | null };
 function headingOf(me: Pt, loop: Pt[], pos: number, X: (x: number) => number, Y: (z: number) => number): number {
   const d = HEAD.ref ? Math.hypot(me[0] - HEAD.ref[0], me[1] - HEAD.ref[1]) : Infinity;
@@ -301,18 +268,15 @@ const stretch = (loop: Pt[], a: number, b: number): Pt[] => {
   return [atFrac(loop, a), ...loop.filter((_, j) => cum[j]! > a * tot && cum[j]! < b * tot), atFrac(loop, b >= 1 ? 0.99999 : b)];
 };
 
-/** A sector under yellow flashes a yellow stripe along its stretch of the road. */
 function drawYellows(g: Ctx2D, tk: Tokens, loop: Pt[], ends: number[], gf: Record<string, boolean> | undefined, mine: number | null, path: (pts: ArrayLike<number[]>, width: number, color: string) => void, rw: number): void {
-  if (!gf || Math.floor(performance.now() / 600) % 2) return; // flashes like the blue flags: 0.6 s on, 0.6 s off
+  if (!gf || Math.floor(performance.now() / 600) % 2) return;
   const marks = [0, ...ends, 1];
   g.lineCap = "butt";
-  // ACC does not always raise the sector flags; the flag the driver is shown then marks the sector they are in
   const sector = !gf.y1 && !gf.y2 && !gf.y3 && mine != null ? marks.findIndex((m, i) => mine >= m && mine < marks[i + 1]!) : -1;
   for (let i = 0; i + 1 < marks.length; i++) if (gf["y" + (i + 1)] || i === sector) path(stretch(loop, marks[i]!, marks[i + 1]!), rw, tk.warn);
   g.lineCap = "round";
 }
 
-/** A short bar across the road where each sector begins, named S2, S3. */
 function drawTicks(g: Ctx2D, tk: Tokens, loop: Pt[], ends: number[], X: (x: number) => number, Y: (z: number) => number, rw: number): void {
   g.font = `600 9px ${tk.num}`; g.textAlign = "center"; g.textBaseline = "middle"; g.lineCap = "butt";
   ends.forEach((f, i) => {
@@ -324,10 +288,8 @@ function drawTicks(g: Ctx2D, tk: Tokens, loop: Pt[], ends: number[], X: (x: numb
   g.textAlign = "left"; g.lineCap = "round";
 }
 
-// ACC cup categories: Overall, Pro-Am, Am, Silver, National. Overall keeps the plain dot.
 const CUP_COLOUR = [null, "#f5b942", "#5fd38d", "#c3a6ff", "#6cb6ff"];
 
-// Shape by class: GT3 circle, GT4 square, GT2 diamond, TCX triangle.
 function classShape(g: Ctx2D, cls: string | undefined, x: number, y: number, r: number): void {
   g.beginPath();
   if (cls === "GT4") g.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7);
@@ -341,16 +303,13 @@ const FIELD_ORDER = ["pos", "num", "code", "name", "gap"];
 interface Dot { car: Car; sx: number; sy: number; hw: number }
 const CLASS_RADIUS: Record<string, number> = { GT4: 1, GT2: 7, TCX: 3 };
 
-/** The field's dots (and your own disc) with their labels, over a map already drawn. */
 function drawField(g: Ctx2D, tk: Tokens, c: Ctx, o: MapOpts, dots: Dot[], mx: number, my: number, foc: Car | null, inPit: boolean, heading: number, battleIds: Set<number>, w: number, h: number, out: MapOut): void {
-  const k = mapScale(o), blink = Math.floor(performance.now() / 600) % 2 === 0; // blue flags blink slowly: 0.6 s on, 0.6 s off
+  const k = mapScale(o), blink = Math.floor(performance.now() / 600) % 2 === 0;
   const meCar0 = c.me != null ? c.cars.get(c.me) : undefined, race = c.mode === "race";
-  // ACC publishes no flag for other cars: a car is marked blue when it is a lap or more down and just ahead of you in a race (about to be lapped).
   const lapped = (car: Car) => race && !!meCar0 && car.laps != null && meCar0.laps != null && car.laps < meCar0.laps && car.rel != null && car.rel > 0 && car.rel < 6000;
   const blueRing = (x: number, y: number, rad: number) => { if (!blink) return; g.beginPath(); g.arc(x, y, rad, 0, 7); g.strokeStyle = tk.cold; g.lineWidth = 3; g.stroke(); };
   const coded = o.badge === "code";
   if (coded) { g.font = `700 ${Math.round(9 * k)}px ${tk.num}`; for (const d of dots) d.hw = (g.measureText(carName(d.car, "code")).width + 8) / 2; } else for (const d of dots) d.hw = 7.5 * k;
-  // Other cars: one circle each (cars in the pit lane are not drawn); a ring on the focus car.
   for (const { car, sx, sy, hw } of dots) {
     const faded = (o.dim && !(car.rel != null && Math.abs(car.rel) < NEAR_MS)) || (o.battle && !battleIds.has(car.i) && !(car.rel != null && Math.abs(car.rel) < BATTLE_MS));
     g.globalAlpha = faded ? 0.55 : 1;
@@ -371,22 +330,17 @@ function drawField(g: Ctx2D, tk: Tokens, c: Ctx, o: MapOpts, dots: Dot[], mx: nu
     if (car === foc) { g.beginPath(); g.arc(sx, sy, Math.max(11 * k, hw + 3), 0, 7); g.fillStyle = tk.accSoft; g.fill(); g.strokeStyle = tk.accent; g.lineWidth = 1.5; g.stroke(); }
     out.hits.push({ i: car.i, x: sx, y: sy });
   }
-  if (!inPit) meMark(g, mx, my, heading, meCar0?.num, tk, k); // you are not drawn in the pit lane either
-  if (!inPit && c.r && c.r.session.flag === 1) blueRing(mx, my, 14 * k); // your own blue flag, from the game
+  if (!inPit) meMark(g, mx, my, heading, meCar0?.num, tk, k);
+  if (!inPit && c.r && c.r.session.flag === 1) blueRing(mx, my, 14 * k);
   if (!o.fields.length) return;
-  // Every label sits right beside its car; the focus car is drawn last so it stays on top where labels meet.
   const fs = Math.round(clamp(Math.min(w, h) / 60, 10, 14) * k);
   g.font = `600 ${fs}px ${tk.num}`; g.textBaseline = "middle"; g.textAlign = "left";
   const meCar = c.me != null ? c.cars.get(c.me) : undefined;
-  const meLb = (o.fields.includes("code") && meCar && carName(meCar, "code")) || "YOU"; // your own car is named too
+  const meLb = (o.fields.includes("code") && meCar && carName(meCar, "code")) || "YOU";
   const PAD = 0, lh = fs + 2;
   g.lineJoin = "round"; g.strokeStyle = tk.bg; g.lineWidth = 3.5;
   const meW = g.measureText(meLb).width;
   if (!inPit) { g.strokeText(meLb, mx + 18 * k, my); g.fillStyle = tk.me; g.fillText(meLb, mx + 18 * k, my); }
-  // Which labels get drawn is decided by priority, not by shoving them about: you and the focus car always, then the cars nearest you in
-  // time. A label goes right of its dot, else left, never up or down, and never over a dot or a label already placed. If the full
-  // label does not fit, a short one (a single field) is tried; if that does not fit either the dot stays unlabelled. Zooming in
-  // makes room, so more labels appear.
   const R = 9 * k;
   const placed: number[][] = [...dots.map((d) => [d.sx - d.hw - 1, d.sy - R, 2 * d.hw + 2, 2 * R])];
   if (!inPit) placed.push([mx + 18 * k, my - lh / 2, meW, lh], [mx - 12 * k, my - 12 * k, 24 * k, 24 * k]);
@@ -417,7 +371,7 @@ function drawField(g: Ctx2D, tk: Tokens, c: Ctx, o: MapOpts, dots: Dot[], mx: nu
       }
       if (done) break;
     }
-    if (!done && d.car === foc) { const text = used.map((f) => part[f]).join(" "); todo.push({ d, text, part, used, x: d.sx + d.hw + 4 }); } // the focus car is always named
+    if (!done && d.car === foc) { const text = used.map((f) => part[f]).join(" "); todo.push({ d, text, part, used, x: d.sx + d.hw + 4 }); }
   }
   for (const t of todo.sort((a, b) => Number(a.d.car === foc) - Number(b.d.car === foc))) {
     const { d, x } = t, y = d.sy;
@@ -429,7 +383,6 @@ function drawField(g: Ctx2D, tk: Tokens, c: Ctx, o: MapOpts, dots: Dot[], mx: nu
   }
 }
 
-/** Own car: a larger badge with a pointer on the side it is travelling to. */
 function meMark(g: Ctx2D, x: number, y: number, ang: number, num: number | undefined, tk: Tokens, k: number): void {
   const r = 10 * k;
   g.save(); g.translate(x, y); g.rotate(ang);
@@ -441,14 +394,13 @@ function meMark(g: Ctx2D, x: number, y: number, ang: number, num: number | undef
   g.font = `700 ${Math.round(10.5 * k)}px ${tk.num}`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = tk.bg; g.fillText(num != null ? String(num) : "", x, y + 0.5); g.textAlign = "left";
 }
 
-/** Wheel to zoom, drag to pan, double-click to follow; a click without a drag goes to onClick(x, y) in canvas pixels. Returns the cleanup. */
 export function bindMapControls(cv: HTMLCanvasElement, view: MapView, onChange: () => void, onClick: (x: number, y: number) => void): () => void {
   let drag: { x: number; y: number; moved: boolean } | null = null;
-  const wheel = (e: WheelEvent) => { // zoom about the pointer: the point under it stays under it
+  const wheel = (e: WheelEvent) => {
     e.preventDefault();
     const z0 = view.zoom, z1 = clamp(z0 * (e.deltaY < 0 ? 1.25 : 0.8), 1, 40);
     if (z1 === z0) return;
-    if (view.sc && view.c && view.mid && !view.follow) { // following: the car stays in the middle
+    if (view.sc && view.c && view.mid && !view.follow) {
       const b = cv.getBoundingClientRect(), px = e.clientX - b.left - b.width / 2, py = e.clientY - b.top - b.height / 2, sc1 = (view.sc * z1) / z0;
       view.dx += px / view.sc - px / sc1; view.dy += py / view.sc - py / sc1;
     }

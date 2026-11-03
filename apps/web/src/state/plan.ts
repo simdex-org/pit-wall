@@ -1,4 +1,3 @@
-// The pit plan draft. It lives in this browser; the bridge types it into the driver's MFD when it is sent.
 import { useSyncExternalStore } from "react";
 import type { Ctx } from "../feed/store";
 import type { Json } from "../feed/types";
@@ -21,7 +20,6 @@ export interface PitPlan {
   repair_bodywork: boolean;
 }
 
-/** Only the fallback while nothing is stored and the MFD is not live. */
 export const DEF_PLAN: PitPlan = {
   fuel: 0, tyres: false, compound: "dry", tyre_set: 1, pressures: [26.5, 26.5, 26.5, 26.5], brakes: false, front_pad: 1, rear_pad: 1,
   repair_suspension: true, repair_bodywork: true,
@@ -54,12 +52,10 @@ export const GROUPS: { title: string; block: Block; rows: Row[] }[] = [
 const ROWS = GROUPS.flatMap((g) => g.rows.map((r) => ({ ...r, block: g.block })));
 export const LABEL: Record<string, string> = Object.fromEntries(ROWS.map((r) => [r.key, r.label]));
 export const BLOCK_OF: Record<string, Block> = Object.fromEntries(ROWS.map((r) => [r.key, r.block]));
-/** The key of each row in the bridge's result for a send. */
 export const RES: Record<string, string> = {
   fuel: "fuel", tyres: "tyres", compound: "compound", tyre_set: "tyre_set", p0: "fl", p1: "fr", p2: "rl", p3: "rr", brakes: "brakes",
   front_pad: "front_pad", rear_pad: "rear_pad", repair_suspension: "repairs", repair_bodywork: "repairs",
 };
-/** Results of a send that are not failures. */
 export const OK_RES = ["ok", "sent", "skipped", "switched on for the pressures", "sent (from page)", "sent (from car)"];
 export const RES_TEXT: Record<string, [string, string]> = {
   "switched on for the pressures": ["on", "Tyre change switched on: ACC fits the pressures only with a tyre change"],
@@ -68,7 +64,6 @@ export const RES_TEXT: Record<string, [string, string]> = {
   "sent (guessed 1)": ["guessed", "ACC does not publish the pads and the start was unknown, so pad 1 was assumed: check the MFD once"],
 };
 
-/** The plan keys each block sends. A block send fills the others with the bridge's placeholders, which are not a plan. */
 const KEYS: Record<Block, (keyof PitPlan)[]> = {
   fuel: ["fuel"], tyres: ["tyres", "compound", "tyre_set", "pressures"], pressures: ["pressures"], brakes: ["brakes", "front_pad", "rear_pad"], repairs: ["repair_suspension", "repair_bodywork"],
 };
@@ -90,7 +85,6 @@ export function loadPlan(): PitPlan {
 class PlanStore {
   private plan = loadPlan();
   private subs = new Set<() => void>();
-  /** Rows a "put in pit plan" just changed, marked until the next edit. */
   private marked: ReadonlySet<string> = new Set();
 
   get = (): PitPlan => this.plan;
@@ -106,13 +100,11 @@ class PlanStore {
     this.emit();
   }
 
-  /** From race-plan, press-fix and the fuel calculator. */
   patch(patch: Partial<PitPlan>): void {
     const keys = Object.keys(patch).flatMap((k) => (k === "pressures" ? ["p0", "p1", "p2", "p3"] : [k]));
     this.set({ ...this.plan, ...patch }, keys);
   }
 
-  /** No stored plan: the MFD as it is now, with the blocks the last send typed on top. True when seeded. */
   seed(c: Ctx): boolean {
     if (lsRaw("pitwall.plan") != null) return false;
     const job = c.pitJob, p = c.pit;
@@ -135,9 +127,7 @@ export const planStore = new PlanStore();
 export const usePlan = (): PitPlan => useSyncExternalStore(planStore.subscribe, planStore.get);
 export const usePlanFlash = (): ReadonlySet<string> => useSyncExternalStore(planStore.subscribe, planStore.flash);
 
-// ---------- reading the MFD and the last send ----------
 
-/** What ACC publishes of the MFD (live only); null = not published, undefined = no live MFD. */
 export function nowOf(pit: Json | null, k: string): number | null | undefined {
   if (!pit || pit.status !== "live") return undefined;
   if (k === "fuel") return pit.fuel;
@@ -146,10 +136,6 @@ export function nowOf(pit: Json | null, k: string): number | null | undefined {
   return null;
 }
 
-/**
- * A field ACC does not publish: the value the latest send that typed it put in (undefined when none did or it failed), so a
- * switch that was sent and not changed since is no change, also after later sends of other blocks.
- */
 export function sentVal(pitLog: Json[], k: string): unknown {
   for (let i = pitLog.length - 1; i >= 0; i--) {
     const e = pitLog[i];
@@ -161,7 +147,6 @@ export function sentVal(pitLog: Json[], k: string): unknown {
   return undefined;
 }
 
-/** The repair ticks ACC does not publish: what the last send left, else what this page last sent, else the default (both ticked). */
 export function repairNow(pitLog: Json[], k: string): boolean {
   const sv = sentVal(pitLog, k);
   if (typeof sv === "boolean") return sv;
@@ -184,20 +169,19 @@ export function same(k: string, a: unknown, b: unknown): boolean {
 
 export interface ChangeRow { label: string; from?: string; to: string; unit: string }
 
-/** What a send would change, one row per setting: "Fuel", 42 → 58, "L". */
 export function changeRows(p: PitPlan, pit: Json | null, only: Block | undefined, pitLog: Json[], units?: UnitChoice): ChangeRow[] {
   const out: ChangeRow[] = [];
   for (const g of GROUPS) {
     if (only && only !== g.block) continue;
     for (const { key: k } of g.rows) {
-      if (k === "tyre_set" && p.compound === "wet") continue; // wet tyres have no sets in ACC: never typed
+      if (k === "tyre_set" && p.compound === "wet") continue;
       const v = pv(p, k), n = nowOf(pit, k);
       const unitText = isPress(k) ? unit("press", units).u : k === "fuel" ? "L" : "";
       if (n != null) {
         if (!same(k, n, v)) out.push({ label: LABEL[k]!, from: String(show(k, n, units)), to: String(show(k, v, units)), unit: unitText });
       } else {
         if (k.startsWith("repair_")) { if (v !== repairNow(pitLog, k)) out.push({ label: LABEL[k]!, to: String(show(k, v, units)), unit: "" }); continue; }
-        const typed = v === true || (k === "compound" && (only || p.tyres)) || ((k === "front_pad" || k === "rear_pad") && p.brakes); // pads are only typed with Change brakes on
+        const typed = v === true || (k === "compound" && (only || p.tyres)) || ((k === "front_pad" || k === "rear_pad") && p.brakes);
         const sv = sentVal(pitLog, k);
         if (typed && !(sv !== undefined && same(k, sv, v))) out.push({ label: LABEL[k]!, to: String(show(k, v, units)), unit: unitText });
       }
@@ -206,13 +190,11 @@ export function changeRows(p: PitPlan, pit: Json | null, only: Block | undefined
   return out;
 }
 
-/** The same rows as text: "Fuel 42 → 58 L". */
 export const changes = (p: PitPlan, pit: Json | null, only: Block | undefined, pitLog: Json[], units?: UnitChoice): string[] =>
   changeRows(p, pit, only, pitLog, units).map((r) => (r.from != null ? `${r.label} ${r.from} → ${r.to}` : `${r.label} → ${r.to}`) + (r.unit ? " " + r.unit : ""));
 
 export interface RowResult { r: string; txt: string; cls: string; title: string }
 
-/** What the last job did to row k; null when it did not touch it. */
 export function resOf(job: Json | null, k: string, P: PitPlan, units?: UnitChoice): RowResult | null {
   if (!job || job.state !== "done" || !job.res) return null;
   const r = job.res[RES[k]!];

@@ -1,4 +1,3 @@
-// Headers every response carries. The page loads only its own files; styles allow inline because React sets style attributes.
 export let tls = false;
 export const setTls = (on: boolean) => { tls = on; };
 

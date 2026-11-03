@@ -1,9 +1,7 @@
-// ACC car model ids (byte in ENTRY_LIST_CAR) -> name, class. Unknown ids show as "Unknown", "?".
 export const LOCS = ["none", "track", "pit", "entry", "exit"];
 export const PIT_LOCS = [2, 3, 4];
 export const CUPS = ["Pro", "Pro-Am", "Am", "Silver", "National"];
 export const PHASES = ["none", "starting", "pre-formation", "formation", "pre-session", "green", "over", "post", "results"];
-/** Broadcasting RaceSessionType.Race (shared memory says 2; only the broadcast and telemetry code convert). */
 export const RACE = 10;
 
 export const MODELS: Record<number, [name: string, cls: string]> = {

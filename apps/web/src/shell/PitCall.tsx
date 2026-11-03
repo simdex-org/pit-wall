@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useFeed } from "../feed/useFeed";
 
-/** The box call: this lap or next lap. Closing it hides it until the call changes. */
 export function PitCall() {
   const c = useFeed();
   const [closed, setClosed] = useState("");

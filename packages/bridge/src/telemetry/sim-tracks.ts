@@ -1,4 +1,3 @@
-// --sim-track: ACC's track id, the name the broadcast gives, metres, a GT3's lap (ms), litres a lap.
 import { scaleLoop } from "../sim/circuit.js";
 import tracks from "@pitwall/tracks" with { type: "json" };
 
@@ -20,7 +19,6 @@ export const SIM_TRACKS: Record<string, SimTrack> = {
   oulton_park: ["oulton_park", "Oulton Park", 4307.0, 94000, 2.4], snetterton: ["snetterton", "Snetterton", 4778.0, 105000, 2.6],
 };
 
-/** A track's loop in metres (x, z), scaled so its length is the real one. */
 export function trackLoop(name: string, metres: number): [number, number][] {
   const pts = (tracks as unknown as Record<string, { loop: [number, number][] }>)[name]?.loop;
   if (!pts) throw new Error(`no loop for ${name}`);

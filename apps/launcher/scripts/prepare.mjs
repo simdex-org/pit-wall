@@ -1,4 +1,3 @@
-// Gathers what the installed app needs next to it: Node, the bundled bridge and the page. Output is ignored by git.
 import { execFileSync, execSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -16,7 +15,6 @@ if (!process.env.PITWALL_WEB_SRC) execSync("pnpm --filter @pitwall/web build", {
 rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, "node"), { recursive: true });
 cpSync(process.execPath, join(out, "node", "node.exe"));
-// The Windows Firewall prompt shows the exe's description, publisher and icon.
 await rcedit(join(out, "node", "node.exe"), {
   icon: resolve(here, "../src-tauri/icons/icon.ico"),
   "version-string": { FileDescription: "Pit Wall", ProductName: "Pit Wall", CompanyName: "Simdex", InternalName: "Pit Wall", OriginalFilename: "node.exe" },

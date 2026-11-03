@@ -30,7 +30,6 @@ const STRAT_FIELDS: StratField[] = [
 
 const KeyNote = () => (accessKey.value ? null : <p className="note"><Icon name="lock" /> Needs the access key: set it under Connection.</p>);
 
-/** Posts shared settings to the bridge; returns the line to show. */
 async function postConfig(body: unknown, ok: string): Promise<string> {
   const r = await post("/config", body);
   return r.ok ? ok : r.status === 403 ? "Wrong or missing access key." : r.status === 0 ? r.text : r.status === 404 ? "This bridge does not take shared settings yet." : "Refused: " + r.text.slice(0, 120);
@@ -109,7 +108,6 @@ function Thresholds() {
     for (const i of form.current!.querySelectorAll<HTMLInputElement>("[data-th]")) {
       const v = parseFloat(i.value);
       if (!isFinite(v)) { bad = "Every threshold needs a number."; break; }
-      // An untouched field sends its stored value: converting the rounded display value back would drift it (bar/kPa to psi).
       const kind = i.dataset.k as "press" | "temp" | undefined;
       const val = i.dataset.v != null && i.value === i.defaultValue ? +i.dataset.v : kind ? +unit(kind, p.units).b(v).toFixed(2) : v;
       const path = i.dataset.th!.split(".");
@@ -232,7 +230,7 @@ function Data() {
       <p className="note">Units, live rate, KPI strip and beep only. Shared thresholds and strategy inputs live on the bridge and stay as they are.</p>
       <button type="button" className="btn" onClick={async () => {
         if ((await ask("Reset everything Pit Wall keeps in this browser? Your templates, appearances and notes will be gone.", [["r", "Reset", true], ["", "Cancel"]])) !== "r") return;
-        try { for (const k of Object.keys(localStorage)) if (k.startsWith("pitwall.") || k === "engineer.pitkey") localStorage.removeItem(k); localStorage.setItem("pitwall.migrated", "1"); } catch { /* storage blocked */ }
+        try { for (const k of Object.keys(localStorage)) if (k.startsWith("pitwall.") || k === "engineer.pitkey") localStorage.removeItem(k); localStorage.setItem("pitwall.migrated", "1"); } catch {  }
         location.replace(location.pathname);
       }}>Reset everything in this browser</button>
       <p className="note">Removes your templates, appearances, units, notes, pit plan draft and the access key from this browser. Nothing on the bridge changes.</p>
@@ -249,7 +247,6 @@ const About = () => (
   </>
 );
 
-/** The full-screen settings: a list of sections on the left. */
 export function Settings() {
   const { settings, section } = useUi();
   const nav = useRef<HTMLElement>(null);

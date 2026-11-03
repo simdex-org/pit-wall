@@ -1,4 +1,3 @@
-// The Win32 layer, exercised without ACC: what can be checked on any Windows PC.
 import { describe, expect, test } from "vitest";
 import koffi from "koffi";
 import { AccMfd, vkOf } from "../src/pit/acc-mfd.js";
@@ -15,9 +14,8 @@ describe.skipIf(process.platform !== "win32")("windows", () => {
   test("the MFD reads, knows ACC is not focused, injects keys", async () => {
     const m = new AccMfd("p", 40);
     expect(m.read().status).toMatch(/off|live|replay|pause/);
-    expect(m.focused()).toBe(false); // the test runner is in the foreground, not ACC
+    expect(m.focused()).toBe(false);
     await expect(m.press("pit")).rejects.toThrow(/not the focused window/);
-    // Two key-up events for F24 (scan 0x76) in one SendInput call: harmless, and it proves the INPUT array layout.
     expect(() => (m as unknown as { send(...k: [number, number][]): void }).send([0x76, 8 | 2], [0x76, 8 | 2])).not.toThrow();
   });
 

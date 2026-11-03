@@ -26,7 +26,6 @@ function SelButtons({ sel, id }: { sel: Sel; id: string }) {
   );
 }
 
-// ---------- laps ----------
 function mark(v: number | null | undefined, isSb: boolean, isPb: boolean, f: (v: number) => string): ReactNode {
   if (!okMs(v)) return NONE;
   return isSb ? <span className="t-best">◆ {f(v)}</span> : isPb ? <span className="t-pb">● {f(v)}</span> : f(v);
@@ -109,10 +108,8 @@ export const laps = defineModule({
     if ((opts.onlyStint || size.w < 7 || size.h < 12) && !other) L = L.filter((l) => (l.stint || 1) === cs);
     const ok = L.filter((l) => l.valid && l.ms > 0), best = ok.length ? Math.min(...ok.map((l) => l.ms as number)) : null;
     const sBest = [0, 1, 2].map((k) => Math.min(...ok.map((l) => (l.s ?? [])[k] as number).filter((v) => v > 0), Infinity));
-    // ◆ is the session best of the whole field, never just this list's best, which is ● like any improvement.
     const F = fieldOn(c) ? c.field! : null, fb = F && F.best && F.best.ms > 0 ? F.best.ms : null, cars = F ? [...c.cars.values()] : [];
     const fS = [0, 1, 2].map((k) => Math.min(...cars.map((x) => (x.best_s ?? [])[k] as number).filter((v) => v > 0), Infinity));
-    // Personal improvements: faster than every earlier valid lap (the lap and each sector).
     const pb = new Map<number, boolean[]>();
     { let lb = Infinity; const sb = [Infinity, Infinity, Infinity];
       for (const l of L) {
@@ -192,7 +189,6 @@ export const laps = defineModule({
   },
 });
 
-// ---------- debrief ----------
 export const debrief = defineModule({
   type: "debrief", title: "Debrief", group: "Laps", blurb: "The engineer's notes on the last laps.", size: { w: 4, h: 12, minW: 3, minH: 6, maxW: 6, maxH: 14 },
   needs: ["summary"],
@@ -222,7 +218,6 @@ export const debrief = defineModule({
   },
 });
 
-// ---------- lap picker ----------
 export const lapPicker = defineModule({
   type: "lap-picker", title: "Lap picker", group: "Analysis", blurb: "Every lap with a trace (bridge, this page, imported): pick REF and CMP.",
   size: { w: 2, h: 22, minW: 2, minH: 8, maxW: 3 }, multi: false, needs: ["rec", "laps", "sel"],
@@ -234,8 +229,6 @@ export const lapPicker = defineModule({
     for (const l of c.laps) if (l.trace && !have.has("lap-" + l.n)) have.set("lap-" + l.n, { id: "lap-" + l.n, n: l.n, ms: l.ms, valid: l.valid, src: "bridge", label: "", data: null });
     const rows = [...have.values()].sort((a, b) => Number(a.src === "import") - Number(b.src === "import") || (a.src === "import" ? b.id.localeCompare(a.id, undefined, { numeric: true }) : b.n - a.n));
 
-    // Until a lap is picked by hand, REF follows the best valid lap and CMP the newest other valid lap ("last vs best"),
-    // re-chosen as laps complete; a click on REF or CMP (or Clear CMP) stops that slot following.
     useEffect(() => {
       const own = rows.filter((l) => l.src !== "import");
       const set = (w: "ref" | "cmp", l: RecLap) => { if (selection.get()[w] === l.id) return; selection.select(w, l.id); const n = Number(l.id.replace("lap-", "")); if (n) void recorder.ensureLap(n); };

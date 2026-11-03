@@ -14,7 +14,6 @@ import { lapName, selState } from "./lapsel";
 import { coachReport, isReport } from "../state/coach";
 import { unit } from "../lib/units";
 
-// ---------- track map ----------
 const views = new Map<string, MapView>();
 const outs = new Map<string, MapOut>();
 
@@ -32,10 +31,9 @@ function MapCanvas({ id, opts }: { id: string; opts: MapOpts }) {
       const c = feed.get();
       if (c.r && el.isConnected) outs.set(id, drawMap(el, view, c, optsRef.current));
     };
-    // The feed arrives in bursts, so the map paints on every animation frame: the dots glide at the screen's rate.
     const tick = () => { if (dead) return; paint(); raf = requestAnimationFrame(tick); };
     void loadTracks().then(() => { raf = requestAnimationFrame(tick); });
-    const off = bindMapControls(el, view, paint, (x, y) => { // a click within 10 px of a car makes it the focus car
+    const off = bindMapControls(el, view, paint, (x, y) => {
       let best: number | null = null, d = 10;
       for (const h of outs.get(id)?.hits ?? []) { const e = Math.hypot(h.x - x, h.y - y); if (e <= d) { d = e; best = h.i; } }
       if (best != null) feed.setFocus(best === feed.get().me ? "self" : best);
@@ -58,7 +56,6 @@ function MapTools({ id }: { id: string }) {
   );
 }
 
-/** Labels and Follow sit with Options and Hide on the right of the header. */
 function MapQuick({ id }: { id: string }) {
   const on = useLabelsOpen(id);
   const [, bump] = useReducer((n: number) => n + 1, 0);
@@ -122,7 +119,6 @@ export const trackMap = defineModule({
   },
 });
 
-// ---------- G-G ----------
 function GGCanvas() {
   const cv = useRef<HTMLCanvasElement>(null);
   const p = usePrefs();
@@ -164,7 +160,6 @@ export const gg = defineModule({
   },
 });
 
-// ---------- live channels ----------
 function LiveCanvas({ rows, win }: { rows: string[]; win: number }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -219,7 +214,6 @@ export const channels = defineModule({
   },
 });
 
-// ---------- traces ----------
 function TraceCanvas({ rows, refLap, cmp, cursor, len, zoom }: { rows: string[]; refLap: ReturnType<typeof recorder.lapById>; cmp: ReturnType<typeof recorder.lapById>; cursor: number | null; len: number; zoom: TraceZoom | null }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -269,7 +263,6 @@ export const traces = defineModule({
     const defs = laneDefs(p.units), ids = (opts.lanes as string[]).filter((k) => defs[k]);
     const su = unit("speed", p.units), rep = opts.corners ? coachReport(c, sel, "lap", su.f, su.u) : null;
     if (!ids.length) return { state: { kind: "empty", msg: "No lanes chosen: pick some in the options." } };
-    // The corner zones; one wrapping over the line is two bands, and a corner picked in the coach fills the width.
     const cs = rep && isReport(rep) ? rep.corners : [], last = NB - 1, foc = cs.find((k) => k.corner.n === sel.corner)?.corner ?? null;
     const zoom: TraceZoom | null = cs.length ? {
       lo: foc ? Math.max(0, foc.start - 8) : 0, hi: foc ? Math.min(last, Math.min(foc.end, last) + 8) : last,

@@ -8,7 +8,6 @@ const LATEST = "https://api.github.com/repos/simdex-org/pit-wall/releases/latest
 interface Asset { name: string; size: number; browser_download_url: string }
 export interface Release { version: string; assets: Asset[] }
 
-/** The version this bridge belongs to; null when run from source, where there is nothing to update. */
 export function installed(): string | null {
   try {
     const v = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "app.json"), "utf8")).version;
@@ -31,7 +30,6 @@ export function isNewer(have: string | null, latest: string): boolean {
   return b.tag > a.tag;
 }
 
-/** The installer is Pit.Wall_x.y.z_x64-setup.exe; the portable build is PitWall.exe (PitWall-portable.exe in v0.1.x). */
 export function pick(assets: Asset[], portable: boolean): Asset | undefined {
   return assets.find((a) => (portable ? /^PitWall(-portable)?\.exe$/ : /-setup\.exe$/).test(a.name));
 }
@@ -60,7 +58,6 @@ export async function check(): Promise<{ available: boolean; installedVersion: s
   return { available: isNewer(have, release.version) && !!pick(release.assets, isPortable()), installedVersion: have, latestVersion: release.version };
 }
 
-/** Downloads the installer or the portable exe of the latest release and returns where it was saved. */
 export async function download(): Promise<string> {
   const release = await latest();
   const asset = release && pick(release.assets, isPortable());

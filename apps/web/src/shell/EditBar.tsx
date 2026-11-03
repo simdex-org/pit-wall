@@ -4,7 +4,6 @@ import { Icon } from "../lib/icons";
 import { editor, useEditor } from "../state/editor";
 import { useNav } from "../state/nav";
 
-/** The strip under the top bar while editing: workspace name, add, undo and redo, reset, discard and save. */
 export function EditBar() {
   const ed = useEditor();
   const { wsId, tpl } = useNav();
@@ -35,7 +34,6 @@ export function EditBar() {
 
 const GROUP_ORDER = ["Timing", "Strategy", "Pit", "Car", "Laps", "Analysis", "Log"];
 
-/** The module catalogue: a dialog with the groups at the left, a search and the modules at the right. */
 export function Drawer() {
   const ed = useEditor();
   const { wsId, tpl } = useNav();

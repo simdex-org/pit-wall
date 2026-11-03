@@ -1,5 +1,3 @@
-// Lists the tracks that still have no sector lines, in tracks.json or in the bridge's saved layouts.
-// Usage: node scripts/missing.mjs [folder of the bridge's saved layouts]
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

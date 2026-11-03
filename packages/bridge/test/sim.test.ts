@@ -3,7 +3,6 @@ import { Box, CAR_LEN, TANK } from "../src/sim/car.js";
 import { World } from "../src/sim/world.js";
 import { mod } from "../src/util.js";
 
-/** Runs a session in 1/60 s steps until the stop condition holds, calling look every simulated second. */
 function run(w: World, until: (w: World) => boolean, look: (w: World) => void = () => {}): void {
   let n = 0;
   while (!until(w)) { w.step(); if (++n % 60 === 0) look(w); }
@@ -40,7 +39,7 @@ describe("simulated race", { timeout: 60000 }, () => {
       if (gap < CAR_LEN * 0.6 && Math.abs(a.lat - b.lat) < 1.2 && (a.v > 5 || b.v > 5)) {
         const key = `${a.id}/${b.id}`;
         now.add(key);
-        if (overlapping.has(key)) tooClose.push(`${key} at ${(x.t / 1000).toFixed(0)} s, ${gap.toFixed(1)} m`); // in each other for a second
+        if (overlapping.has(key)) tooClose.push(`${key} at ${(x.t / 1000).toFixed(0)} s, ${gap.toFixed(1)} m`);
       }
     }
     overlapping = now;
@@ -174,7 +173,7 @@ describe("weather, flags and penalties", { timeout: 120000 }, () => {
   const fcySpeeds: number[] = [];
   let wetCars = 0, wetPeak = 0, fcyRuns = 0, wasFcy = false, rainSeen = false;
   let rain = new World("race");
-  for (let seed = 1; seed <= 16 && wetCars < 15; seed++) { // the first race the weather turns wet in
+  for (let seed = 1; seed <= 16 && wetCars < 15; seed++) {
     rain = new World("race", { seed, minutes: 40 });
     messages.length = 0; rainSeen = false; wetPeak = wetCars = 0;
     const say = rain.say.bind(rain);
@@ -187,7 +186,7 @@ describe("weather, flags and penalties", { timeout: 120000 }, () => {
   }
 
   let fcy = new World("race");
-  for (let seed = 1; seed <= 16 && !fcyRuns; seed++) { // the first race with a wreck
+  for (let seed = 1; seed <= 16 && !fcyRuns; seed++) {
     fcy = new World("race", { seed, minutes: 30 });
     fcySpeeds.length = 0; wasFcy = false;
     run(fcy, (x) => x.phase >= 7, (x) => {
@@ -248,7 +247,7 @@ describe("the pedals", () => {
     expect(fullOnStraight / straight).toBeGreaterThan(0.6);
     expect(brakeOnStraight / straight).toBeLessThan(0.03);
     expect(hardBrakes).toBeGreaterThan(0);
-    expect(braking / n).toBeLessThan(0.3); // a GT3 lap is not mostly braking
+    expect(braking / n).toBeLessThan(0.3);
     expect(fullThrottle / n).toBeGreaterThan(0.5);
   });
 });

@@ -1,5 +1,3 @@
-// What the page keeps between readings. The bridge is the source of whole-lap traces and racing lines (GET /lap?n=N, fetched
-// once each); the page itself records only the lap in progress, the 60 s live trace and the G peaks.
 import { aux } from "../engine/versions";
 import { Ctx, feed } from "../feed/store";
 import type { Json } from "../feed/types";
@@ -10,21 +8,18 @@ import { cleanText, isObj } from "../lib/text";
 import { get } from "./bridge";
 import { selection } from "./selection";
 
-/** Bins per lap, and the channels the bridge sends for each. */
 export const NB = 400;
 export const LCH = ["t", "speed", "thr", "brk", "steer", "gear", "rpm"] as const;
-/** Added later: laps from an older bridge or an old laps file lack them, and the coach then skips what needs them. */
 export const LCH_X = ["glat", "glon", "tc", "abs"] as const;
 export type LapChannel = (typeof LCH)[number];
 export type LapData = Record<LapChannel, Float32Array> & Partial<Record<(typeof LCH_X)[number], Float32Array>>;
 const ALL_CH = [...LCH, ...LCH_X];
-/** The core channels must all be there; the later ones are taken only when whole. */
 const takeData = (o: Json): LapData | null => {
   if (!LCH.every((k) => Array.isArray(o[k]) && o[k].length === NB)) return null;
   return Object.fromEntries(ALL_CH.filter((k) => Array.isArray(o[k]) && o[k].length === NB).map((k) => [k, Float32Array.from(o[k] as number[], (v) => (isFinite(+v) ? +v : 0))])) as LapData;
 };
 
-export const TRACE_N = 3600; // 60 s at 60 Hz
+export const TRACE_N = 3600;
 export const TRACE_KEYS = ["speed", "thr", "brk", "clu", "steer", "rpm", "gear", "fuel", "gLat", "gLon", "tc", "abs", "tFL", "tFR", "tRL", "tRR", "pFL", "pFR", "pRL", "pRR"] as const;
 export type TraceKey = (typeof TRACE_KEYS)[number];
 export interface Ring { i: number; n: number; data: Record<TraceKey, Float32Array> }
@@ -48,15 +43,11 @@ export const lapNo = (id: string | null | undefined): number => {
 class Recorder {
   ver = 0;
   trace = newRing();
-  /** A copy of the ring while the live channels are paused. */
   frozen: Ring | null = null;
-  /** Own laps newest first, imports last. */
   laps: RecLap[] = [];
-  /** Racing lines, newest first (a point every 1.5 m). */
   lines: RecLine[] = [];
   curLine: LinePoint[] = [];
   cur: Sample[] = [];
-  /** How far, on average, the last line was from the best line. */
   spread: { m: number; last: number; best: number } | null = null;
   maxRpm = 0;
   fuelMax = 0;
@@ -66,7 +57,6 @@ class Recorder {
   failed = new Set<number>();
   private layoutTried = "";
   private imp = 0;
-  /** The earlier session being shown, or null for the live one. */
   private sid: number | null = null;
   private prevLaps: number | null = null;
   private prevValid = true;
@@ -77,7 +67,6 @@ class Recorder {
 
   private bump(): void { this.ver++; aux.bump("rec"); }
 
-  /** Called on every feed update; acts when a new reading or a new lap list arrived. */
   onFeed(c: Ctx): void {
     const sid = c.view?.id ?? null;
     if (sid !== this.sid) this.showSession(sid);
@@ -97,7 +86,6 @@ class Recorder {
     T.n = Math.min(T.n + 1, TRACE_N);
     this.fuelMax = Math.max(this.fuelMax, c.fuel_litres || 0);
     const gl = Math.abs(v.gLat!), gn = Math.abs(v.gLon!);
-    // A kerb spike over 5 g is noise, not a peak.
     if (gl < 5 && gl > this.gHist.maxLat) this.gHist.maxLat = gl;
     if (gn < 5 && gn > this.gHist.maxLon) this.gHist.maxLon = gn;
   }
@@ -109,11 +97,10 @@ class Recorder {
 
   private sample(s: Json, c: Json): void {
     const p = s.track_position, l = this.cur[this.cur.length - 1];
-    if (l && p <= l.p) return; // position must advance; drops jitter and the wrap after the line
+    if (l && p <= l.p) return;
     this.cur.push({ p, t: s.current_lap_ms, speed: c.speed_kmh, thr: c.throttle, brk: c.brake, steer: c.steer_angle, gear: c.gear, rpm: c.rpm, glat: c.acc_g[0], glon: c.acc_g[2], tc: +c.tc_in_action || 0, abs: +c.abs_in_action || 0 });
   }
 
-  /** The same algorithm as the bridge's, so live and bridge laps compare bin for bin. */
   private resample(smp: Sample[], ms: number): LapData {
     const d = Object.fromEntries(ALL_CH.map((k) => [k, new Float32Array(NB)])) as Record<(typeof ALL_CH)[number], Float32Array>;
     let j = 0;
@@ -125,7 +112,7 @@ class Recorder {
     }
     for (let i = 0; i < NB; i++) d.gear[i] = Math.round(d.gear[i]!);
     const end = d.t[NB - 1]!;
-    if (end > 0 && ms > 0) { const sc = ms / end; for (let i = 0; i < NB; i++) d.t[i] = d.t[i]! * sc; } // the last point is the official lap time
+    if (end > 0 && ms > 0) { const sc = ms / end; for (let i = 0; i < NB; i++) d.t[i] = d.t[i]! * sc; }
     return d;
   }
 
@@ -133,7 +120,6 @@ class Recorder {
     const cur = this.cur, curLine = this.curLine;
     if (this.sid !== null) { this.cur = []; this.curLine = []; return; }
     const whole = cur.length > 60 && cur[0]!.p < 0.1 && cur[cur.length - 1]!.p > 0.9;
-    // Only whole laps: a part lap cannot be compared. The bridge copy replaces this one.
     if (whole && curLine.length > 50) {
       if (!this.laps.some((l) => l.id === "lap-" + n && l.src === "bridge")) this.putLap({ id: "lap-" + n, n, ms, valid, src: "live", label: "", data: this.resample(cur, ms) });
       if (!this.lines.some((l) => l.n === n)) this.putLine({ n, valid, ms, pts: curLine });
@@ -147,7 +133,7 @@ class Recorder {
     if (i >= 0) this.laps[i] = l; else this.laps.push(l);
     const own = this.laps.filter((x) => x.src !== "import").sort((a, b) => b.n - a.n), imp = this.laps.filter((x) => x.src === "import");
     const sel = [selection.get().ref, selection.get().cmp];
-    while (own.length > 40) { // the cap applies to live and bridge laps; imports are never evicted
+    while (own.length > 40) {
       let k = own.length - 1;
       while (k > 0 && sel.includes(own[k]!.id)) k--;
       own.splice(k, 1);
@@ -162,7 +148,7 @@ class Recorder {
 
   private putLine(l: RecLine): void {
     this.lines = this.lines.filter((x) => x.n !== l.n).concat([l]).sort((a, b) => b.n - a.n);
-    const keep = this.bestLine(); // the best line stays: the field is placed on it
+    const keep = this.bestLine();
     while (this.lines.length > 12) { const k = this.lines.length - 1 - (this.lines[this.lines.length - 1] === keep ? 1 : 0); this.lines.splice(k, 1); }
     this.lineSpread();
   }
@@ -171,7 +157,7 @@ class Recorder {
     const last = this.lines[0], best = this.bestLine();
     if (!best || !last || best === last) { this.spread = null; return; }
     let sum = 0, k = 0;
-    for (let i = 0; i < last.pts.length; i += Math.max(1, Math.floor(last.pts.length / 200))) { // 200 samples against the whole best line
+    for (let i = 0; i < last.pts.length; i += Math.max(1, Math.floor(last.pts.length / 200))) {
       const [x, z] = last.pts[i]!;
       let d = Infinity;
       for (const [bx, bz] of best.pts) d = Math.min(d, (bx - x) ** 2 + (bz - z) ** 2);
@@ -180,14 +166,12 @@ class Recorder {
     this.spread = { m: sum / k, last: last.n, best: best.n };
   }
 
-  /** A new session: own laps and lines belong to the old one. */
   private resetSession(): void {
     this.laps = this.laps.filter((l) => l.src === "import"); this.lines = []; this.curLine = []; this.cur = []; this.spread = null;
     this.pending.clear(); this.failed.clear(); this.gHist = { maxLat: 0, maxLon: 0 };
     this.bump();
   }
 
-  /** An earlier session on show (its laps come from the bridge's copy), or the live one again with null. */
   private showSession(sid: number | null): void {
     this.sid = sid;
     this.resetSession();
@@ -207,17 +191,14 @@ class Recorder {
     const p = s.car_position_m;
     if (p && (p[0] || p[2])) {
       const l = this.curLine[this.curLine.length - 1], d = l ? Math.hypot(l[0] - p[0], l[1] - p[2]) : 0, now = performance.now();
-      const dt = this.posT ? Math.max(1 / 30, (now - this.posT) / 1000) : 1 / 30; // a stalled feed lets the car go further between readings
+      const dt = this.posT ? Math.max(1 / 30, (now - this.posT) / 1000) : 1 / 30;
       this.posT = now;
-      // A jump (out of the garage, a reset): start the line again rather than draw a straight across; the lap is no longer whole.
       if (d > 60 && d > (c.speed_kmh / 3.6) * dt * 1.5 + 20) { this.curLine = [[p[0], p[2], s.track_position]]; this.cur = []; }
       else if (!l || d > 1.5) this.curLine.push([p[0], p[2], s.track_position]);
     }
   }
 
-  // ---------- laps from the bridge: fetched once each, so a reload or a late joiner sees them too ----------
 
-  /** Once per track, and again after the first whole lap, when the bridge has saved one. */
   async ensureLayout(r: Json | null): Promise<void> {
     const t = r?.fixed.track as string | undefined;
     if (!t || this.layout?.track === t) return;
@@ -245,7 +226,7 @@ class Recorder {
     this.pending.add(n);
     this.bump();
     const j = await get<Json>("/lap?n=" + n + (sid === null ? "" : "&s=" + sid));
-    if (sid !== this.sid) return; // another session is on show now
+    if (sid !== this.sid) return;
     this.pending.delete(n);
     const data = j && isObj(j.ch) ? takeData(j.ch) : null;
     if (!j || !data) { this.failed.add(n); this.bump(); return; }
@@ -260,7 +241,6 @@ class Recorder {
     this.bump();
   }
 
-  /** Map lines (the newest 12 traced), the best valid lap, and whatever is REF or CMP. */
   private wantLaps(c: Ctx): void {
     const tr = c.laps.filter((l) => l.trace), ok = tr.filter((l) => l.valid);
     const want = tr.slice(-12).map((l) => l.n as number);
@@ -269,7 +249,6 @@ class Recorder {
     for (const n of new Set(want)) if (n) void this.ensureLap(n);
   }
 
-  // ---------- export and import ----------
   private pack = (l: RecLap) => ({ n: l.n, ms: l.ms, valid: l.valid, label: l.label || "", data: Object.fromEntries(ALL_CH.filter((k) => l.data![k]).map((k) => [k, Array.from(l.data![k]!, (v) => +v.toFixed(3))])) });
 
   exportLaps(): void {
@@ -285,7 +264,6 @@ class Recorder {
     });
   }
 
-  /** Accepts this page's and the old page's laps files; returns a status line. */
   async importLaps(file: File): Promise<string> {
     if (file.size > 20e6) return "File too large.";
     let j: Json;

@@ -1,5 +1,3 @@
-// The lap map: the REF racing line coloured by what the driver did, or by where CMP gains and loses, with the brake points,
-// the slowest points, the lap cut into parts, and the cursor shared with the traces.
 import { fmtDelta, MINUS } from "../lib/format";
 import type { Report } from "../lib/coach/report";
 import { LapData, NB, RecLap } from "../state/recorder";
@@ -13,20 +11,16 @@ export const MODES: [LapMapMode, string, boolean][] = [["delta", "Time Δ", true
 
 export interface LapMapIn {
   ref: RecLap; cmp: RecLap | null;
-  /** The line the colours are drawn on: REF's own, or the layout when REF has none (an import). */
   base: Line;
-  /** CMP's own racing line, when it has one. */
   cmpLine: Line | null;
   mode: LapMapMode; show: LapMapShow; width: number;
   brakes: boolean; slowest: boolean; corners: boolean; cmpDraw: boolean;
-  /** The coach's corners, and the one the view is centred on. */
   report: Report | null; focus: number | null;
   cursor: number | null; len: number;
   speed: (v: number) => number; unit: string;
 }
 
 const FR = new WeakMap<object, { n: number; f: Float64Array }>();
-/** The lap fraction of each point: the game's own where the line carries it, else by distance. */
 function fracs(pts: Line): Float64Array {
   const had = FR.get(pts);
   if (had && had.n === pts.length) return had.f;
@@ -47,7 +41,6 @@ function idxAt(f: Float64Array, v: number): number {
   return hi;
 }
 
-/** Brake points (a press after 10 bins off the pedal) and the slowest point of each corner (25 km/h under the speed before it). */
 function events(d: LapData): { brakes: number[]; apexes: number[] } {
   const brakes: number[] = [], apexes: number[] = [];
   let off = 99;
@@ -64,7 +57,6 @@ function events(d: LapData): { brakes: number[]; apexes: number[] } {
 
 const ramp = (v: number) => `hsl(${Math.round(220 * (1 - Math.min(1, Math.max(0, v))))} 70% 55%)`;
 
-/** Slope of a difference between the two laps, smoothed over 9 bins; positive is CMP behind. */
 function slope(a: Float32Array, b: Float32Array): Float32Array {
   const o = new Float32Array(NB);
   for (let i = 0; i < NB; i++) { const lo = Math.max(0, i - 4), hi = Math.min(NB - 1, i + 4); o[i] = (a[hi]! - b[hi]! - (a[lo]! - b[lo]!)) / (hi - lo); }
@@ -76,7 +68,6 @@ const smooth = (a: Float32Array): Float32Array => {
   return o;
 };
 
-/** Draws the map and returns a lookup from a canvas point to the lap fraction of the nearest point of the line. */
 export function drawLapMap(cv: HTMLCanvasElement, view: MapView, a: LapMapIn): (x: number, y: number) => number | null {
   const [g, w, h] = fitCanvas(cv), tk = tokens(), P = a.base, bf = fracs(P), rd = a.ref.data!, cd = a.cmp?.data ?? null, n = P.length;
   const binM = a.len > 0 ? a.len / (NB - 1) : 0;
@@ -85,7 +76,7 @@ export function drawLapMap(cv: HTMLCanvasElement, view: MapView, a: LapMapIn): (
   const pad = 28, base = Math.min((w - 2 * pad) / Math.max(100, x1 - x0), (h - 2 * pad) / Math.max(100, z1 - z0));
   const where = (l: Line, v: number): [number, number] => { const p = l[idxAt(fracs(l), v)]!; return [p[0]!, p[1]!]; };
   const foc = a.focus != null ? a.report?.corners.find((k) => k.corner.n === a.focus) : null, fk = foc ? String(foc.corner.n) : undefined;
-  if (view.fk !== fk) { // a new corner: centre on it and zoom in; none: back to the whole lap
+  if (view.fk !== fk) {
     view.fk = fk; view.follow = false;
     if (foc) { const [fx, fz] = where(P, foc.corner.apex / (NB - 1)); view.zoom = 4; view.dx = fx - (x0 + x1) / 2; view.dy = fz - (z0 + z1) / 2; } else { view.zoom = 1; view.dx = view.dy = 0; }
   }
@@ -111,7 +102,6 @@ export function drawLapMap(cv: HTMLCanvasElement, view: MapView, a: LapMapIn): (
   };
   stroke(P, a.width + 8, tk.line);
 
-  // Each stretch of the REF line takes its colour from the bin it lies in; "loss" says which side of a difference it is on.
   let smin = Infinity, smax = -Infinity, rmax = 1, dmax = 1e-6;
   for (const v of rd.speed) { if (v < smin) smin = v; if (v > smax) smax = v; }
   for (const v of rd.rpm) rmax = Math.max(rmax, v);
@@ -142,7 +132,6 @@ export function drawLapMap(cv: HTMLCanvasElement, view: MapView, a: LapMapIn): (
   const cl = a.cmpLine ?? P;
   if (a.cmpDraw && a.cmpLine) stroke(a.cmpLine, 1.5, tk.chCmp);
 
-  // The corners of the lap: a tick across the road where each zone starts, and the time CMP gained or lost in it.
   const text = (t: string, x: number, y: number, col: string) => { g.strokeText(t, x, y); g.fillStyle = col; g.fillText(t, x, y); };
   g.font = `600 10px ${tk.num}`; g.textBaseline = "middle"; g.textAlign = "left"; g.lineWidth = 3; g.strokeStyle = tk.bg;
   if (a.corners && a.report) {
@@ -150,7 +139,7 @@ export function drawLapMap(cv: HTMLCanvasElement, view: MapView, a: LapMapIn): (
     for (const k of a.report.corners) {
       const c = k.corner, f0 = c.start / last, f1 = c.end / last;
       if (c.n === a.focus) { g.globalAlpha = 0.35; if (f1 > 1) { stroke(P, a.width + 4, tk.text, f0, 1); stroke(P, a.width + 4, tk.text, 0, f1 - 1); } else stroke(P, a.width + 4, tk.text, f0, f1); g.globalAlpha = 1; }
-      const side = (f: number, r: number): [number, number, number, number] => { // the point at f and the left-hand normal r pixels long
+      const side = (f: number, r: number): [number, number, number, number] => {
         const [ax, ay] = xy(P, Math.max(0, f - 0.002)), [bx, by] = xy(P, Math.min(1, f + 0.002)), m = Math.hypot(bx - ax, by - ay) || 1, [px, py] = xy(P, f % 1);
         return [px, py, (-(by - ay) / m) * r, ((bx - ax) / m) * r];
       };
@@ -168,7 +157,7 @@ export function drawLapMap(cv: HTMLCanvasElement, view: MapView, a: LapMapIn): (
     if (a.brakes) {
       for (const i of re.brakes) { const [x, y] = mark(P, i); g.fillStyle = tk.chBrk; g.strokeStyle = tk.bg; g.lineWidth = 1.5; g.fillRect(x - 3.5, y - 3.5, 7, 7); g.strokeRect(x - 3.5, y - 3.5, 7, 7); }
       if (ce) for (const i of ce.brakes) { const [x, y] = mark(cl, i); g.strokeStyle = tk.chCmp; g.lineWidth = 1.5; g.strokeRect(x - 3.5, y - 3.5, 7, 7); }
-      if (ce && binM && view.zoom >= 2) { // where CMP brakes against REF: minus is earlier
+      if (ce && binM && view.zoom >= 2) {
         g.lineWidth = 3; g.strokeStyle = tk.bg;
         for (const i of re.brakes) {
           const j = ce.brakes.find((k) => Math.abs(k - i) <= 15);
@@ -189,7 +178,7 @@ export function drawLapMap(cv: HTMLCanvasElement, view: MapView, a: LapMapIn): (
     }
   }
   const [sx, sy] = xy(P, 0);
-  { // start/finish: a two-row chequered strip across the line, turned to the direction of travel
+  {
     const [nx, ny] = xy(P, 4), ang = Math.atan2(ny - sy, nx - sx), sq = 2.5, n = 7;
     g.save(); g.translate(sx, sy); g.rotate(ang);
     for (let r = 0; r < 2; r++) for (let k = 0; k < n; k++) { g.fillStyle = (r + k) % 2 ? "#000" : "#fff"; g.fillRect(-sq + r * sq, (k - n / 2) * sq, sq, sq); }
@@ -213,7 +202,6 @@ export function drawLapMap(cv: HTMLCanvasElement, view: MapView, a: LapMapIn): (
   };
 }
 
-/** The figures at the cursor for both laps, in a box at the top left. */
 function readout(g: Ctx2D, tk: Tokens, a: LapMapIn, b: number): void {
   const rd = a.ref.data!, cd = a.cmp?.data ?? null, sp = (d: LapData) => `${Math.round(a.speed(d.speed[b]!))}`;
   const row = (tag: string, d: LapData) => [tag, sp(d), `${Math.round(d.thr[b]! * 100)}`, `${Math.round(d.brk[b]! * 100)}`, `${Math.round(d.gear[b]!)}`];
@@ -231,7 +219,6 @@ function readout(g: Ctx2D, tk: Tokens, a: LapMapIn, b: number): void {
   if (foot) { g.textAlign = "left"; g.fillStyle = tk.text; g.fillText(foot, 14, 13 + 14 * (rows.length + 1)); }
 }
 
-/** What the colours mean, along the bottom edge. */
 function legend(g: Ctx2D, tk: Tokens, a: LapMapIn, h: number, smin: number, smax: number, rmax: number, dmax: number, binM: number): void {
   g.font = `500 10px ${tk.num}`; g.textBaseline = "middle"; g.textAlign = "left";
   const y = h - 14, bar = (x: number, stops: [number, string][], lo: string, hi: string) => {

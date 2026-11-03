@@ -16,10 +16,8 @@ const stCls = (s: State | string) => (s === "ok" || s === "none" ? "" : "s-" + s
 const sc = (c: Ctx) => ({ th: c.th, wet: c.wet, fuelLowLaps: c.cfg?.fuel_low_laps ?? 3 });
 const psiWindow = (c: Ctx) => (c.wet ? c.th.wet_psi : c.th.dry_psi);
 
-/** Core temperature: the average of the three bands when the game sends them, else the core value. */
 const coreT = (a: Json, i: number, cap: Json) => (cap?.tyre_edge_temps ? (a.tyre_temp_inner_c[i] + a.tyre_temp_middle_c[i] + a.tyre_temp_outer_c[i]) / 3 : a.tyre_core_temp_c[i]);
 
-// ---------- driver inputs ----------
 const pct = (v: number) => (clamp(v, 0, 1) * 100).toFixed(0);
 
 export const carStatus = defineModule({
@@ -87,7 +85,6 @@ export const carStatus = defineModule({
   },
 });
 
-// ---------- lap timer ----------
 export const lapTimer = defineModule({
   type: "lap-timer", title: "Lap", group: "Car", blurb: "The lap in progress, live delta, last, best and the game's estimate.",
   size: { w: 3, h: 5, minW: 3, minH: 4, maxW: 4, maxH: 5 }, needs: ["reading", "summary", "laps", "field"], requires: ["reading"], rate: 15,
@@ -102,7 +99,7 @@ export const lapTimer = defineModule({
     const lapsDone = c.laps.filter((l) => l.valid !== false && Array.isArray(l.s) && l.s.length === nSec);
     const pb = (k: number) => Math.min(...lapsDone.map((l) => (l.s as number[])[k]!).filter((v) => v > 0), Infinity);
     const sbest = (k: number) => Math.min(...[...c.cars.values()].map((x) => (x.best_s ?? [])[k] ?? 0).filter((v) => v > 0), Infinity);
-    const prev = c.laps.slice().reverse().find((l) => Array.isArray(l.s) && l.s.length === nSec)?.s as number[] | undefined; // until this lap overwrites them
+    const prev = c.laps.slice().reverse().find((l) => Array.isArray(l.s) && l.s.length === nSec)?.s as number[] | undefined;
     const sectors = (
       <div className="cells" style={{ borderTop: "1px solid var(--ln)", flex: "none" }}>
         {Array.from({ length: nSec }, (_, k) => {
@@ -144,8 +141,6 @@ export const lapTimer = defineModule({
   },
 });
 
-// ---------- tyres ----------
-/** A value inside its window: the window is shaded, the marker is the value. */
 function Gz({ v, lo, hi, min, max, cls }: { v: number; lo: number; hi: number; min: number; max: number; cls: string }) {
   const pc = (x: number) => clamp(((x - min) / (max - min)) * 100, 0, 100);
   return <div className="gz sp" style={{ margin: 0, flex: "none", width: "100%" }}><b style={{ left: pc(lo) + "%", width: pc(hi) - pc(lo) + "%" }} /><i className={cls} style={{ left: pc(v) + "%" }} /></div>;
@@ -246,7 +241,6 @@ export const tyres = defineModule({
   },
 });
 
-// ---------- tyre history ----------
 export const tyreHistory = defineModule({
   type: "tyre-history", title: "Tyre history", group: "Car", blurb: "Pressures and core temperatures at the line, lap by lap.",
   size: { w: 6, h: 11, minW: 4, minH: 6, maxW: 6 }, needs: ["laps", "units", "config"],
@@ -296,7 +290,6 @@ export const tyreHistory = defineModule({
 });
 const pcls0 = (s: State) => (s === "ok" ? "" : s === "bad" ? "up" : s === "cold" ? "cd" : "wn");
 
-// ---------- brakes ----------
 export const brakes = defineModule({
   type: "brakes", title: "Brakes", group: "Car", blurb: "Pad and disc thickness, wear per lap, laps left on the pads, and temperatures.",
   size: { w: 4, h: 6, minW: 2, minH: 3, maxW: 5, maxH: 7 }, needs: ["reading", "summary", "config", "units"], requires: ["reading"],
@@ -345,7 +338,6 @@ export const brakes = defineModule({
   },
 });
 
-// ---------- electronics ----------
 export const electronics = defineModule({
   type: "electronics", title: "Electronics", group: "Car", blurb: "Brake bias, TC, ABS, engine map, lights and wipers.",
   size: { w: 4, h: 4, minW: 3, minH: 3, maxW: 5, maxH: 4 }, needs: ["reading"], requires: ["reading"],
@@ -366,10 +358,8 @@ export const electronics = defineModule({
   },
 });
 
-// ---------- damage & engine ----------
 export const ZONES = ["Front", "Rear", "Left", "Right", "Centre"];
 
-/** The nine zones as the car seen from above, front at the top; each card carries a bar and a state. */
 function DamageCards({ dmg, sus }: { dmg: number[]; sus: number[] }) {
   const body = (i: number, label: string): [string, number, string] => { const v = dmg[i] ?? 0; return [label, v, bodyState(v)]; };
   const susp = (i: number): [string, number, string] => { const v = sus[i] ?? 0; return ["Susp " + CORNERS[i], v, suspState(v)]; };

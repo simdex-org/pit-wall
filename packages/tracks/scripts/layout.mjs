@@ -1,10 +1,5 @@
 const RECORD_BYTES = 72, HEADER_BYTES = 16, STEP_M = 5;
 
-/**
- * The racing line in ACC's own AC2/Content/Cache/<track>/fastlane.ai: a 16 byte header (version 8, record count) and records of nine
- * doubles (x, y, z, distance, ...) 10 m apart, starting on the start/finish line. The first half of the records is the line, the second
- * half is other data, so reading stops at the first jump or the first value that is not a number. Null when it is not a whole lap.
- */
 export function lineFromFastLane(buf) {
   if (buf.length < HEADER_BYTES || buf.readInt32LE(0) !== 8) return null;
   const n = buf.readInt32LE(4), pts = [];
@@ -16,7 +11,6 @@ export function lineFromFastLane(buf) {
   return pts.length > 100 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 30 ? pts : null;
 }
 
-/** A closed Catmull-Rom curve through the 10 m points, a point about every 5 m, starting on the first one. */
 function smooth(pts) {
   const n = pts.length, out = [];
   for (let i = 0; i < n; i++) {
@@ -30,10 +24,6 @@ function smooth(pts) {
   return out;
 }
 
-/**
- * A track drawing from the game's own line, plus the sector lines a driven lap knows
- * (lay = the bridge's saved layout for the track, or null).
- */
 export function drawingFrom(fastLane, lay) {
   const pts = lineFromFastLane(fastLane);
   if (!pts) return null;

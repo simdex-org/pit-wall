@@ -1,5 +1,3 @@
-// Turns raw page values into the dashboard's reading and summary, and keeps what needs history: laps, sectors, stints,
-// stops, fuel and lap traces. Log lines collect in `events` for the bridge to drain.
 import { defaultConfig } from "../config.js";
 import { mean, mod, Rec, sum } from "../util.js";
 import {
@@ -9,7 +7,6 @@ import {
 export type Event = [sev: number, cat: string, text: string];
 type Trace = { ms: number; valid: boolean; ch: Record<string, number[]>; line: number[][]; sec: number[] };
 
-/** Samples of a whole lap -> NB points per channel at even track position: exactly recorder.js resample(). */
 export function resample(smp: Rec[], ms: number): Record<string, number[]> {
   const d: Record<string, number[]> = Object.fromEntries(LCH.map((k) => [k, new Array<number>(NB).fill(0)]));
   let j = 0;
@@ -26,7 +23,7 @@ export function resample(smp: Rec[], ms: number): Record<string, number[]> {
   return d;
 }
 
-const ceil = (x: number): number => { // an argument within 1e-6 of a whole number is that number
+const ceil = (x: number): number => {
   const k = Math.round(x);
   return Math.abs(x - k) < 1e-6 ? k : Math.ceil(x);
 };
@@ -40,8 +37,8 @@ export class Telemetry {
   splits: number[] = [];
   debrief: Rec[] = [];
   secPos: number[] = [];
-  secAt: number[] = []; // the latest crossing of each sector line, whatever lap it was on
-  secKept: number[] = []; // where the sectors end, in lap fractions, from the last lap that had them all
+  secAt: number[] = [];
+  secKept: number[] = [];
   stintStart: number | null = null;
   fuelAtLine: number | null = null;
   lapFuel: number[] = [];
@@ -49,7 +46,6 @@ export class Telemetry {
   best: number | null = null;
   stint: Rec[] = [];
   laps: Rec[] = [];
-  /** The sessions before this one, newest last: {id, kind, track, laps, stints, stops, field}. Lap traces and the field's final state stay in `vault`. */
   past: Rec[] = [];
   vault = new Map<number, { traces: Map<number, Trace>; field?: Rec }>();
   private pastId = 0;
@@ -101,7 +97,6 @@ export class Telemetry {
     return t[this.cls] ?? t.GT3;
   }
 
-  /** One reading. ext (from the bridge, all optional): field (bool), car_class and track_m from it, gap_ms (to the leader). */
   update(r: Rec, ext: Rec = {}): Rec {
     this.seq++;
     let p = this.prev;
@@ -111,10 +106,10 @@ export class Telemetry {
     this.sessLen = Math.max(this.sessLen, r.time_left);
     if (this.stintRoad === null) this.stintRoad = r.road;
     if (this.stintStart === null || r.pit_lane) { this.stintStart = r.laps; this.stint = []; }
-    if (p && r.sector > p.sector) { // ACC's exact sector time; the frame's lap time is up to a frame late, so it is the fallback
+    if (p && r.sector > p.sector) {
       const at = (this.splits.length ? this.splits[this.splits.length - 1]! : 0) + r.last_sector_ms;
       this.secPos.push(r.track_pos);
-      const n = (r.sectors || 3) - 1; // the line a jump of more than one sector crossed is not known
+      const n = (r.sectors || 3) - 1;
       if (r.sector === p.sector + 1 && p.sector < n) {
         this.secAt[p.sector] = r.track_pos;
         if (Array.from({ length: n }, (_, i) => this.secAt[i]).every((v) => v !== undefined)) this.secKept = this.secAt.slice(0, n);
@@ -171,18 +166,15 @@ export class Telemetry {
     };
   }
 
-  /** Our own figure, the last three green laps, once there are any; ACC's estimate until then. */
   fuelPerLap(r: Rec): number {
     const l = this.lapFuel.slice(-3);
     return l.length ? sum(l) / l.length : r.fuel_per_lap;
   }
 
-  /** Session time so far, ms: from broadcasting when the field is live, else the longest time-left seen minus now. */
   private elapsed(r: Rec): number {
     return this.raceT !== null ? this.raceT : this.sessLen - r.time_left;
   }
 
-  // ---------- the log ----------
   private edgeEvent(key: string, on: boolean, sev: number, cat: string, text: string): void {
     if (on && !this.edge[key]) this.events.push([sev, cat, text]);
     this.edge[key] = on;
@@ -205,7 +197,6 @@ export class Telemetry {
     });
   }
 
-  // ---------- pit stops, measured ----------
   private pits(r: Rec, p: Rec, now: number): void {
     if (r.pit_lane && !p.pit_lane) {
       this.events.push([0, "PIT", `Pit lane in, L${r.laps + 1}`]);
@@ -217,7 +208,7 @@ export class Telemetry {
       this.stop = null;
       const laneMs = Math.trunc((now - st.t) * 1000), boxMs = Math.trunc(st.box * 1000);
       this.events.push([0, "PIT", `Pit lane out, lane ${(laneMs / 1000).toFixed(1)} s`]);
-      if (boxMs > 0) { // stopped in the box; a drive-through is not a stop
+      if (boxMs > 0) {
         const added = Math.max(0, r.fuel - st.fuel);
         const rec = { lap: st.lap, t_ms: st.t_ms, lane_ms: laneMs, box_ms: boxMs, loss_ms: null as number | null, fuel_added_l: added,
           set_before: st.set, set_after: r.tyre_set, tyres: r.tyre_set !== st.set };
@@ -229,20 +220,19 @@ export class Telemetry {
     }
   }
 
-  // ---------- laps ----------
   private sample(r: Rec, now: number): void {
     const p = r.track_pos, x = r.xyz[0], z = r.xyz[2];
     const last = this.line[this.line.length - 1];
-    if ((x || z) && last) { // a jump (garage, reset): the lap is no longer whole. Farther than the car could go since the last frame
+    if ((x || z) && last) {
       const d = Math.hypot(last[0]! - x, last[1]! - z), dt = Math.max(1 / 30, now - (this.tPrev ?? now));
       if (d > 60 && d > (r.speed / 3.6) * dt * 1.5 + 20) { this.cur = []; this.line = []; }
     }
     const c = this.cur;
-    if (!c.length || p > c[c.length - 1]!.p) { // position must advance; drops jitter and the wrap after the line
+    if (!c.length || p > c[c.length - 1]!.p) {
       c.push({ p, t: r.cur_ms, speed: r.speed, thr: r.gas, brk: r.brake, steer: r.steer, gear: r.gear - 1, rpm: r.rpm, glat: r.acc_g[0], glon: r.acc_g[2], tc: r.tc_on, abs: r.abs_on });
     }
     const l2 = this.line[this.line.length - 1];
-    if ((x || z) && (!l2 || Math.hypot(l2[0]! - x, l2[1]! - z) > 1.5)) this.line.push([x, z, p]); // p: ACC's lap fraction here
+    if ((x || z) && (!l2 || Math.hypot(l2[0]! - x, l2[1]! - z) > 1.5)) this.line.push([x, z, p]);
   }
 
   private lapDone(r: Rec, p: Rec, ext: Rec): void {
@@ -253,7 +243,7 @@ export class Telemetry {
     const a = [0, ...this.splits], b = [...this.splits, ms];
     const sectors = whole && ms > 0 ? b.map((v, i) => v - a[i]!) : [];
     const green = !p.pit_lane && !r.pit_lane && this.fuelAtLine !== null;
-    const used = green && (this.fuelAtLine as number) - p.fuel > 0.2 ? (this.fuelAtLine as number) - p.fuel : null; // no refuel in the lap
+    const used = green && (this.fuelAtLine as number) - p.fuel > 0.2 ? (this.fuelAtLine as number) - p.fuel : null;
     if (used !== null) { this.lapFuel.push(used); lines.push([0, `Used ${used.toFixed(2)} L`]); }
     if (!p.valid) lines.push([1, "Lap invalid: track limits"]);
     else if (0 < ms && (this.best === null || ms < this.best)) { this.best = ms; lines.push([0, "Best lap so far"]); }
@@ -265,16 +255,16 @@ export class Telemetry {
     this.debrief.unshift({ lap_number: n, lap_time_ms: ms, sectors_ms: sectors, lines: lines.map(([s, t]) => ({ severity: s, text: t })) });
     this.debrief.length = Math.min(this.debrief.length, 3);
     const usedR = used !== null ? Math.round(used * 100) / 100 : null;
-    if (!r.pit_lane && ms > 0) { // the stint so far, for the degradation and brake wear modules
+    if (!r.pit_lane && ms > 0) {
       this.stint.push({ n, ms, valid: !!p.valid, pads: r.pad, fuel: usedR });
       if (this.stint.length > 60) this.stint.splice(0, this.stint.length - 60);
     }
-    if (ms > 0) { // OUT: began in the pit lane; IN: went into it
+    if (ms > 0) {
       const item: Rec = { n, ms, s: sectors, valid: !!p.valid, fuel: usedR, out: this.lapStartPit, in: this.lapSawPit && !this.lapStartPit,
         stint: this.stintNo, set: r.tyre_set, wet: !!r.rain_tyres, fuel_end: r.fuel, pos: r.position, gap: ext.gap_ms ?? null,
         psi: [...r.pressure], core: [...r.core_temp], track_c: r.road, trace: false };
       const c = this.cur;
-      if (c.length > 60 && c[0]!.p < 0.1 && c[c.length - 1]!.p > 0.9) { // only whole laps: a part lap cannot be compared
+      if (c.length > 60 && c[0]!.p < 0.1 && c[c.length - 1]!.p > 0.9) {
         this.traces.set(n, { ms, valid: item.valid, ch: resample(c, ms), line: this.line, sec: this.secPos });
         item.trace = true;
       }
@@ -284,7 +274,7 @@ export class Telemetry {
       this.lapsVer++;
       this.events.push([item.valid ? 0 : 1, "LAP", `Lap ${n} ${fmtLap(ms)}` + (item.valid ? "" : " (invalid)")]);
     }
-    if (this.pending && n >= this.pending.out) { // the out-lap is done: what the stop cost against the pace at the time
+    if (this.pending && n >= this.pending.out) {
       const pd = this.pending;
       this.pending = null;
       const by = new Map<number, number>(this.laps.map((l) => [l.n, l.ms]));
@@ -299,7 +289,6 @@ export class Telemetry {
     this.cur = []; this.line = [];
   }
 
-  /** Keep the last 40 traced laps and the best valid one. */
   private pruneTraces(): void {
     const ok = this.laps.filter((l) => l.trace && l.valid);
     const keep = new Set([...this.traces.keys()].sort((a, b) => a - b).slice(-40));
@@ -308,17 +297,15 @@ export class Telemetry {
     this.laps = this.laps.map((l) => (l.trace && !this.traces.has(l.n) ? { ...l, trace: false } : l));
   }
 
-  /** The track layout worth keeping: the fastest valid whole lap's line (else the fastest whole lap's) and its sector lines, or null. */
   bestLayout(): Rec | null {
     const ts = [...this.traces].filter(([, t]) => t.line.length > 100).map(([n, t]) => [t.valid ? 0 : 1, t.ms, n] as const);
-    if (!ts.length) return this.secKept.length ? { sec: this.secKept.map((v) => Math.round(v * 1e5) / 1e5) } : null; // no whole lap yet: just the sectors
+    if (!ts.length) return this.secKept.length ? { sec: this.secKept.map((v) => Math.round(v * 1e5) / 1e5) } : null;
     const [inv, ms, n] = ts.reduce((m, x) => (x[0] < m[0] || (x[0] === m[0] && (x[1] < m[1] || (x[1] === m[1] && x[2] < m[2]))) ? x : m));
     const t = this.traces.get(n)!;
     const r5 = (v: number) => Math.round(v * 1e5) / 1e5, r1 = (v: number) => Math.round(v * 10) / 10;
     return { valid: !inv, ms, sec: (this.secKept.length ? this.secKept : t.sec).map(r5), line: t.line.map(([x, z, q]) => [r1(x!), r1(z!), r5(q!)]) };
   }
 
-  /** The field's final state of an earlier session, once the broadcast side has it. */
   attachField(id: number, field: Rec): void {
     const v = this.vault.get(id);
     if (!v) return;
@@ -327,7 +314,6 @@ export class Telemetry {
     this.lapsVer++;
   }
 
-  /** GET /lap?n=N (&s=ID for an earlier session): a whole lap's 400-point channels and its racing line, or null. */
   lapTrace(n: number, session?: number): Rec | null {
     const t = (session === undefined ? this.traces : this.vault.get(session)?.traces)?.get(n);
     if (!t) return null;
@@ -335,7 +321,6 @@ export class Telemetry {
     return { n, ms: t.ms, valid: t.valid, ch: Object.fromEntries(LCH.map((k) => [k, t.ch[k]!.map(r3)])), line: t.line.map(([x, z, p]) => [r1(x!), r1(z!), r5(p!)]) };
   }
 
-  // ---------- the summary ----------
   private ownPace(): number | null {
     return mean(this.laps.filter((l) => l.valid && !l.out && !l.in).slice(-3).map((l) => l.ms));
   }
@@ -346,7 +331,6 @@ export class Telemetry {
     return r.best_ms > 0 && r.best_ms < 3.6e6 ? [r.best_ms, "acc"] : [null, null];
   }
 
-  /** Mean hot pressure at the line over the last 3 green laps of this stint: what the next stop's correction is based on. */
   pressLine(r: Rec): Rec | null {
     const ls = this.laps.filter((l) => l.stint === this.stintNo && l.valid && !l.out && !l.in).slice(-3);
     if (!ls.length) return null;
@@ -375,7 +359,6 @@ export class Telemetry {
     return null;
   }
 
-  /** Every fuel, lap and stop figure the page shows. race: {leader_dist, leader_pace_ms, mode, elapsed_ms} from the field, or null. */
   strategy(r: Rec, race: Rec | null = null): Rec {
     const cfg = this.config.strategy;
     if (race && race.elapsed_ms != null) this.raceT = race.elapsed_ms;
@@ -391,9 +374,8 @@ export class Telemetry {
     else { ref = refSrc = null; }
     const my = own || ref;
 
-    // ACC's shared memory has no race lap count, so there is no "laps" source yet
     let finish: number | null = null, src: string | null = null;
-    if (r.session !== 2) { /* practice and qualifying: no flag to plan fuel for, only the fuel-limited box lap */ }
+    if (r.session !== 2) {  }
     else if (cfg.laps_override) { finish = done + cfg.laps_override; src = "override"; }
     else if (r.time_left > 0 && ref) {
       const dflag = ceil(dl + r.time_left / ref);
@@ -406,7 +388,7 @@ export class Telemetry {
       save_lpl: null, pit_window: null, mandatory_left: null, reserve_laps: reserve, options: [], rejoin: null };
     let fuelStops = 0;
 
-    const addAt = (lap: number): number => { // fuel to put in when boxing at the end of `lap`: to the flag, capped by the tank space there
+    const addAt = (lap: number): number => {
       const left = Math.max(0, fuel - (lap - dme) * fpl);
       return Math.min(Math.max(0, ((finish as number) - lap + reserve) * fpl - left), cap - left);
     };
@@ -438,8 +420,6 @@ export class Telemetry {
       st.pit_window = { open_lap: atLap(o), close_lap: atLap(c as number), src: wsrc };
     }
     const pw = st.pit_window, ml: number = st.mandatory_left || 0;
-    // a stop outside the pit window does not count as the mandatory one: a fuel stop forced before the window opens
-    // leaves every mandatory stop still to make inside it
     const early = !!(ml && pw && fuelStops && st.box_by_lap !== null && st.box_by_lap < pw.open_lap);
     const stintStops = 0 <= r.stint_left && r.stint_left < r.time_left ? 1 : 0;
     const terms: [string, number][] = [["fuel", fuelStops], ["fuel + mandatory", early ? ml + 1 : 0], ["mandatory", ml], ["stint", stintStops]];
@@ -462,7 +442,6 @@ export class Telemetry {
     };
 
     if (fpl > 0 && finish !== null) {
-      // one row per distinct lap: now, the last lap the fuel allows, and the window's opening lap when it is later
       const perStop = cap - reserve * fpl;
       const rows: [string, string, number][] = [];
       const seen = new Set<number>();
@@ -472,10 +451,10 @@ export class Telemetry {
       for (const [key, label, lap] of rows) {
         const add = addAt(lap);
         const left = Math.max(0, fuel - (lap - dme) * fpl);
-        const short = (finish - lap + reserve) * fpl - (left + add); // fuel still missing to the flag after this stop
+        const short = (finish - lap + reserve) * fpl - (left + add);
         let more = short <= 1e-6 ? 0 : perStop > 0 ? Math.ceil(short / perStop) : 1;
         const outside = !!(ml && pw && !(pw.open_lap <= lap && lap <= pw.close_lap));
-        more = Math.max(more, ml - (outside ? 0 : 1)); // the mandatory stops still owed after this one; a later fuel stop can be one
+        more = Math.max(more, ml - (outside ? 0 : 1));
         for (const ty of [false, true]) {
           const s = stationary(add, ty);
           st.options.push({ id: `${key}_${ty ? "ft" : "f"}`, label: `${label}, fuel${ty ? " + tyres" : ""}`, lap, add_l: add, stationary_s: s,
@@ -503,7 +482,7 @@ export class Telemetry {
   advice(r: Rec, st: Rec, pl: Rec | null, pen: Rec | null): { id: string; severity: number; text: string }[] {
     const th = this.th, out: [number, string, string][] = [], moving = r.speed > 60 && !r.pit_lane;
     const [lo, hi] = r.rain_tyres ? th.wet_psi : th.dry_psi;
-    if (pl) { // never the instant value: the mean at the line over green laps
+    if (pl) {
       for (const [aid, name, ix] of [["press_front", "Fronts", [0, 1]], ["press_rear", "Rears", [2, 3]]] as const) {
         const v = (pl.psi[ix[0]] + pl.psi[ix[1]]) / 2;
         if (!(lo <= v && v <= hi)) {

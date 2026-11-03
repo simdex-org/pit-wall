@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { drawingFrom, lineFromFastLane } from "../scripts/layout.mjs";
 
-// A fastlane.ai: header, then n records of nine doubles (x, y, z, distance, ...) 10 m apart, then garbage like the real file's second half.
 function fastLane(r = 300, junk = 40) {
   const n = Math.round((2 * Math.PI * r) / 10), buf = Buffer.alloc(16 + (n + junk) * 72);
   buf.writeInt32LE(8, 0); buf.writeInt32LE(n + junk, 4);

@@ -8,7 +8,6 @@ let pending: Pending | null = null;
 const subs = new Set<() => void>();
 const notify = () => subs.forEach((fn) => fn());
 
-/** A question with buttons; resolves to the chosen button's value, or null on Esc. */
 export function ask(text: string, buttons: Choice[] = [["ok", "OK", true], ["", "Cancel"]]): Promise<string | null> {
   return new Promise((resolve) => {
     pending?.done(null);
@@ -17,7 +16,6 @@ export function ask(text: string, buttons: Choice[] = [["ok", "OK", true], ["", 
   });
 }
 
-/** Mounted once: shows the question asked by ask(). */
 export function ConfirmHost() {
   const p = useSyncExternalStore((fn) => { subs.add(fn); return () => { subs.delete(fn); }; }, () => pending);
   const dlg = useRef<HTMLDialogElement>(null);

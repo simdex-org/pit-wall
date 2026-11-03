@@ -1,19 +1,13 @@
-// Corners of a track found from the laps themselves, and what the driver did in each one.
-// Bins are positions along the lap (NB of them). A bin number of NB or more is the same lap seen across the line, so a corner
-// near the finish can own the straight over it and the corner zones tile the lap exactly.
 import { LapData, NB } from "../../state/recorder";
 
 export const wrap = (u: number): number => (u < NB ? u : u - (NB - 1));
-/** Time at an unwrapped bin: the line is bin 0 and bin NB - 1. */
 export const timeAt = (d: LapData, u: number): number => (u < NB ? d.t[u]! : d.t[NB - 1]! + d.t[u - (NB - 1)]!);
 export const binMOf = (len: number): number => (len > 0 ? len / (NB - 1) : 12.5);
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
 export interface Corner {
   n: number;
-  /** The first slowest point (a chicane has several) and the one the corner is known by. */
   lead: number; apex: number;
-  /** The zone this corner owns: from just before its braking to just before the next corner's. */
   start: number; end: number;
   vApex: number; cls: "slow" | "medium" | "fast";
 }
@@ -22,7 +16,6 @@ const smooth3 = (a: Float32Array): Float32Array => a.map((_, i) => (a[Math.max(0
 const median = (xs: number[]): number => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[(s.length - 1) >> 1]! : 0; };
 const pct = (xs: number[], q: number): number => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(q * (s.length - 1))] ?? 0; };
 
-/** The slowest points of one lap: a dip of 10 km/h and 6 % against the faster stretches on both sides. */
 function apexes(d: LapData, win: number, far: number): number[] {
   const v = smooth3(d.speed), out: number[] = [];
   for (let i = 2; i < NB - 2; i++) {
@@ -39,7 +32,6 @@ function apexes(d: LapData, win: number, far: number): number[] {
   return out;
 }
 
-/** Where braking (or, with no brake, the speed drop) begins before a slowest point, searching back no further than `lo`. */
 function entryBin(d: LapData, lo: number, apex: number): { e: number; braked: boolean } {
   let end = -1, start = -1;
   for (let u = apex + 2; u >= lo; u--) {
@@ -51,10 +43,6 @@ function entryBin(d: LapData, lo: number, apex: number): { e: number; braked: bo
   return { e: i, braked: false };
 }
 
-/**
- * The corners of a track from several laps (best first): slowest points seen in at least half of them, chicanes joined, and the
- * zone of each corner cut where the laps are still at speed before the next braking.
- */
 export function findCorners(laps: LapData[], binM: number): Corner[] {
   if (!laps.length) return [];
   const win = clamp(Math.round(90 / binM), 3, 8), far = clamp(Math.round(500 / binM), 20, 60), tol = Math.max(4, win);
@@ -65,7 +53,7 @@ export function findCorners(laps: LapData[], binM: number): Corner[] {
   for (const b of seen) { const g = groups[groups.length - 1]; if (g && b - g[g.length - 1]! <= tol) g.push(b); else groups.push([b]); }
   const need = Math.ceil(laps.length / 2), v0 = smooth3(laps[0]!.speed), gap = Math.max(25, Math.round(300 / binM));
   const cs = groups.filter((g) => g.length >= need).map((g) => { const m = median(g); return { apex: m, lead: m }; });
-  for (let k = 0; k + 1 < cs.length; ) { // slowest points close together with no real straight between them are one corner
+  for (let k = 0; k + 1 < cs.length; ) {
     const a = cs[k]!, b = cs[k + 1]!;
     let top = 0;
     for (let i = a.apex; i <= b.apex; i++) top = Math.max(top, v0[i]!);
@@ -88,7 +76,6 @@ export interface Metrics {
   gLat: number | null; steerPerG: number | null; tcM: number | null; absM: number | null;
 }
 
-/** What one lap did in one corner's zone. */
 export function measure(d: LapData, c: Corner, binM: number): Metrics {
   const W = Math.max(4, Math.round(90 / binM)), v = (u: number) => d.speed[wrap(u)]!, thr = (u: number) => d.thr[wrap(u)]!, brk = (u: number) => d.brk[wrap(u)]!;
   const { e, braked } = entryBin(d, c.start, c.lead);
@@ -114,7 +101,7 @@ export function measure(d: LapData, c: Corner, binM: number): Metrics {
   let sp = 0;
   for (let u = a - 6; u <= a + 6; u++) sp = Math.max(sp, Math.abs(d.steer[wrap(Math.max(0, u))]!));
   for (let u = a; u < x; u++) st += Math.abs(d.steer[wrap(u + 1)]! - d.steer[wrap(u)]!);
-  st = Math.max(0, st - Math.abs(d.steer[wrap(a)]! - d.steer[wrap(x)]!)); // what is left once the one smooth movement is taken out: the corrections
+  st = Math.max(0, st - Math.abs(d.steer[wrap(a)]! - d.steer[wrap(x)]!));
   let gl: number | null = null;
   if (d.glat) { gl = 0; for (let u = a - 4; u <= a + 4; u++) gl = Math.max(gl, Math.abs(d.glat[wrap(Math.max(0, u))]!)); }
   return {

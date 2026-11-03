@@ -1,7 +1,5 @@
-/** U+2212, the minus sign every figure uses. */
 export const MINUS = "−";
 
-/** What a missing value shows. An en dash, so it never reads as a minus sign. */
 export const NONE = "–";
 
 const finite = (v: number | null | undefined): v is number => v != null && Number.isFinite(v);
@@ -17,7 +15,6 @@ export const fmtLap = (ms: number | null | undefined): string => {
 export const fmtSector = (ms: number | null | undefined): string =>
   !okMs(ms) ? NONE : ms >= 60000 ? fmtLap(ms) : (ms / 1000).toFixed(3);
 
-/** Lap and sector deltas: unsigned zero inside half a millisecond, otherwise signed with a real minus. */
 export const fmtDelta = (ms: number | null | undefined): string =>
   !finite(ms) ? NONE : Math.abs(ms) < 0.5 ? "0.000" : (ms > 0 ? "+" : MINUS) + (Math.abs(ms) / 1000).toFixed(3);
 
@@ -36,7 +33,6 @@ export const fmtAgo = (ms: number | null | undefined): string =>
 export const signed = (v: number | null | undefined, d: number): string =>
   !finite(v) ? NONE : (v > 0 ? "+" : v < 0 ? MINUS : "") + Math.abs(v).toFixed(d);
 
-/** The one rule for the time between two cars: unsigned, the direction is carried by the row or the word. */
 export const fmtRel = (ms: number | null | undefined, d?: number): string =>
   !finite(ms) ? NONE : (Math.abs(ms) / 1000).toFixed(d ?? (Math.abs(ms) < 10000 ? 2 : 1));
 

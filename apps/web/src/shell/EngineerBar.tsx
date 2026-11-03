@@ -15,7 +15,7 @@ function beep(): void {
     o.frequency.value = 880; g.gain.value = 0.08;
     o.connect(g); g.connect(audio.destination);
     o.start(); o.stop(audio.currentTime + 0.18);
-  } catch { /* no audio device */ }
+  } catch {  }
 }
 
 export function EngineerBar({ open, onToggle }: { open: boolean; onToggle: (on?: boolean) => void }) {
@@ -26,7 +26,6 @@ export function EngineerBar({ open, onToggle }: { open: boolean; onToggle: (on?:
   const w = adv[0];
   const seen = useRef<{ ids: Set<string>; summary: boolean }>({ ids: new Set(), summary: false });
 
-  // A new critical line sounds once.
   useEffect(() => {
     if (!c.s) return;
     const ids = new Set(adv.map((a) => a.id || a.text));

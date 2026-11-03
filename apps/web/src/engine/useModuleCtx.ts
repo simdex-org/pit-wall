@@ -20,7 +20,6 @@ const FEED: Partial<Record<Channel, (c: Ctx) => unknown[]>> = {
 
 const AUX = new Set<Channel>(["sel", "rec", "tick", "units", "theme", "resize"]);
 
-/** Everything a module reads, as one flat list that changes identity-wise exactly when the module has something new to draw. */
 function signature(channels: Channel[], c: Ctx): unknown[] {
   const out: unknown[] = [];
   for (const ch of channels) {
@@ -32,10 +31,6 @@ function signature(channels: Channel[], c: Ctx): unknown[] {
 
 const same = (a: unknown[], b: unknown[]): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
 
-/**
- * The context a module draws from: the latest one, handed over only when a channel the module needs (or waits for) changed,
- * and never faster than the module's own rate. This is the page's whole render scheduler.
- */
 export function useModuleCtx(def: ModuleDef): Ctx {
   const [ctx, setCtx] = useState<Ctx>(feed.get);
   const channels = useRef<Channel[]>([]);

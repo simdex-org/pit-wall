@@ -1,4 +1,3 @@
-// One corner's zone, benchmark against subject: speed over the throttle and brake.
 import { wrap } from "../lib/coach/measure";
 import type { LapData } from "../state/recorder";
 import { fitCanvas, tokens } from "./canvas";

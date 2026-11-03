@@ -1,4 +1,3 @@
-// Each mounted module reports [level, count]; the workspace tabs show the worst of their own workspace.
 import { useSyncExternalStore } from "react";
 
 const alerts = new Map<string, [number, number]>();

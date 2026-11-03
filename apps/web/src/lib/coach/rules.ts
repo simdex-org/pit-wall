@@ -1,27 +1,19 @@
-// Why a corner was slower: one rule per cause. A rule reads the benchmark's and the subject's measurements in the corner and,
-// when the difference is larger than the noise, names it with the numbers, a tip and a short phrase.
 import type { Metrics } from "./measure";
 
 export type Phase = "entry" | "mid" | "exit" | "straight";
 
 export interface RuleIn {
   r: Metrics; s: Metrics; binM: number;
-  /** Metres the subject's line lies outside the benchmark's at the slowest point (negative: inside); null without both lines. */
   line: number | null;
-  /** The time the subject lost in the middle and on the way out: a later brake that cost more than it gave. */
   laterLoss: number;
-  /** Speed in the user's unit. */
   sp: (kmh: number) => number; su: string;
 }
 
 export interface Cause {
   id: string; phase: Phase;
-  /** How many times over its threshold the difference is; at least 1. */
   ratio: number;
   text: string; tip: string; short: string;
-  /** The measured quantity and its unit (metres, speed or percent) for patterns and the next lap's check. */
   val: number; unit: string; metric: (m: Metrics) => number;
-  /** Not something the driver did: drafting, wind, fuel. */
   external?: boolean;
 }
 
@@ -128,8 +120,7 @@ export const RULES: Rule[] = [
 
 export function causesOf(i: RuleIn): Cause[] {
   const all = RULES.map((f) => f(i)).filter((c): c is Cause => c != null);
-  // A slow exit speed is the result of whatever came before it; it is a cause only when nothing else was found.
   const late = (i.s.p - i.r.p) * i.binM, coastD = i.s.coastM - i.r.coastM;
-  const keep = all.filter((c) => !(c.id === "coast" && all.some((k) => k.id === "late-throttle") && coastD <= 1.2 * late) && !(c.id === "unused-grip" && all.some((k) => k.id === "low-min"))); // the gap before a late throttle is the same metres
+  const keep = all.filter((c) => !(c.id === "coast" && all.some((k) => k.id === "late-throttle") && coastD <= 1.2 * late) && !(c.id === "unused-grip" && all.some((k) => k.id === "low-min")));
   return keep.some((c) => c.phase !== "straight") ? keep.filter((c) => c.id !== "exit-speed") : keep;
 }

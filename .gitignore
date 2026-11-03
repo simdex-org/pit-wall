@@ -1,9 +1,7 @@
 node_modules/
-CLAUDE.md
 dist/
 target/
 *.tsbuildinfo
-graphify-out/
 data/tracks/
 data/update/
 apps/launcher/src-tauri/resources/

@@ -1,11 +1,9 @@
-// The coach's report for the laps picked as REF and CMP, worked out once and shared by the coach, the lap map and the traces.
 import { cornerNames, tracksLoaded, wholeLine } from "../draw/map";
 import type { Ctx } from "../feed/store";
 import { buildReport, CoachLap, pointAt, Report } from "../lib/coach/report";
 import { NB, recorder } from "./recorder";
 import type { Sel } from "./selection";
 
-/** "lap": the CMP lap against REF. "best": the lap against the best of each corner over the session. */
 export type CoachMode = "lap" | "best";
 
 let memo: { key: string; out: Report | { msg: string } } | null = null;

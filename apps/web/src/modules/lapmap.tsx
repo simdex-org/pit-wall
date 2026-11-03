@@ -23,7 +23,7 @@ function LapMapCanvas({ id, a }: { id: string; a: LapMapIn }) {
   useEffect(() => { paint.current(); });
   useEffect(() => {
     views.set(id, view.current);
-    const off = bindMapControls(cv.current!, view.current, () => paint.current(), (x, y) => { // a click picks the corner under the pointer; one off the line clears it
+    const off = bindMapControls(cv.current!, view.current, () => paint.current(), (x, y) => {
       const f = hit.current?.(x, y), u = f == null ? null : f * (NB - 1), k = u == null ? null : args.current.report?.corners.find((q) => (u >= q.corner.start && u < q.corner.end) || (q.corner.end > NB - 1 && u < q.corner.end - (NB - 1)));
       selection.setCorner(k && selection.get().corner !== k.corner.n ? k.corner.n : null);
     });
@@ -50,7 +50,6 @@ function LapMapTools({ id }: { id: string }) {
   );
 }
 
-/** A lap's own racing line when it drove one whole; imported laps have none. */
 const lineOf = (l: RecLap | null) => (l && l.src !== "import" ? wholeLine(recorder.lines.find((x) => x.n === l.n)?.pts as number[][] | undefined) : null);
 
 const TOGGLES: [string, string][] = [["corners", "Corners"], ["brakes", "Brake points"], ["slowest", "Slowest points"], ["cmpLine", "CMP line"]];
@@ -70,7 +69,6 @@ export const lapMap = defineModule({
   view({ ctx: c, opts, id }) {
     const sel = useSelection();
     const p = usePrefs();
-    // The bar over the map changes the view only; the options set what a new map starts with.
     const [ov, setOv] = useState<Record<string, unknown>>({});
     const o = { ...opts, ...ov };
     const [, bump] = useReducer((n: number) => n + 1, 0);

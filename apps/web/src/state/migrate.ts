@@ -1,4 +1,3 @@
-// Carries over what the first page version kept in this browser (engineer.*), once.
 import { registry } from "../engine/registry";
 import type { Ctx } from "../feed/store";
 import { clamp } from "../lib/format";
@@ -14,7 +13,6 @@ import { freeSpot, ModuleInstance, sanitize, SCHEMA } from "./templates";
 
 const OLD_TH_DEF = { psiMin: 26.0, psiMax: 27.0, tMin: 65, tMax: 105, brakeMax: 750, padMin: 12, fuelLaps: 3 };
 
-/** The old page's boards and their closest modules. */
 const MAP: Record<string, string> = {
   timeline: "fuel-calc", fuel: "fuel", window: "race-plan", gaps: "battle", weather: "weather", tyres: "tyres", degradation: "degradation", brakes: "brakes",
   pitstop: "pit-plan", electronics: "electronics", damage: "damage",
@@ -26,7 +24,7 @@ function migrateBoard(board: unknown[], rows: string[] | null): void {
   const add = (type: string, w: number, h: number, hidden: boolean) => {
     const def = registry.get(type), s = def ? def.size : { minW: 1, minH: 1, w: 4, h: 6 };
     w = clamp(Math.round(+w) || s.w, s.minW, 12);
-    h = clamp(Math.max(s.minH, Math.round((h * 82 - 10 + 8) / 36)), 1, 60); // 72 px rows + 10 px gap became 28 px rows + 8 px gap
+    h = clamp(Math.max(s.minH, Math.round((h * 82 - 10 + 8) / 36)), 1, 60);
     const at = freeSpot(mods, w, h);
     const used = new Set(mods.map((m) => m.id));
     let id: string;
@@ -57,7 +55,6 @@ function migrateTheme(theme: unknown, accent: unknown): void {
   } else lsSet("pitwall.appearance", base);
 }
 
-/** Runs once, before the templates load: the old key, units, notes, pit plan, board and theme. */
 export function migrate(): void {
   const k = lsRaw("engineer.pitkey");
   if (k && !lsRaw("pitwall.pitkey") && !lsRaw("pitwall.migrated")) { lsSet("pitwall.pitkey", k); accessKey.value = accessKey.value || k; }
@@ -86,7 +83,6 @@ export function migrate(): void {
 export type OldThresholds = typeof OLD_TH_DEF;
 export const oldThresholds = (): OldThresholds | null => { const o = lsGet<unknown>("pitwall.oldThresholds", null); return isObj(o) ? (o as OldThresholds) : null; };
 
-/** Send the old thresholds to the bridge as GT3's, or forget them. Nothing is sent unasked. */
 export async function resolveOldThresholds(send: boolean, c: Ctx): Promise<boolean> {
   const o = oldThresholds();
   if (send && o) {

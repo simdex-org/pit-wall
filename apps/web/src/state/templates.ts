@@ -1,6 +1,3 @@
-// Templates: named sets of workspaces (tabs) of module instances. Built-ins are read-only data; the user's own live in
-// localStorage. sanitize() rebuilds any template from scratch, copying only known keys; it is used for imports, for stored
-// templates on load and to check the built-ins at start.
 import { registry } from "../engine/registry";
 import type { ModuleDef, OptionDef } from "../engine/types";
 import { clamp } from "../lib/format";
@@ -22,7 +19,6 @@ export interface Template {
 export const SCHEMA = 1;
 export const isBuiltin = (id: string | null | undefined): boolean => /^builtin-/.test(id ?? "");
 
-// ---------- overlaps ----------
 const occupied = (mods: ModuleInstance[], skip?: ModuleInstance): Set<number> => {
   const g = new Set<number>();
   for (const m of mods) if (m !== skip) for (let y = m.y; y < m.y + m.h; y++) for (let x = m.x; x < m.x + m.w; x++) g.add(y * 12 + x);
@@ -33,7 +29,6 @@ const fits = (g: Set<number>, x: number, y: number, w: number, h: number): boole
   return true;
 };
 
-/** A later module moves down to the first free row, in input order. No gravity otherwise. */
 export function resolveOverlaps(mods: ModuleInstance[], fix: () => void): void {
   const placed: ModuleInstance[] = [];
   for (const m of mods) {
@@ -48,14 +43,12 @@ export function resolveOverlaps(mods: ModuleInstance[], fix: () => void): void {
   }
 }
 
-/** First free spot of a size, scanning y then x; below everything when the grid is full above row 200. */
 export function freeSpot(mods: ModuleInstance[], w: number, h: number): { x: number; y: number } {
   const g = occupied(mods);
   for (let y = 0; y + h <= 200; y++) for (let x = 0; x + w <= 12; x++) if (fits(g, x, y, w, h)) return { x, y };
   return { x: 0, y: mods.reduce((a, m) => Math.max(a, m.y + m.h), 0) };
 }
 
-// ---------- sanitising ----------
 export function sanitizeOptions(def: ModuleDef, raw: unknown, fix: () => void): Record<string, any> { // eslint-disable-line @typescript-eslint/no-explicit-any
   const o: Record<string, any> = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
   const src: Record<string, any> = isObj(raw) ? raw : {}; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -90,7 +83,6 @@ export function sanitizeOptions(def: ModuleDef, raw: unknown, fix: () => void): 
   return o;
 }
 
-/** A type this version does not know: plain values are kept, so nothing is lost if it comes back. */
 function looseOptions(raw: unknown): Record<string, any> { // eslint-disable-line @typescript-eslint/no-explicit-any
   const o: Record<string, any> = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
   if (isObj(raw)) {
@@ -118,7 +110,7 @@ function sanitizeModule(m: Record<string, any>, def: ModuleDef | undefined, mids
   const x0 = int(m.x, 0, 11, 0);
   const minW = Math.min(size.minW, 12);
   let x = x0;
-  if (x + minW > 12) { x = 12 - minW; fix(); } // too far right for its minimum width: moved left, not squeezed
+  if (x + minW > 12) { x = 12 - minW; fix(); }
   const w = Math.min(int(m.w, minW, Math.min(12 - x, size.maxW ?? 12), size.w), 12 - x);
   const title = cleanText(m.title, 40);
   if (m.title !== undefined && title !== m.title) fix();
@@ -162,7 +154,7 @@ export function sanitize(raw: unknown, o: { keepUnknown?: boolean; keepAppearanc
     for (const m of mods) {
       const def = registry.get(m.type);
       if (!def && !(o.keepUnknown && typeof m.type === "string" && /^[a-z][a-z0-9-]{1,23}$/.test(m.type))) { dropped.push(String(m.type).slice(0, 24)); continue; }
-      if (def && def.multi === false && out.some((x) => x.type === m.type)) { fix(); continue; } // once per workspace (notes, pit plan share state)
+      if (def && def.multi === false && out.some((x) => x.type === m.type)) { fix(); continue; }
       const r = sanitizeModule(m, def, mids, fix);
       mids.add(r.id);
       out.push(r);
@@ -171,16 +163,14 @@ export function sanitize(raw: unknown, o: { keepUnknown?: boolean; keepAppearanc
     return { id: wid, name: wname, modules: out };
   });
   if (!t.workspaces.length) { t.workspaces = [{ id: "w-workspace", name: "Workspace", modules: [] }]; fix(); }
-  if (o.keepAppearance && isObj(raw.appearance)) t.appearance = raw.appearance; // checked by the appearance sanitiser before any use
+  if (o.keepAppearance && isObj(raw.appearance)) t.appearance = raw.appearance;
   return { t, dropped, fixed };
 }
 
-// ---------- storage ----------
 export class TemplateStore {
   builtins: Template[] = [];
   items: Template[] = [];
 
-  /** Built-ins are normalised (defaults filled) once every module type has registered. */
   init(): void {
     this.builtins = BUILTIN_TEMPLATES.map((b) => {
       const strict = sanitize(b);
@@ -219,7 +209,6 @@ export class TemplateStore {
     return n;
   }
 
-  /** A user-owned deep copy; built-ins are never edited in place. `mem` lists it without storing it until it is saved. */
   fork(t: Template, name?: string, mem?: boolean): Template {
     const c = deep(t), now = new Date().toISOString();
     c.id = newId("t-");

@@ -1,4 +1,3 @@
-// Validation of a pit plan from the network.
 import { isObj, Rec, ValueError } from "../util.js";
 
 export const GROUPS = ["fuel", "tyres", "pressures", "brakes", "repairs"] as const;
@@ -8,9 +7,7 @@ export interface Plan {
   fuel: number; tyres: boolean; compound: "dry" | "wet"; tyre_set: number; pressures: number[];
   brakes: boolean; front_pad: number; rear_pad: number; repair_suspension: boolean; repair_bodywork: boolean;
   only: (typeof GROUPS)[number][];
-  /** The pads the page last sent, for when the bridge has no memory of its own (it restarted). */
   pads_from: [number, number] | null;
-  /** The repair ticks the page last sent (suspension, bodywork), for the same reason. */
   repairs_from: [boolean, boolean] | null;
 }
 
@@ -22,8 +19,6 @@ const psi = (v: unknown): number => {
   return Math.round(v * 10) / 10;
 };
 
-/** Validate a plan from the network. Throws ValueError. `only` lists the groups to send (all when absent);
- * fields of groups not sent are not needed. */
 export function cleanPlan(raw: unknown): Plan {
   if (!isObj(raw)) throw new ValueError("plan must be an object");
   const only0 = "only" in raw ? raw.only : [...GROUPS];

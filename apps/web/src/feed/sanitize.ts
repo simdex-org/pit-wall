@@ -1,5 +1,3 @@
-// Strings from the feed end up in the page, so only these keys may stay strings. Every other string becomes a number (NaN when
-// it is not one), which keeps text the bridge never meant to send out of the DOM.
 const TEXT_KEYS = new Set([
   "what", "from", "magic", "game", "driver", "app_version", "car_model", "track", "track_config", "driver_name", "kind", "status",
   "compound", "text", "id", "track_status", "car_class", "loc", "mode", "first", "last", "short", "team", "model_name", "class", "cup_name",

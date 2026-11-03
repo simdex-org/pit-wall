@@ -145,7 +145,6 @@ async fn bridge_tool(app: AppHandle, args: Vec<String>) -> Result<String, String
     .map_err(|e| e.to_string())?
 }
 
-/** Runs the downloaded installer, or swaps the portable exe for the new one and starts it; then closes. */
 #[tauri::command]
 fn apply_update(app: AppHandle, state: State<Bridge>, file: String) -> Result<(), String> {
     kill_bridge(&state);

@@ -10,7 +10,6 @@ const plans = [
   { fuel: 120, tyres: false, compound: "dry", tyre_set: 1, pressures: [27.0, 27.0, 27.0, 27.0], brakes: false, front_pad: 1, rear_pad: 1, repair_suspension: false, repair_bodywork: false },
 ];
 
-/** Every combination of the four optional rows. */
 const layouts: Layout[] = Array.from({ length: 16 }, (_, n) => ({
   tyres: !!(n & 8), wet: !!(n & 4), brakes: !!(n & 2), driver: !!(n & 1),
 }));
@@ -44,7 +43,7 @@ test("single blocks touch only their own rows", async () => {
       const res = await applyPlan(plan, m);
       const ctx = JSON.stringify({ layout, only });
       if (only.includes("fuel")) { expect(m.fuel, ctx).toBe(plan.fuel); expect(res.fuel, ctx).toBe("ok"); }
-      else { expect(m.fuel, ctx).toBe(before.fuel); expect(m.strat, ctx).toBe(0); } // the Strategy row is never stepped
+      else { expect(m.fuel, ctx).toBe(before.fuel); expect(m.strat, ctx).toBe(0); }
       if (only.includes("pressures")) { expect(m.p, ctx).toEqual(plan.pressures); expect(m.s.tyres, ctx).toBe(true); }
       else expect(m.p, ctx).toEqual(before.p);
       if (only.includes("brakes")) {
@@ -99,7 +98,7 @@ test("repairs reach any of the three states from any other in one press", async 
     expect(m.repair, `${a} to ${b}`).toEqual([...b]);
     expect(m.presses - before, `${a} to ${b}`).toBeLessThanOrEqual(8);
   }
-  for (const start of states) { // whatever the screen shows, the state asked for is reached
+  for (const start of states) {
     const m = new FakeMfd(); m.repair = [...start];
     await applyPlan(cleanPlan({ ...plans[0], only: ["repairs"], repair_suspension: true, repair_bodywork: true }), m);
     expect(m.repair, `from ${start}`).toEqual([true, true]);
@@ -128,6 +127,6 @@ test("bad plans are refused", () => {
   const bad = [{}, { ...plans[0], only: ["everything"] }, { ...plans[0], only: [] }, { ...plans[0], fuel: -1 }, { ...plans[0], pressures: [27, 27, 27] },
     { ...plans[0], compound: "slick" }, { ...plans[0], front_pad: true }, { ...plans[0], repair_bodywork: "yes" }];
   for (const b of bad) expect(() => cleanPlan(b), JSON.stringify(b)).toThrow(ValueError);
-  expect(cleanPlan({ only: ["fuel"], fuel: 30 }).fuel).toBe(30); // a fuel-only plan needs no tyre fields
+  expect(cleanPlan({ only: ["fuel"], fuel: 30 }).fuel).toBe(30);
   expect(cleanPlan(plans[0]).only).toEqual([...GROUPS]);
 });

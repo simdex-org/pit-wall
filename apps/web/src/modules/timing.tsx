@@ -14,20 +14,16 @@ import { Delta } from "./delta";
 
 const R = ({ k, children, cls }: { k: ReactNode; children: ReactNode; cls?: string }) => <div className="r"><span>{k}</span><span className={cls}>{children}</span></div>;
 
-// ---------- standings ----------
 const SCOLS: [string, string][] = [["car", "Car"], ["cup", "Cup"], ["laps", "Laps"], ["gap", "Gap"], ["int", "Int"], ["last", "Last"], ["best", "Best"], ["sectors", "S1–S3 of the last lap"],
   ["pits", "Pits"], ["stint", "Stint"], ["net", "Net position"], ["deltaMe", "Δ to my best"]];
-/** Dropped first when the width runs out; gap and position stay. */
 const DROP_ORDER = ["car", "sectors", "deltaMe", "best", "stint", "pits", "net", "last", "int"];
 
 const dash = <>{NONE}</>;
 
-/** The last-lap cell: ◆ session best (purple), ● personal best (green), struck through when invalid. */
 function LapCell({ x, sb }: { x: Car; sb: number | undefined }) {
   const v = x.last;
   if (!okMs(v)) return dash;
   if (x.last_valid === false) return <span className="iv">{fmtLap(v)}</span>;
-  // The personal-best mark waits for a few laps: early on nearly every lap is the car's best.
   if (v === sb) return <span className="b">◆ {fmtLap(v)}</span>;
   if (v === x.best && (x.laps ?? 0) >= 3) return <span className="p">● {fmtLap(v)}</span>;
   return <>{fmtLap(v)}</>;
@@ -52,7 +48,6 @@ function StandingsTable({ c, o, rows, cup, mine, race, cursor }: { c: Ctx; o: St
 
   let show: (Car | null)[] = rows;
   if (o.around > 0 && mine) {
-    // The rows around the car are a minimum: the room the module has is filled outward from it.
     const body = wrap.current?.parentElement;
     const fit = Math.max(1, Math.floor((body?.clientHeight ?? 400) / (parseFloat(getComputedStyle(wrap.current ?? document.body).getPropertyValue("--row")) || 24)) - 1);
     const k = rows.indexOf(mine);
@@ -65,7 +60,6 @@ function StandingsTable({ c, o, rows, cup, mine, race, cursor }: { c: Ctx; o: St
   const cols = o.cols.filter((k) => SCOLS.some(([id]) => id === k) && (k !== "net" || net) && !drop.set.includes(k));
   const wkey = `${wrap.current?.parentElement?.clientWidth ?? 0}|${o.cols.join()}`;
 
-  // Columns that do not fit are dropped, least useful first.
   useLayoutEffect(() => {
     const body = wrap.current?.parentElement;
     if (!body) return;
@@ -94,7 +88,7 @@ function StandingsTable({ c, o, rows, cup, mine, race, cursor }: { c: Ctx; o: St
       case "gap": return <td>{x.pos === 1 ? NONE : gapF(x.gap, x.gap_laps)}</td>;
       case "int": return <td className="mu">{x.pos === 1 ? NONE : gapF(x.int, x.int_laps)}</td>;
       case "last": {
-        const inLap = x.last_pit_lap != null && x.laps === x.last_pit_lap + 1; // a slow in-lap, not a slow flying lap
+        const inLap = x.last_pit_lap != null && x.laps === x.last_pit_lap + 1;
         return <td><LapCell x={x} sb={sb} />{x.last_valid === false && okMs(x.last) ? <> <b className="tag n">INV</b></> : null}{okMs(x.last) && inLap ? <> <b className="tag n">IN</b></> : null}</td>;
       }
       case "best": return <td>{okMs(x.best) ? (x.best === sb ? <span className="b">◆ {fmtLap(x.best)}</span> : fmtLap(x.best)) : NONE}</td>;
@@ -165,7 +159,6 @@ export const standings = defineModule({
   },
 });
 
-// ---------- relative ----------
 
 function useGapRate(pairs: [string, number | null | undefined][], lapMs: number | null | undefined): Map<string, number> {
   const buf = useRef(new Map<string, [number, number][]>()).current;
@@ -192,7 +185,7 @@ export const relative = defineModule({
     const mine = c.me != null ? c.cars.get(c.me) : undefined;
     const others = [...c.cars.values()].filter((x) => x.i !== c.me && x.rel != null && isFinite(x.rel));
     const trend = useGapRate(others.map((x) => [`${x.i}${Math.sign(x.rel!)}`, Math.abs(x.rel!)]), mine?.last);
-    const rowPx = size.w >= 5 ? 27 : 21, N = Math.max(1, Math.min(opts.rows as number, Math.floor(((size.h * 28 - 48) / rowPx - 1) / 2))); // what fits the module, never more than asked
+    const rowPx = size.w >= 5 ? 27 : 21, N = Math.max(1, Math.min(opts.rows as number, Math.floor(((size.h * 28 - 48) / rowPx - 1) / 2)));
     const ahead = others.filter((x) => x.rel! > 0).sort((a, b) => a.rel! - b.rel!).slice(0, N).reverse();
     const behind = others.filter((x) => x.rel! < 0).sort((a, b) => b.rel! - a.rel!).slice(0, N);
     const fcar = c.focusCar;
@@ -201,7 +194,6 @@ export const relative = defineModule({
     const nav = useRowCursor(order);
     const ss = c.r!.session;
     if (!fieldOn(c) || !mine) {
-      // Field timing off: what shared memory knows, without names.
       return {
         info: "FIELD OFF", flush: true, body: (
           <table className="t">
@@ -254,11 +246,9 @@ export const relative = defineModule({
   },
 });
 
-// ---------- battle ----------
 const series = (hist: (number | null | undefined)[] | undefined, gap: number | null | undefined, gl: number): number[] =>
   (hist ?? []).filter((v): v is number => v != null && isFinite(v)).concat(!(gl > 0) && gap != null && isFinite(gap) ? [gap] : []);
 
-/** ms per lap the interval moves; negative means it is closing. */
 const rateOf = (h: number[]): number | null => (h.length < 2 ? null : (h[h.length - 1]! - h[0]!) / (h.length - 1));
 
 function Line({ h, col }: { h: number[]; col: string }) {
@@ -271,7 +261,6 @@ function Line({ h, col }: { h: number[]; col: string }) {
 function BattleCell({ label, car, gap, gl, hist, large, live }: { label: "Ahead" | "Behind"; car: Car | undefined; gap: number | null | undefined; gl: number; hist: (number | null | undefined)[] | undefined; large: boolean; live: number | undefined }) {
   if (!car) return <div className="c"><span className="lab">{label}</span><span className="mu">{label === "Ahead" ? "Leading." : "Last car."}</span></div>;
   const h = series(hist, gap, gl), rate = rateOf(h) ?? live ?? null, shown = rate != null && Math.abs(rate) >= 20;
-  // closing is good for the car ahead of you, bad for the car behind
   const closing = rate != null && rate < 0, good = shown && (closing === (label === "Ahead"));
   const trend = shown ? <span className={"v " + (good ? "dn" : "up")}>{closing ? "▼" : "▲"} {(Math.abs(rate!) / 1000).toFixed(2)} /lap</span> : null;
   if (!large) return <div className="c"><span className="lab">{label} {carNum(car)}</span><span className="big">{gl > 0 ? plural(gl, "lap") : fmtRel(gap).replace(/^[+−-]/, "")}</span>{trend}</div>;
@@ -320,7 +309,6 @@ export const battle = defineModule({
   },
 });
 
-// ---------- pit lane ----------
 interface Seen { t: number; partial: boolean }
 const NOW: Record<string, [string, string]> = { pit: ["IN BOX", "wn"], entry: ["IN LANE", "wn"], exit: ["IN LANE", "wn"] };
 
@@ -332,7 +320,6 @@ export const pitActivity = defineModule({
     const seen = useRef(new Map<number, Seen>()).current;
     const started = useRef(false);
     const list = sortedCars(c);
-    // Entry time is when this page saw the car leave the track; a car already in the lane at first sight is marked with ≥.
     for (const x of list) {
       const inL = x.loc !== "track" && x.loc !== "none", e = seen.get(x.i);
       if (inL && !e) seen.set(x.i, { t: F.t, partial: !started.current }); else if (!inL && e) seen.delete(x.i);
@@ -341,7 +328,6 @@ export const pitActivity = defineModule({
     const large = size.w >= 4 && size.h >= 7;
     const now = list.filter((x) => x.loc === "pit" || x.loc === "entry" || x.loc === "exit");
     const stops = list.reduce((a, x) => a + (x.pits || 0), 0);
-    // The small module lists only who is in the lane; the large one the cars that are in it first, then those that have stopped.
     const rows = large ? now.concat(list.filter((x) => !now.includes(x) && (x.pits ?? 0) > 0).sort((a, b) => (b.last_pit_lap ?? 0) - (a.last_pit_lap ?? 0) || a.pos - b.pos)) : now;
     const nav = useRowCursor(rows.map((x) => x.i));
     if (!rows.length) return { state: { kind: "empty", msg: "Nobody in the pit lane now, and no stops in the field yet." } };
@@ -372,7 +358,6 @@ export const pitActivity = defineModule({
   },
 });
 
-// ---------- you vs the focus car ----------
 export const sectorCompare = defineModule({
   type: "sector-compare", title: "You vs focus", group: "Timing", blurb: "Your last and best lap against the focus car (or the car ahead), sector by sector.",
   size: { w: 4, h: 6, minW: 3, minH: 6, maxW: 6, maxH: 7 }, needs: ["field", "entries", "focus", "laps"], requires: ["field"], rate: 2,
@@ -389,7 +374,6 @@ export const sectorCompare = defineModule({
       best: best ? [best.ms].concat(best.s && best.s.length ? best.s : best.ms === mine.best ? mine.best_s ?? [] : []) : [mine.best, ...(mine.best_s ?? [])],
     } as Record<"last" | "best", (number | null | undefined)[]>;
     const theirs = { last: [other.last, ...(other.last_s ?? [])], best: [other.best, ...(other.best_s ?? [])] } as typeof mineSet;
-    // lap, S1, S2, S3 → the design's order S1, S2, S3, Lap
     const ord = [1, 2, 3, 0];
     const cellOf = (v: number | null | undefined, k: number, cls = "") => <td key={k} className={cls || undefined}>{!okMs(v) ? NONE : k === 3 ? fmtLap(v) : fmtSector(v)}</td>;
     const block = (k: "last" | "best", withBest: boolean) => (
@@ -418,7 +402,6 @@ export const sectorCompare = defineModule({
   },
 });
 
-// ---------- session ----------
 export const session = defineModule({
   type: "session", title: "Session", group: "Timing", blurb: "Car, class, track, session, time left and conditions.",
   size: { w: 4, h: 7, minW: 3, minH: 5, maxW: 5, maxH: 7 }, needs: ["reading", "field", "entries", "tick"], requires: ["reading"],
@@ -454,7 +437,6 @@ export const session = defineModule({
   },
 });
 
-// ---------- flags and penalties ----------
 const GF: [string, string, string][] = [["yellow", "Y", "yellow"], ["y1", "S1", "yellow"], ["y2", "S2", "yellow"], ["y3", "S3", "yellow"], ["white", "White", "white"], ["green", "Green", "green"], ["chequered", "Chequered", "chequered"], ["red", "Red", "red"]];
 const FLAG_COL: Record<string, string> = { none: "var(--ok)", green: "var(--ok)", yellow: "var(--warn)", blue: "var(--cold)", white: "var(--tx)", red: "var(--bad)", black: "var(--t3)", chequered: "var(--tx)", orange: "var(--warn)" };
 
@@ -505,8 +487,6 @@ export const flags = defineModule({
   },
 });
 
-// ---------- stint rules ----------
-/** The stint limit and the session clock are read a moment apart: a stint this close to the flag is not "past" it. */
 const FLAG_SLACK = 60000;
 
 export const rules = defineModule({
@@ -518,7 +498,6 @@ export const rules = defineModule({
     const left = s.session_time_left_ms;
     const lim = (ms: number | null | undefined) => ms == null || !isFinite(ms) ? null : ms < 0 ? "no limit" : left > 0 && ms > left + FLAG_SLACK ? "past the flag" : `${fmtClock(ms)} left`;
     const stint = lim(s.stint_time_left_ms);
-    // The stint's full length is the most time it has had left since it began (it jumps back up after a stop); the bar is the share used.
     const top = useRef(0), sl: number = s.stint_time_left_ms;
     if (sl > top.current) top.current = sl;
     const used = sl >= 0 && top.current > 0 && !(left > 0 && sl > left + FLAG_SLACK) ? clamp((1 - sl / top.current) * 100, 0, 100) : 0;
@@ -539,7 +518,6 @@ export const rules = defineModule({
   },
 });
 
-// ---------- one big number ----------
 const KPI_CHOICES: [string, string][] = [["session", "Session"], ["left", "Time left"], ["lap", "Lap"], ["pos", "Position"], ["ahead", "Gap ahead"], ["behind", "Gap behind"], ["last", "Last lap"],
   ["best", "Best lap"], ["delta", "Live Δ"], ["fuel", "Fuel"], ["stint", "Stint"], ["flag", "Flag"], ["temps", "Track / air"], ["grip", "Grip"], ["rain", "Rain"],
   ["penalty", "Penalty"], ["stintTime", "Driver stint"], ["boxIn", "Box in"], ["gear", "Gear"], ["speed", "Speed"], ["fuelL", "Fuel litres"]];

@@ -7,18 +7,14 @@ import { aux } from "./versions";
 import { ModuleHost } from "./ModuleHost";
 import { registry } from "./registry";
 
-// Below this width the grid becomes one column of stacked modules.
 const NARROW_PX = 1100;
-// Narrow: tables take their own height, the others their rows' height (at most 16). Not tyres: its drawing fills the height.
 const AUTO_HEIGHT = new Set(["pit-plan", "standings", "stop-options", "laps", "stops", "pit-log", "pit-activity", "tyre-history", "race-plan", "rejoin", "rules",
   "brakes", "weather", "damage", "electronics", "flags", "press-fix", "battle", "relative", "car-status"]);
 const MIN_ROWS: Record<string, number> = { tyres: 11 };
-// Narrow stacking order: what the engineer needs first on a phone; the rest is 10, in reading order.
 const STACK_ORDER: Record<string, number> = { "race-plan": 1, relative: 2, "lap-timer": 2, tyres: 3, "press-fix": 4, rejoin: 5, "stop-options": 6, battle: 7, standings: 8, "fuel-calc": 9, "pit-plan": 20 };
 
 const cssNumber = (name: string, fallback: number) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || fallback;
 
-/** The 12-column module grid. The rows the layout uses share the window's height, never below one row. */
 export function Workspace({ workspace }: { workspace: WorkspaceData }) {
   const host = useRef<HTMLElement>(null);
   const [geo, setGeo] = useState({ narrow: false, rowHeight: 28 });
@@ -45,7 +41,7 @@ export function Workspace({ workspace }: { workspace: WorkspaceData }) {
   const rowPx = cssNumber("--row", 28);
   const style = { "--rows": rows, "--rh": rowPx + "px" } as CSSProperties;
 
-  const ordered = workspace.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x); // DOM order is reading order
+  const ordered = workspace.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x);
   if (geo.narrow) ordered.sort((a, b) => (STACK_ORDER[a.type] ?? 10) - (STACK_ORDER[b.type] ?? 10) || a.y - b.y || a.x - b.x);
 
   return (
@@ -62,14 +58,12 @@ export function Workspace({ workspace }: { workspace: WorkspaceData }) {
   );
 }
 
-/** Where a module sits: its grid cell, or in the narrow stack a height from its rows. */
 function placement(m: ModuleInstance, narrow: boolean, rowPx: number): CSSProperties {
   if (!narrow) return { gridColumn: `${m.x + 1} / span ${m.w}`, gridRow: `${m.y + 1} / span ${m.h}` };
   if (AUTO_HEIGHT.has(m.type)) return {};
   return { height: Math.max(Math.min(m.h, 16), MIN_ROWS[m.type] ?? 0) * (rowPx + 8) - 8 };
 }
 
-/** Module buttons in edit mode, and selecting a module by clicking it. */
 function onEditClick(e: React.MouseEvent): void {
   const target = e.target as HTMLElement;
   const mod = target.closest<HTMLElement>(".mod");
@@ -86,7 +80,6 @@ function onEditClick(e: React.MouseEvent): void {
   acts[b.dataset.act!]?.();
 }
 
-/** Move by the header, resize by the corner grip: snapped to cells, with a ghost showing the target. */
 function onEditPointer(e: React.PointerEvent): void {
   if (e.button !== 0) return;
   const t = e.target as HTMLElement;
@@ -97,7 +90,7 @@ function onEditPointer(e: React.PointerEvent): void {
   e.preventDefault();
   editor.select(m.id);
   const host = document.getElementById("ws")!, cs = getComputedStyle(host), gx = parseFloat(cs.columnGap) || 8, gy = parseFloat(cs.rowGap) || 8;
-  const mr = mod.getBoundingClientRect(), cw = (mr.width + gx) / m.w, rh = (mr.height + gy) / m.h; // rows stretch to the window, so measure the cell
+  const mr = mod.getBoundingClientRect(), cw = (mr.width + gx) / m.w, rh = (mr.height + gy) / m.h;
   const g = document.createElement("div");
   g.className = "ghost";
   g.setAttribute("aria-hidden", "true");

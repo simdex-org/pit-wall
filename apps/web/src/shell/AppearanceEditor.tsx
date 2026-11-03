@@ -18,7 +18,7 @@ function Token({ k, role, tok, bg, onChange }: { k: string; role: string; tok: s
   const shown = focus ? hex : tok;
   let cr = null;
   if (CONTRAST_KEYS.has(k)) {
-    const r = +contrast(tok, bg).toFixed(1), min = k === "dim" ? 3 : 4.5; // judged on the figure shown
+    const r = +contrast(tok, bg).toFixed(1), min = k === "dim" ? 3 : 4.5;
     cr = <span className={"ap-cr n" + (r < min ? " s-warn" : "")}>{r >= 7 ? `${r.toFixed(1)}:1 AAA` : r >= min ? `${r.toFixed(1)}:1 AA` : <><Icon name="triangle-alert" />{r.toFixed(1)}:1 low</>}</span>;
   } else cr = <span className="ap-cr n" />;
   return (
@@ -68,7 +68,6 @@ function ThemeRow({ t, cur, status, setStatus }: { t: Theme; cur: Theme; status:
   );
 }
 
-/** Settings › Appearance: pick, copy, import and edit the colours and layout. */
 export function AppearanceEditor() {
   const cur = useAppearance();
   const [status, setStatus] = useState("");

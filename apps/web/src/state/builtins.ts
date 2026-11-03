@@ -1,4 +1,3 @@
-// The built-in templates: read-only data. x, y, w, h are on 12 columns and every layout fills 20 rows.
 import type { Template } from "./templates";
 
 type Mod = [type: string, x: number, y: number, w: number, h: number, options?: Record<string, unknown>];
@@ -115,7 +114,7 @@ const SOURCE: [id: string, name: string, workspaces: string[]][] = [
 ];
 
 export const BUILTIN_TEMPLATES: Template[] = SOURCE.map(([id, name, workspaces]) => {
-  let n = 0; // deterministic module ids, so a fork keeps them and nothing remounts
+  let n = 0;
   return {
     format: "pitwall-template", schemaVersion: 1, id, name, created: "2026-10-29T00:00:00Z", updated: "2026-10-29T00:00:00Z",
     workspaces: workspaces.map((w) => {

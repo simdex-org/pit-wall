@@ -1,4 +1,3 @@
-// The pretend entry list: who is in the field, which class each car races in, how fast it is, and how clean its driver.
 import { MODELS } from "../broadcast/models.js";
 import { Rng } from "./rng.js";
 
@@ -13,17 +12,13 @@ export const PLAYER = 7;
 export const MAX_FIELD = 60;
 export const MIN_FIELD = 8;
 
-/** How many cars, and the share of each class among them. The player's own pace (1 slowest to 5 fastest) and grid slot are fixed only when given. */
 export interface Field { cars: number; mix: Record<string, number>; pace?: number; grid?: number | "random" }
-/** The player's lap against the reference GT3 for each pace level, as a fraction: from the back of the Am cup to the front of the Pro cup. */
 const PACE_DELTA = [0.04, 0.026, 0.012, 0.003, -0.004];
 export const DEFAULT_FIELD: Field = { cars: 20, mix: { GT3: 80, GT4: 20 } };
 export const CLASSES = ["GT3", "GT4", "GTC", "TCX", "GT2"];
 
-/** How much slower than the reference GT3 each class is, as a fraction, and the cup its drivers race in (null: the GT3 cups). */
 const CLASS_BASE: Record<string, [delta: number, cup: number | null]> = { GT3: [0, null], GT2: [-0.015, 3], GT4: [0.07, 3], GTC: [0.09, 4], TCX: [0.15, 4] };
 
-/** Cars per class: the shares rounded so they add up to `cars`. The player drives a GT3, so there is always one. */
 export function split(f: Field): Record<string, number> {
   const total = Object.values(f.mix).reduce((a, b) => a + b, 0);
   const out: Record<string, number> = {};
@@ -37,40 +32,24 @@ export function split(f: Field): Record<string, number> {
 
 export interface Spec {
   id: number; num: number; model: number; team: string; cup: number; first: string; last: string; gt4: boolean;
-  /** The class: GT3, GT4, GTC, TCX or GT2. */
   cls: string;
-  /** How much slower than the reference GT3 lap, as a fraction. */
   delta: number;
-  /** Lap-to-lap spread of the pace, fraction. */
   sd: number;
-  /** Chance of a moment near the limit in a lap, before the state of the car is counted. */
   slip: number;
-  /** Chance of a breakdown in a lap (the player never has one). */
   trouble: number;
-  /** The traits below are 0..1, 0.5 being a typical driver. */
-  /** How readily the driver goes for a gap. */
   aggr: number;
-  /** How hard the driver is to pass. */
   defence: number;
-  /** Fewer errors, and less rattled by pressure. */
   comp: number;
-  /** Kindness to the tyres. */
   tyreMgmt: number;
-  /** Fuel use: the frugal driver burns less. */
   fuelSave: number;
-  /** Pace and safety in the wet. */
   wetSkill: number;
-  /** One-lap pace on a push lap. */
   quali: number;
-  /** Race pace against one-lap pace, as a fraction of the lap: a good qualifier can be a poor racer. */
   race: number;
-  /** Reaction at the lights. */
   start: number;
-  /** The team's pit crew: a quick stop, or a slow one. */
   crew: number;
 }
 
-const CUP_DELTA: [number, number][] = [[-0.004, 0.006], [0.014, 0.026], [0.026, 0.04], [0.008, 0.018]]; // Pro, Pro-Am, Am, Silver
+const CUP_DELTA: [number, number][] = [[-0.004, 0.006], [0.014, 0.026], [0.026, 0.04], [0.008, 0.018]];
 
 export function roster(rnd: Rng, playerName: string, field: Field = DEFAULT_FIELD): Spec[] {
   const out: Spec[] = [];

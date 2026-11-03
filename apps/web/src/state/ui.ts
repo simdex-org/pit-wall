@@ -1,4 +1,3 @@
-// Which overlay is open.
 import { useSyncExternalStore } from "react";
 
 export type Section = "conn" | "units" | "th" | "strat" | "layout" | "ap" | "tpl" | "data" | "about";

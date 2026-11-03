@@ -1,6 +1,3 @@
-// Edit mode and module options. The editor changes the tab's template in memory; every change is an undo step and a new
-// template object, so the page re-renders. Save writes it to storage, Discard goes back to the snapshot taken on entry.
-// Built-ins are never edited: the first real change forks them, and Discard drops that fork again.
 import { useSyncExternalStore } from "react";
 import { registry } from "../engine/registry";
 import { cleanText, deep, newId } from "../lib/text";
@@ -18,7 +15,6 @@ export interface EditState {
   canUndo: boolean;
   canRedo: boolean;
   optId: string | null;
-  /** Counts every change, so a view knows to read again. */
   ver: number;
 }
 
@@ -45,7 +41,6 @@ class Editor {
   private snap: Template | null = null;
   private undoStack: Template[] = [];
   private redoStack: Template[] = [];
-  /** The id of the copy of a built-in made by this edit session. */
   private forked: string | null = null;
 
   get = (): EditState => this.s;
@@ -61,15 +56,12 @@ class Editor {
 
   private changed(): boolean {
     if (!this.snap) return false;
-    // A fork made by this session differs in id, name and dates only: compare its layout, so a no-op fork is no change.
     return this.forked ? JSON.stringify(this.cur.workspaces) !== JSON.stringify(this.snap.workspaces) : JSON.stringify(this.cur) !== JSON.stringify(this.snap);
   }
 
-  /** The tab's template made user-owned: a built-in is forked once, with no dialog. */
   private own(): void {
     const t = this.cur;
     if (!isBuiltin(t.id)) return;
-    // In edit mode the copy stays in memory until Save: a tab closed mid-edit leaves no copy behind.
     const f = templates.fork(t, `${t.name} (custom)`, this.s.active);
     if (this.s.active) this.forked = f.id; else lsSet("pitwall.active", f.id);
     nav.replace(f);
@@ -96,7 +88,7 @@ class Editor {
     const stored = raw && Array.isArray(raw.items) ? raw.items.find((x) => x && x.id === t.id) : null;
     if (stored && this.snap && this.snap.id === t.id && stored.updated !== this.snap.updated
       && (await ask("This template was changed in another tab. Overwrite it?", [["ow", "Overwrite", true], ["", "Cancel"]])) !== "ow") return false;
-    if (this.forked && !this.changed()) { this.discard(); return true; } // forked, then undone or a no-op: no identical copy
+    if (this.forked && !this.changed()) { this.discard(); return true; }
     if (this.changed()) { templates.save(t); lsSet("pitwall.active", t.id); say(`Saved '${t.name}'`); }
     this.exit();
     return true;
@@ -106,14 +98,14 @@ class Editor {
     const had = this.changed(), snap = this.snap;
     if (!snap) { this.exit(); return; }
     let r: Template | null = null;
-    if (this.forked) { // the built-in this session forked: drop the fork, back to the built-in
+    if (this.forked) {
       templates.remove(this.forked);
       r = templates.get(snap.id) ?? templates.get("builtin-race");
       if (r) lsSet("pitwall.active", r.id);
     } else {
       const raw = lsGet<{ items?: Template[] } | null>("pitwall.templates", null);
       const stored = raw && Array.isArray(raw.items) ? raw.items.find((x) => x && x.id === snap.id) : null;
-      if (stored && stored.updated !== snap.updated) { templates.load(); r = templates.get(snap.id); } // saved in another tab meanwhile: that version
+      if (stored && stored.updated !== snap.updated) { templates.load(); r = templates.get(snap.id); }
       if (!r) {
         r = deep(snap);
         const i = templates.items.findIndex((x) => x.id === r!.id);
@@ -126,7 +118,6 @@ class Editor {
     this.exit();
   }
 
-  /** Esc, or switching template while editing. */
   async leave(): Promise<boolean> {
     if (!this.s.active) return true;
     if (this.changed() && (await ask("Discard changes?", [["d", "Discard", true], ["", "Keep editing"]])) !== "d") return false;
@@ -134,7 +125,6 @@ class Editor {
     return true;
   }
 
-  /** Every change: an undo snapshot, the change on a fresh copy, the tab re-rendered. */
   change(fn: (t: Template, w: Workspace) => boolean | void, sel?: string | null): boolean {
     this.own();
     const before = deep(this.cur);
@@ -163,10 +153,8 @@ class Editor {
     this.set({});
   }
 
-  // ---------- modules ----------
   find(id: string): ModuleInstance | undefined { return this.ws.modules.find((m) => m.id === id); }
 
-  /** Refused when it would overlap or leave the grid. */
   move(id: string, x: number, y: number, w: number, h: number): boolean {
     const m = this.find(id);
     if (!m) return false;
@@ -205,7 +193,6 @@ class Editor {
   select(id: string | null): void { this.set({ sel: id }); }
   setDrawer(open: boolean): void { this.set({ drawer: open }); }
 
-  /** The "Tests" workspace: every module, one band of rows per group, each row filling the 12 columns at one height. Opened by five clicks on the logo. */
   openTests(): void {
     if (this.s.active) { say("Leave editing first", 1); return; }
     const old = this.cur.workspaces.find((w) => w.id === "w-tests");
@@ -245,7 +232,6 @@ class Editor {
     nav.showWorkspace("w-tests");
   }
 
-  // ---------- workspaces ----------
   addWs(): void {
     if (this.cur.workspaces.length >= 9) return;
     const id = uniqueWsId(this.cur, "w-workspace");
@@ -276,7 +262,7 @@ class Editor {
     } else {
       if (t.workspaces.length < 2) { say("The last workspace cannot be deleted", 1); return; }
       if ((await ask(`Delete the workspace '${w.name}' and its ${w.modules.length} modules?`, [["del", "Delete", true], ["", "Cancel"]])) !== "del") return;
-      const was = nav.get().wsId === wsId, nb = t.workspaces[i > 0 ? i - 1 : 1]!.id; // the neighbour, taken before the change
+      const was = nav.get().wsId === wsId, nb = t.workspaces[i > 0 ? i - 1 : 1]!.id;
       this.change((tt) => { tt.workspaces.splice(tt.workspaces.findIndex((x) => x.id === wsId), 1); });
       if (was) nav.showWorkspace(nb);
     }
@@ -293,7 +279,6 @@ class Editor {
     }, null);
   }
 
-  // ---------- keyboard: the editor gets first refusal while active ----------
   key(e: KeyboardEvent): boolean {
     const k = e.key, ctrl = e.ctrlKey || e.metaKey, tag = (e.target as HTMLElement).tagName;
     if (ctrl && (k === "s" || k === "S")) { e.preventDefault(); void this.save(); return true; }
@@ -331,7 +316,6 @@ class Editor {
     return false;
   }
 
-  // ---------- module options ----------
   openOptions(id: string | null): void { this.set({ optId: id }); }
 
   modById(id: string | null): ModuleInstance | null {
@@ -340,7 +324,6 @@ class Editor {
     return null;
   }
 
-  /** An options change: with the editor an undoable change; otherwise saved at once (forking a built-in first). */
   setOpt(fn: (m: ModuleInstance, def: ReturnType<typeof registry.get>) => void, forId?: string): void {
     const id = forId ?? this.s.optId;
     if (!id) return;

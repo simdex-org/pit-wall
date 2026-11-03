@@ -22,10 +22,6 @@ Other commands: `--enable-broadcast` (once, ACC closed), `--probe`, `--bind-vjoy
 
 Tests live in `packages/bridge/test`. The telemetry, broadcast and pit tests run a simulated session through the real code; the Windows test exercises shared memory, key injection and the keyboard hook without needing ACC.
 
-## Graphify
-
-`graphify-out/` is generated and ignored by git.
-
 ## The page
 
 ```

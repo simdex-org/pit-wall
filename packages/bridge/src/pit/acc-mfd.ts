@@ -1,18 +1,14 @@
-// ACC's pit page: scan-code key presses (or vJoy buttons) out, the MFD's values read back from shared memory.
-// Every press first checks that ACC is the focused window.
 import koffi from "koffi";
 import { openShared } from "../win/shm.js";
 import { Key, Mfd, MfdSnapshot, sleep } from "./mfd.js";
 import { vjoyDevice, vjoyPress, VJoy, VJOY_BUTTONS } from "./vjoy.js";
 
-// acpmf_graphics (SPageFileGraphic, ACC shared memory 1.8): 1588 bytes.
 const GFX_SIZE = 1588, OFF_STATUS = 4, OFF_PITLANE = 1236, OFF_MFD = 1532, OFF_SETS = 1572;
 const STATUS = ["off", "replay", "live", "pause"];
 
 const user32 = koffi.load("user32.dll");
 const k32 = koffi.load("kernel32.dll");
 const KEYBDINPUT = koffi.struct("KEYBDINPUT", { wVk: "uint16", wScan: "uint16", dwFlags: "uint32", time: "uint32", dwExtraInfo: "uintptr_t" });
-// pad = MOUSEINPUT, the union's largest member
 const INPUT = koffi.struct("INPUT", { type: "uint32", ki: KEYBDINPUT, pad: koffi.array("uint8", 8) });
 const SendInput = user32.func("uint32 __stdcall SendInput(uint32 n, INPUT *inputs, int size)");
 const GetForegroundWindow = user32.func("void * __stdcall GetForegroundWindow()");
@@ -23,8 +19,8 @@ const QueryFullProcessImageNameW = k32.func("int __stdcall QueryFullProcessImage
 const CloseHandle = k32.func("int __stdcall CloseHandle(void *h)");
 
 const KEYEVENTF_EXTENDEDKEY = 1, KEYEVENTF_KEYUP = 2, KEYEVENTF_SCANCODE = 8;
-const ARROWS = { up: 0x48, down: 0x50, left: 0x4b, right: 0x4d } as const; // scan codes; games read scan codes, not virtual keys
-const CLOSE_SCAN = 0x52; // Insert, ACC's default "Cycle MFD": leaves the pit page for the next one (extended key)
+const ARROWS = { up: 0x48, down: 0x50, left: 0x4b, right: 0x4d } as const;
+const CLOSE_SCAN = 0x52;
 const NOT_FOCUSED = "ACC is not the focused window on the driver's PC - stopped before pressing anything else";
 
 export function vkOf(name: string): number {
@@ -38,17 +34,16 @@ export function vkOf(name: string): number {
 export class AccMfd implements Mfd {
   private read_: () => Buffer;
   private scan: Record<Key, number>;
-  private hold: number; // seconds; raise key-ms if ACC misses presses at low frame rates
+  private hold: number;
   private vj: VJoy | null = null;
 
   constructor(pitKey = "p", keyMs = 40, private vjoy?: number) {
     this.read_ = openShared("Local\\acpmf_graphics", GFX_SIZE);
     this.scan = { ...ARROWS, pit: MapVirtualKeyW(vkOf(pitKey), 0), close: CLOSE_SCAN };
     this.hold = keyMs / 1000;
-    if (vjoy) this.vj = vjoyDevice(vjoy); // A virtual controller instead of the keyboard: ACC sees its own device for the MFD.
+    if (vjoy) this.vj = vjoyDevice(vjoy);
   }
 
-  /** (scan code, flags) pairs in one SendInput call, so ACC takes them in the same frame. */
   private send(...keys: [number, number][]): void {
     const inputs = keys.map(([sc, fl]) => ({ type: 1, ki: { wVk: 0, wScan: sc, dwFlags: fl, time: 0, dwExtraInfo: 0 }, pad: new Array(8).fill(0) }));
     SendInput(inputs.length, inputs, koffi.sizeof(INPUT));
@@ -57,7 +52,7 @@ export class AccMfd implements Mfd {
   focused(): boolean {
     const pid = [0];
     GetWindowThreadProcessId(GetForegroundWindow(), pid);
-    const h = OpenProcess(0x1000, 0, pid[0]!); // PROCESS_QUERY_LIMITED_INFORMATION
+    const h = OpenProcess(0x1000, 0, pid[0]!);
     if (!h) return false;
     const buf = Buffer.alloc(1040), n = [520];
     const ok = QueryFullProcessImageNameW(h, 0, buf, n);
@@ -75,13 +70,13 @@ export class AccMfd implements Mfd {
       return;
     }
     for (let k = 0; k < n; k++) {
-      const ext = key in ARROWS || key === "close" ? KEYEVENTF_EXTENDEDKEY : 0; // arrows and Insert are on the extended block
+      const ext = key in ARROWS || key === "close" ? KEYEVENTF_EXTENDEDKEY : 0;
       for (const flags of [KEYEVENTF_SCANCODE | ext, KEYEVENTF_SCANCODE | ext | KEYEVENTF_KEYUP]) {
         if (!this.focused()) throw new Error(NOT_FOCUSED);
         this.send([this.scan[key], flags]);
         await sleep(this.hold * 1000);
       }
-      if (key === "pit") await sleep(200); // the page redraws before it takes the next key
+      if (key === "pit") await sleep(200);
     }
   }
 
@@ -101,7 +96,7 @@ export class AccMfd implements Mfd {
     const status = b.readInt32LE(OFF_STATUS);
     const round1 = (x: number) => Math.round(x * 10) / 10;
     return {
-      status: STATUS[status] ?? "off", fuel: round1(b.readFloatLE(OFF_MFD + 4)), tyre_set: b.readInt32LE(OFF_MFD) + 1, // mfdTyreSet counts from 0, the page from 1
+      status: STATUS[status] ?? "off", fuel: round1(b.readFloatLE(OFF_MFD + 4)), tyre_set: b.readInt32LE(OFF_MFD) + 1,
       pressures: [0, 1, 2, 3].map((k) => round1(b.readFloatLE(OFF_MFD + 8 + 4 * k))), current_set: b.readInt32LE(OFF_SETS), strategy_set: b.readInt32LE(OFF_SETS + 4),
       in_pit_lane: !!b.readInt32LE(OFF_PITLANE),
     };

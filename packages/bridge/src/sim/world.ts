@@ -1,5 +1,3 @@
-// The pretend session: twenty cars on one circuit, a race or a qualifying, run in fixed steps of simulated time.
-// FakePages and FakeField are two views of it; nothing here knows about ACC's pages or messages.
 import { SIM_TRACKS, trackLoop } from "../telemetry/sim-tracks.js";
 import { Box, Lap, SimCar } from "./car.js";
 import { Circuit, DEMO_LOOP, scaleLoop } from "./circuit.js";
@@ -10,14 +8,13 @@ import { Field, PLAYER, roster, Spec } from "./roster.js";
 
 export const STEP_S = 1 / 60;
 const STEP_MS = STEP_S * 1000;
-const GRID_GAP = 8; // metres between rows
+const GRID_GAP = 8;
 const HOLD_RESULTS_MS = 40000;
 
 export type SessionKind = "race" | "quali" | "practice";
 export interface WorldEvent { type: number; msg: string; car: number; t: number }
 export interface Best { ms: number; car: number; s: (number | null)[] }
 
-/** ACC's rain levels (0 dry, 1 drizzle ... 5 storm) for an intensity 0 to 1. */
 export const rainLevel = (r: number): number => (r < 0.05 ? 0 : r < 0.2 ? 1 : r < 0.4 ? 2 : r < 0.65 ? 3 : r < 0.85 ? 4 : 5);
 
 export const DEMO = { id: "demo_circuit", name: "Demo circuit", metres: 4600, lapMs: 98000, lpl: 2.9 };
@@ -38,23 +35,17 @@ export class World {
   durMs = 0;
   pitOpen = 0;
   pitClose = 0;
-  /** The race has a mandatory stop in the pit window. */
   get mandatory(): boolean { return this.kind === "race"; }
   kind: SessionKind;
-  /** The sessions run one after the other, round again at the end. */
   private readonly sequence: SessionKind[];
-  /** Qualifying's classification, which sets the race grid. */
   private carry: number[] | null = null;
   evo = 0;
   laps = 0;
   best: Best | null = null;
   yellow = [-1e12, -1e12, -1e12];
-  /** Rain intensity and how wet the track is, 0 to 1. */
   rain = 0;
   wet = 0;
-  /** Phases of the slow waves the weather is made of. */
   private front: number[] = [];
-  /** Full course yellow: every car on the track holds 80 km/h until the wreck is cleared. */
   fcyOn = false;
   private fcyUntil = 0;
   lastRelease = 0;
@@ -63,7 +54,6 @@ export class World {
   overAt: number | null = null;
   doneAt: number | null = null;
   events: WorldEvent[] = [];
-  /** Lets the page's pit plan change the driver's stop. */
   customize: ((box: Box, c: SimCar) => void) | null = null;
   private origin: number | null = null;
   private done = 0;
@@ -86,7 +76,6 @@ export class World {
   get playerId(): number { return PLAYER; }
   get road(): number { return 29 + 2 * Math.sin(this.t / 600000) - 9 * this.wet; }
   get timeLeft(): number { return Math.max(0, this.durMs - this.t); }
-  /** ACC's RaceSessionPhase: 4 pre-session, 5 green, 6 over, 7 post, 8 results. */
   get phase(): number {
     if (this.t < 0) return 4;
     if (this.overAt === null) return 5;
@@ -94,7 +83,6 @@ export class World {
     return this.t < this.doneAt + HOLD_RESULTS_MS / 4 ? 7 : 8;
   }
 
-  /** A fresh session: the grid (or the garages), the fuel and the plan of every car. */
   private start(): void {
     const lm = this.circuit.lapMs;
     const rnd = (this.rnd = rng(this.seed + this.idx * 7919));
@@ -108,14 +96,14 @@ export class World {
     this.cars = this.specs.map((s) => new SimCar(s, this.circuit, rnd, this.lpl));
     const grid = this.cars.map((c) => [c, c.spec.delta - 0.012 * (c.spec.quali - 0.5) + rnd.normal(0, 0.008)] as const).sort((a, b) => a[1] - b[1]).map(([c]) => c);
     const carry = this.kind === "race" ? this.carry : null;
-    if (carry) grid.sort((a, b) => carry.indexOf(a.id) - carry.indexOf(b.id)); // the race starts in qualifying's order
+    if (carry) grid.sort((a, b) => carry.indexOf(a.id) - carry.indexOf(b.id));
     this.carry = null;
-    const slot = this.kind === "race" && !carry ? this.field?.grid : undefined; // a weekend's race starts where qualifying left the driver
+    const slot = this.kind === "race" && !carry ? this.field?.grid : undefined;
     if (slot !== undefined) {
       grid.splice(grid.indexOf(this.player), 1);
       grid.splice((slot === "random" ? rnd.randint(1, grid.length + 1) : Math.min(slot, grid.length + 1)) - 1, 0, this.player);
     }
-    const n = this.cars.length, gap = n <= 20 ? 12.5 : 380 / (n - 1); // the boxes along the pit lane
+    const n = this.cars.length, gap = n <= 20 ? 12.5 : 380 / (n - 1);
     this.cars.forEach((c) => { c.boxLp = (n <= 20 ? -130 : -190) + gap * (c.id - 1); });
     if (this.kind === "race") {
       grid.forEach((c, k) => {
@@ -131,7 +119,6 @@ export class World {
     }
   }
 
-  /** Brings the session to the wall clock's now (seconds); the steps are fixed, so what happens does not depend on how often this is called. */
   sync(nowSec: number): void {
     this.origin ??= nowSec;
     const want = Math.floor((nowSec - this.origin) / STEP_S + 1e-6);
@@ -139,14 +126,12 @@ export class World {
     while (this.done < want) { this.done++; this.step(); }
   }
 
-  /** Rain intensity at session time t: where the slow waves of the weather add up high enough, none in the first minutes. */
   rainAt(t: number): number {
     const f = this.front, w = (ms: number, i: number) => Math.sin((2 * Math.PI * t) / ms + f[i]!);
     const front = 0.5 * w(3300000, 0) + 0.3 * w(1250000, 1) + 0.2 * w(480000, 2);
     return Math.min(1, Math.max(0, (front - 0.3) / 0.45)) * 0.9 * Math.min(1, Math.max(0, t / 600000));
   }
 
-  /** A wreck on the track: the field slows down behind it, and the teams use the time to make their stops. */
   startFcy(clearedInMs: number): void {
     if (this.fcyOn || this.kind !== "race" || this.overAt !== null) return;
     this.fcyOn = true; this.fcyUntil = this.t + clearedInMs + this.rnd.uniform(40000, 80000);
@@ -196,7 +181,6 @@ export class World {
     }
   }
 
-  /** Whether the car's lap that is just ending is its last: the clock has run out (qualifying), or the leader has taken the flag (race). */
   ending(c: SimCar): boolean {
     if (this.kind !== "race") return this.t >= this.durMs;
     if (this.leaderDone) return true;
@@ -204,7 +188,6 @@ export class World {
     return false;
   }
 
-  /** Classification: by distance in a race, by best lap in qualifying. */
   rank(): SimCar[] {
     if (this.rankedAt === this.stepN) return this.ranked;
     this.rankedAt = this.stepN;
@@ -214,7 +197,6 @@ export class World {
     return (this.ranked = [...this.cars].sort(cmp));
   }
 
-  /** Milliseconds a car is behind the one ahead on the road (its own pace), or null for the leader. */
   gapTo(c: SimCar, other: SimCar | undefined): number | null {
     if (!other) return null;
     return Math.round((Math.abs(other.d - c.d) / Math.max(c.v, 25)) * 1000);

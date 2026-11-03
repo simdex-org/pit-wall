@@ -1,9 +1,7 @@
-// Talking to the bridge: the access key, plans and settings going out, laps and traces coming back, and the one-line messages.
 import { useSyncExternalStore } from "react";
 import { numbersOnly } from "../feed/sanitize";
 import { lsRaw, lsSet } from "../lib/storage";
 
-/** The key arrives once as ?key=, is kept in this browser and removed from the address bar. */
 export const accessKey: { value: string } = {
   value: (() => {
     if (typeof location === "undefined") return "";
@@ -33,7 +31,6 @@ export async function get<T = unknown>(path: string): Promise<T | null> {
   }
 }
 
-// ---------- the engineer bar's right-hand message, which replaces the status line for six seconds ----------
 interface Say { text: string; sev: number; until: number }
 let current: Say | null = null;
 const subs = new Set<() => void>();

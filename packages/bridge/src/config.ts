@@ -1,4 +1,3 @@
-// The thresholds and strategy inputs shared by every screen (POST /config), validated as a whole.
 import { isObj, Rec, ValueError } from "./util.js";
 
 export const CLASSES = ["GT3", "GT4", "GT2", "GTC", "TCX"] as const;
@@ -13,7 +12,6 @@ const classTh = (): Rec => ({
   brake_c: { front: [200, BRAKE_HOT_C], rear: [200, BRAKE_HOT_C] }, pad_low_mm: PAD_LOW_MM, water_c: [105, 115],
 });
 
-/** Every class starts as a copy of GT3. */
 export const defaultConfig = (): Rec => ({
   thresholds: Object.fromEntries(CLASSES.map((k) => [k, classTh()])),
   fuel_low_laps: 3,
@@ -49,7 +47,6 @@ function merge(dst: Rec, src: Rec, path: string): void {
   }
 }
 
-/** A partial config from the network, merged onto base (default: the defaults) and checked whole. Throws ValueError. */
 export function cleanConfig(raw: unknown, base?: Rec): Rec {
   if (!isObj(raw)) throw new ValueError("config must be an object");
   const out: Rec = structuredClone(base ?? defaultConfig());

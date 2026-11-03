@@ -1,5 +1,3 @@
-// A simulated pit page: the self-test, and --simulate-acc for trying the dashboard without the game.
-// Keep it in step with applyPlan (it mirrors ACC's row layout).
 import { Key, Mfd, MfdSnapshot } from "./mfd.js";
 import { CORNERS } from "./plan.js";
 
@@ -9,14 +7,12 @@ export class FakeMfd implements Mfd {
   s: Layout;
   fuel = 12.0;
   set = 3;
-  /** The set on the car: the simulated session moves it when the car takes new tyres. */
   current = 3;
   p = [27.5, 27.4, 27.3, 27.2];
-  pads = [1, 1]; // ACC wraps them from 4 to 1
+  pads = [1, 1];
   repair = [true, true];
   cur = 0;
   strat = 0;
-  /** Fuel to add ignores the keys while strategy 1 is on, as the greyed-out row does in ACC. */
   lockedByStrategy = false;
   presses = 0;
 
@@ -34,7 +30,7 @@ export class FakeMfd implements Mfd {
   press(key: Key, n = 1): void {
     for (let k = 0; k < n; k++) {
       this.presses++;
-      if (key === "close") continue; // leaves the pit page; where the cursor is does not matter until the page is opened again
+      if (key === "close") continue;
       if (key === "pit") this.cur = 0;
       else if (key === "up" || key === "down") {
         const len = this.rows().length;
@@ -49,13 +45,13 @@ export class FakeMfd implements Mfd {
         else if ((CORNERS as readonly string[]).includes(row)) { const i = CORNERS.indexOf(row as (typeof CORNERS)[number]); this.p[i] = r1(this.p[i]! + d * 0.1); }
         else if (row === "tyres" || row === "brakes") this.s[row] = !this.s[row];
         else if (row.startsWith("pad")) { const i = Number(row[3]); this.pads[i] = ((this.pads[i]! - 1 + d + 4) % 4) + 1; }
-        else if (row === "susp" || row === "body") { // ACC links them: Suspension on ticks Bodywork, Bodywork off unticks Suspension
+        else if (row === "susp" || row === "body") {
           const i = row === "body" ? 1 : 0;
           this.repair[i] = !this.repair[i];
           if (i === 0 && this.repair[0]) this.repair[1] = true;
           if (i === 1 && !this.repair[1]) this.repair[0] = false;
         }
-        else if (row === "strategy") { // switching strategy loads that strategy's fuel and pressures
+        else if (row === "strategy") {
           this.strat ^= 1;
           [this.fuel, this.p] = this.strat ? [55.0, [27.0, 27.0, 27.0, 27.0]] : [30.0, [26.0, 26.0, 26.0, 26.0]];
         }

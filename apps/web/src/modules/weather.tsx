@@ -13,12 +13,10 @@ const SHORT = ["Dry", "Drizzle", "Light", "Medium", "Heavy", "Storm"];
 const PAST_MIN = 10;
 const KEEP_MIN = 30;
 const AHEAD_MIN = 30;
-// Matches the bridge's rain_coming advice: wets are worth a thought from Medium rain.
 const WETS_LEVEL = 3;
 export const compass = (d: number) => ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round((((d % 360) + 360) % 360) / 45) % 8]!;
 export const tone = (l: number) => (l >= WETS_LEVEL ? "wn" : l ? "cd" : "");
 
-/** What the rain forecast says in words: a headline, a short sub line, the colour class and the icon that go with it. */
 export function forecast(rain: number[], clouds: number | null) {
   const lv = (i: number) => Math.min(5, Math.max(0, (rain[i] ?? 0) | 0));
   const worst = Math.max(lv(1), lv(2));
@@ -30,7 +28,6 @@ export function forecast(rain: number[], clouds: number | null) {
 }
 const stroke = (l: number) => (l >= WETS_LEVEL ? "var(--warn)" : l ? "var(--cold)" : "var(--t2)");
 
-/** Rain level over the last 10 minutes (solid), then ACC's two forecast points at +10 and +30 min (hatched). Levels, not chances: ACC sends no probability. */
 function RainChart({ log, now, fc, since, w, h }: { log: WxSample[]; now: number; fc: [number, number]; since: number; w: number; h: number }) {
   const hatch = useId();
   const L = 58, R = 14, T = 26, B = 24, pw = w - L - R, ph = h - T - B;
@@ -81,7 +78,6 @@ function RainChart({ log, now, fc, since, w, h }: { log: WxSample[]; now: number
 
 const STEPS = [0.5, 1, 2, 5, 10, 20];
 
-/** Track or air temperature over the last 30 minutes. The range never gets tighter than 4 degrees, so a steady value reads as steady. */
 function TempChart({ log, now, k, f, tu, color, w, h }: { log: WxSample[]; now: number; k: "track" | "air"; f: (v: number) => number; tu: string; color: string; w: number; h: number }) {
   const L = 52, R = 56, T = 14, B = 24, pw = w - L - R, ph = h - T - B;
   const vals = log.map((s) => f(s[k]));
@@ -115,7 +111,6 @@ function TempChart({ log, now, k, f, tu, color, w, h }: { log: WxSample[]; now: 
   );
 }
 
-/** The arrow points where the wind blows to; the text beside it says where it comes from. */
 function Wind({ dir, ms }: { dir: number; ms: number | null }) {
   const a = ((dir + 180) * Math.PI) / 180, c = 40, r = 26;
   const at = (k: number, ang: number): [number, number] => [c + Math.sin(ang) * k, c - Math.cos(ang) * k];
@@ -132,7 +127,6 @@ function Wind({ dir, ms }: { dir: number; ms: number | null }) {
   );
 }
 
-/** Gives its child the size of the box it fills; it measures itself, so it works when it mounts later. */
 function Fit({ style, children }: { style?: CSSProperties; children: (w: number, h: number) => ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useSize(ref);
@@ -142,7 +136,6 @@ function Fit({ style, children }: { style?: CSSProperties; children: (w: number,
 const Trend = ({ v, unitText, d = 1 }: { v: number | null; unitText: string; d?: number }) =>
   v == null || Math.abs(v) < 0.05 ? <span className="v mu">steady</span> : <span className={"v " + (v > 0 ? "up" : "dn")}>{v > 0 ? "▲" : "▼"} {Math.abs(v).toFixed(d)} {unitText}</span>;
 
-/** A named percentage with a bar. */
 const Meter = ({ lab, pct, note }: { lab: string; pct: number | null; note: ReactNode }) => (
   <div className="wx-m">
     <div className="fb"><span className="lab">{lab}</span><span className="mid">{pct != null ? nf(pct, 0) : NONE}<span className="u">%</span></span></div>
@@ -221,7 +214,6 @@ export const weatherCenter = defineModule({
         <div className="wx-names" aria-hidden>{GRIP.map((n, i) => <span key={n} className={i === grip ? "on" : ""}>{n}</span>)}</div>
       </div>],
     };
-    // Most useful first; each section is kept only while the module still has the height for it. Display order is fixed.
     let used = 0;
     const keep = new Set<string>();
     for (const id of ["cond", "temp", "wind", "grip"]) {

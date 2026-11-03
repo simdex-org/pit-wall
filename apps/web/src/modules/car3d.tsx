@@ -24,7 +24,7 @@ function model(c: Ctx, opts: Record<string, unknown>): Model {
   PARTS.forEach((z, i) => { lv[z] = num(dmg[i]) ? dmg[i]! / br : null; tags.push([z, `${ZONES[i]!.toUpperCase()} ${num(dmg[i]) ? nf(dmg[i], 1) : "–"}`]); });
   CORNERS.forEach((k, i) => {
     lv["s" + i] = num(sus[i]) ? sus[i]! / sr : null;
-    lv["b" + i] = pads[i]! > 0 ? (low + 6 - pads[i]!) / 6 : null; // green 6 mm above the pads-low line, red on it
+    lv["b" + i] = pads[i]! > 0 ? (low + 6 - pads[i]!) / 6 : null;
     tags.push(["s" + i, `${k} susp ${num(sus[i]) ? nf(sus[i], 2) : "–"} · pads ${pads[i]! > 0 ? nf(pads[i], 1) : "–"} mm`]);
   });
   return { lv, tags, low, br, sr, labels: !!opts.labels };
@@ -62,12 +62,12 @@ function Car3D({ m, onFail }: { m: Model; onFail: () => void }) {
     if (!mm.labels) return;
     g.font = `600 11px ${tk.num}`; g.textBaseline = "middle";
     const taken: number[][] = [];
-    for (const [part, text] of mm.tags) { // the figure next to its part; parts on the far side of the car keep quiet
+    for (const [part, text] of mm.tags) {
       const a = at[part];
       if (!a || !a[2]) continue;
       let y = a[1];
       const lv = mm.lv[part], tw = g.measureText(text).width, bx = Math.max(2, Math.min(w - tw - 12, a[0] - tw / 2 - 5));
-      for (let k = 0; k < 6 && taken.some(([ta, tb, tc]) => bx < ta! + tc! && ta! < bx + tw + 10 && Math.abs(tb! - y) < 19); k++) y += 20; // under a label already placed
+      for (let k = 0; k < 6 && taken.some(([ta, tb, tc]) => bx < ta! + tc! && ta! < bx + tw + 10 && Math.abs(tb! - y) < 19); k++) y += 20;
       taken.push([bx, y, tw + 10]);
       g.globalAlpha = 0.88; g.fillStyle = tk.bg; g.fillRect(bx, y - 9, tw + 10, 18); g.globalAlpha = 1;
       g.strokeStyle = lv == null ? tk.line : `rgb(${levelColour(lv, tk).map(Math.round).join(",")})`; g.lineWidth = 1; g.strokeRect(bx + 0.5, y - 8.5, tw + 9, 17);
@@ -85,13 +85,13 @@ function Car3D({ m, onFail }: { m: Model; onFail: () => void }) {
 
   useEffect(() => { view.current.x = xray; draw(); });
 
-  useEffect(() => { // not passive: React's onWheel cannot stop the page from scrolling
+  useEffect(() => {
     const el = host.current!, onWheel = (e: WheelEvent) => { e.preventDefault(); view.current.zoom = clamp(view.current.zoom * Math.exp(e.deltaY * 0.001), 0.4, 1.5); drawRef.current(); };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
-  const turn = (to: string) => { // ease the camera to a view, the short way round
+  const turn = (to: string) => {
     const v = view.current, [az1, el1] = VIEWS[to]!, az0 = v.az, el0 = v.el, daz = Math.atan2(Math.sin(az1 - az0), Math.cos(az1 - az0)), t0 = performance.now();
     const step = (now: number) => { const k = Math.min(1, (now - t0) / 350), e = k * (2 - k); v.az = az0 + daz * e; v.el = el0 + (el1 - el0) * e; drawRef.current(); if (k < 1) requestAnimationFrame(step); };
     requestAnimationFrame(step);
@@ -114,7 +114,6 @@ function Car3D({ m, onFail }: { m: Model; onFail: () => void }) {
   );
 }
 
-/** The parts as a table: what ACC reports, with a word for the state. */
 function Parts({ c, m, rows }: { c: Ctx; m: Model; rows: number }) {
   const a = c.r!.car, dmg = (a.damage as number[] | undefined) ?? [], sus = (a.suspension_damage as number[] | undefined) ?? [], pads = (a.brake_pad_mm as number[] | undefined) ?? [];
   const body = (i: number, name: string): [string, number, string, string, string] => { const v = dmg[i] ?? 0, s = bodyState(v, m.br); return [name, v, nf(v, 0), s === "ok" ? "Ok" : s === "warn" ? "Damaged" : "Heavy", s === "ok" ? "dn" : s === "warn" ? "wn" : "up"]; };

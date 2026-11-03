@@ -1,4 +1,3 @@
-// Every access may throw (private windows, blocked site data), so nothing here ever does.
 export function lsGet<T>(key: string, fallback: T): T {
   try {
     const v = localStorage.getItem(key);
@@ -22,5 +21,5 @@ export function lsSet(key: string, value: unknown): boolean {
 }
 
 export function lsDel(key: string): void {
-  try { localStorage.removeItem(key); } catch { /* storage unavailable */ }
+  try { localStorage.removeItem(key); } catch {  }
 }

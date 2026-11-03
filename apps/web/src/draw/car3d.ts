@@ -1,8 +1,3 @@
-// Shared by the GT3 model (car3d2.ts) and its view: the triangle builders, the colouring by damage and the WebGL canvas. Every triangle
-// names its part, so each part is painted by the damage ACC reports for it: the five body zones (front, rear, left, right, centre),
-// each corner's suspension (s0..s3, FL FR RL RR) and brake pads (b0..b3); the glass, tyres and cabin are drawn neutral, since ACC
-// says nothing about them.
-// Frame: metres, x forward (nose +), y to the car's left, z up.
 import type * as THREE from "three";
 import { Tokens, tokens } from "./canvas";
 
@@ -14,14 +9,12 @@ export interface LayerData { pos: number[]; nor: number[]; part: string[]; kind:
 
 const rgbOf = (s: string): number[] => (s.match(/\d+(\.\d+)?/g) ?? [0, 0, 0]).slice(0, 3).map(Number);
 
-/** Level 0..1 as --ok, --warn, --bad in between. */
 export function levelColour(t: number, tk: Pick<Tokens, "ok" | "warn" | "bad">): number[] {
   const a = rgbOf(tk.ok), b = rgbOf(tk.warn), c = rgbOf(tk.bad), u = Math.max(0, Math.min(1, t));
   const [p, q, f] = u < 0.5 ? [a, b, u * 2] : [b, c, (u - 0.5) * 2];
   return p!.map((v, i) => v + (q![i]! - v) * f!);
 }
 
-/** Where each part's figure sits on the car, and the way that surface faces. */
 export const ANCHOR: Record<string, [V3, V3]> = {
   front: [[2.5, 0, 0.4], [1, 0, 0]], rear: [[-2.5, 0, 0.95], [-1, 0, 0]], left: [[-0.3, 1.05, 0.55], [0, 1, 0]], right: [[-0.3, -1.05, 0.55], [0, -1, 0]],
   centre: [[-0.2, 0, 1.3], [0, 0, 1]], s0: [[1.36, 1.08, 0.34], [0.5, 0.85, 0]], s1: [[1.36, -1.08, 0.34], [0.5, -0.85, 0]], s2: [[-1.32, 1.08, 0.34], [-0.5, 0.85, 0]],
@@ -35,11 +28,9 @@ export interface CarModel {
   group: THREE.Group;
   meshes: Record<Layer, THREE.Mesh>;
   mats: Record<Layer, THREE.Material>;
-  /** lv: part to level 0..1 or null; xray: the bodywork see-through. */
   update(lv: Record<string, number | null>, tk: Tokens, xray: boolean): void;
 }
 
-/** The triangle builders the car models share: every shape ends up as triangles in one of four layers, each naming its part. */
 export function makeKit(T: T3) {
   const layers = {} as Record<Layer, LayerData>;
   for (const k of ["shell", "inner", "glass", "frame"] as Layer[]) layers[k] = { pos: [], nor: [], part: [], kind: [] };
@@ -50,7 +41,6 @@ export function makeKit(T: T3) {
     o.part.push(typeof part === "function" ? part((a[0]! + b[0]! + c[0]!) / 3, (a[1]! + b[1]! + c[1]!) / 3, (a[2]! + b[2]! + c[2]!) / 3) : part);
     o.kind.push(kind);
   };
-  /** Any three.js geometry, placed by a matrix, into a layer. */
   const geo = (layer: Layer, g0: THREE.BufferGeometry, m: THREE.Matrix4 | null, part: string, kind: string) => {
     const g = g0.index ? g0.toNonIndexed() : g0;
     if (m) g.applyMatrix4(m);
@@ -66,7 +56,7 @@ export function makeKit(T: T3) {
   const box = (layer: Layer, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, part: string, kind: string) =>
     geo(layer, new T.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), M((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), part, kind);
   const v3 = (a: number[]) => new T.Vector3(a[0], a[1], a[2]);
-  const rod = (layer: Layer, a: number[], b: number[], r: number, part: string, kind: string) => { // a cylinder from a to b
+  const rod = (layer: Layer, a: number[], b: number[], r: number, part: string, kind: string) => {
     const A = v3(a), B = v3(b), d = B.clone().sub(A), g = new T.CylinderGeometry(r, r, d.length(), 8, 1);
     g.applyQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), d.clone().normalize()));
     const mid = A.clone().add(B).multiplyScalar(0.5);
@@ -75,14 +65,12 @@ export function makeKit(T: T3) {
   };
   const tube = (layer: Layer, pts: number[][], r: number, closed: boolean, part: string, kind: string) =>
     geo(layer, new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(v3), closed), pts.length * 4, r, 6, closed), null, part, kind);
-  /** A flat shape drawn in the x-z plane (u = x, v = z), extruded `depth` towards -y from y0 + depth. */
   const plate = (layer: Layer, pts: number[][], y0: number, depth: number, part: string, kind: string) => {
     const g = new T.ExtrudeGeometry(new T.Shape(pts.map(([u, v]) => new T.Vector2(u, v))), { depth, bevelEnabled: false, curveSegments: 6 });
     g.rotateX(Math.PI / 2);
     g.translate(0, y0 + depth, 0);
     geo(layer, g, null, part, kind);
   };
-  /** A flat shape drawn in the x-y plane, extruded `depth` up from z0. */
   const flat = (layer: Layer, pts: number[][], z0: number, depth: number, part: string, kind: string) => {
     const g = new T.ExtrudeGeometry(new T.Shape(pts.map(([u, v]) => new T.Vector2(u, v))), { depth, bevelEnabled: false });
     g.translate(0, 0, z0);
@@ -104,18 +92,16 @@ export function makeKit(T: T3) {
 }
 export type Kit = ReturnType<typeof makeKit>;
 
-/** Turns the layers into three.js meshes and the colouring by damage level. the paint is matt and the damage zones blend into each other; `arches` are the wheel arch openings [x, ...] cut out of the shell on the GPU. */
 export function assemble(T: T3, layers: Record<Layer, LayerData>, arches: number[]): CarModel {
-  // ---- into three.js: one mesh per layer, colours per triangle ----
   const mats = {
     shell: new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, side: T.DoubleSide }),
     inner: new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.1, side: T.DoubleSide }),
     glass: new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.3, metalness: 0, transparent: true, opacity: 0.82, side: T.DoubleSide, depthWrite: false }),
     frame: new T.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, side: T.DoubleSide }),
   };
-  { // the wheel arch openings are cut per pixel, so their edge is a true circle whatever the mesh looks like
+  {
     const test = arches.map((x) => `length(vec2(vP.x - ${x.toFixed(3)}, vP.z - 0.345)) < 0.352`).join(" || ");
-    const wide = arches.map((x) => `length(vec2(vP.x - ${x.toFixed(3)}, vP.z - 0.345)) < 0.5`).join(" || "); // the inside faces of the arch only: the canopy and the rest of the body are lit from both sides
+    const wide = arches.map((x) => `length(vec2(vP.x - ${x.toFixed(3)}, vP.z - 0.345)) < 0.5`).join(" || ");
     mats.shell.onBeforeCompile = (sh) => {
       const decl = "#include <common>\nvarying vec3 vP;";
       sh.vertexShader = sh.vertexShader.replace("#include <common>", decl).replace("#include <begin_vertex>", "#include <begin_vertex>\nvP = position;");
@@ -131,7 +117,7 @@ export function assemble(T: T3, layers: Record<Layer, LayerData>, arches: number
     meshes[k] = new T.Mesh(g, mats[k]);
     meshes[k].renderOrder = k === "glass" ? 2 : 1;
   }
-  { // smoked glass, lighter toward the top and the middle of the cabin, so a window reads as glass and not as a black hole
+  {
     const o = layers.glass, col = meshes.glass.geometry.attributes.color!, a = col.array as Float32Array, c = new T.Color();
     for (let i = 0; i < o.pos.length; i += 3) {
       const x = o.pos[i]!, z = o.pos[i + 2]!, k = Math.pow(Math.min(1, Math.max(0, (z - 0.55) / 0.65)), 2), f = Math.max(0, 1 - Math.abs(x + 0.1) / 1.5), m = 0.12 + 0.75 * k * f;
@@ -174,7 +160,7 @@ export function assemble(T: T3, layers: Record<Layer, LayerData>, arches: number
       const sm = (a: number, b: number, v: number) => { const u = Math.min(1, Math.max(0, (v - a) / (b - a))); return u * u * (3 - 2 * u); };
       const zoneRgb: Record<string, number[]> = {};
       for (const z of ["front", "rear", "left", "right", "centre"]) zoneRgb[z] = lv[z] == null ? [128, 133, 140] : levelColour(lv[z]!, tk);
-      const blended = (x: number, y: number, z: number, kind: string): THREE.Color => { // the zones melt into each other over a short stretch, and the low bodywork sits in shade
+      const blended = (x: number, y: number, z: number, kind: string): THREE.Color => {
         const sf = sm(1.2, 1.4, x), sr = sm(-1.25, -1.45, x), R = (1 - sf) * (1 - sr), sa = sm(0.54, 0.7, Math.abs(y)) * R;
         const w: Record<string, number> = { front: sf, rear: (1 - sf) * sr, left: y > 0 ? sa : 0, right: y > 0 ? 0 : sa, centre: R - sa };
         const c = [0, 0, 0];
@@ -200,7 +186,6 @@ export function assemble(T: T3, layers: Record<Layer, LayerData>, arches: number
 }
 
 export interface CarView {
-  /** Draws the car and returns the label anchors: part to [x, y, facing the camera]. */
   draw(view: { az: number; el: number; x: boolean; zoom: number }, lv: Record<string, number | null>): Record<string, [number, number, boolean]>;
   dispose(): void;
 }
@@ -208,7 +193,6 @@ export interface CarView {
 let threeP: Promise<T3> | null = null;
 const loadThree = () => (threeP ??= import("three"));
 
-/** The car in a WebGL canvas of its own inside host. Rejects when three.js cannot load or there is no WebGL. */
 export async function car3dView(host: HTMLElement): Promise<CarView> {
   const T = await loadThree();
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
@@ -217,7 +201,7 @@ export async function car3dView(host: HTMLElement): Promise<CarView> {
   host.prepend(renderer.domElement);
   const scene = new T.Scene(), car = (await import("./car3d2")).buildCar2(T), cam = new T.PerspectiveCamera(28, 1, 0.1, 100);
   scene.add(car.group);
-  { // a contact shadow under the car
+  {
     const cv = document.createElement("canvas"); cv.width = cv.height = 128;
     const g = cv.getContext("2d")!, gr = g.createRadialGradient(64, 64, 8, 64, 64, 64);
     gr.addColorStop(0, "rgba(0,0,0,0.55)"); gr.addColorStop(1, "rgba(0,0,0,0)");
@@ -229,7 +213,7 @@ export async function car3dView(host: HTMLElement): Promise<CarView> {
   scene.add(new T.HemisphereLight(0xffffff, 0x2a2d33, 2.2));
   const sun = new T.DirectionalLight(0xffffff, 1.8); sun.position.set(4, 5, 7); scene.add(sun);
   const rim = new T.DirectionalLight(0xffffff, 0.7); rim.position.set(-5, -4, 3); scene.add(rim);
-  const centre = new T.Vector3(0, 0, 0.62), BOX: number[][] = []; // what the camera looks at, and the corners of the car's box
+  const centre = new T.Vector3(0, 0, 0.62), BOX: number[][] = [];
   for (const x of [-2.8, 2.55]) for (const y of [-1.1, 1.1]) for (const z of [0, 1.33]) BOX.push([x, y, z - 0.62]);
   const dot = (p: number[], q: number[]) => p[0]! * q[0]! + p[1]! * q[1]! + p[2]! * q[2]!;
   return {
@@ -240,11 +224,11 @@ export async function car3dView(host: HTMLElement): Promise<CarView> {
       car.update(lv, tokens(), view.x);
       const ca = Math.cos(view.az), sa = Math.sin(view.az), ce = Math.cos(view.el), se = Math.sin(view.el), a = w / h, f = (cam.fov * Math.PI) / 360;
       const d = [ce * ca, ce * sa, se], r = [-sa, ca, 0], u = [-se * ca, -se * sa, ce];
-      let dist = 0; // far enough that every corner of the box is inside the view, with a margin
+      let dist = 0;
       for (const p of BOX) { const z = dot(p, d); dist = Math.max(dist, z + (Math.abs(dot(p, r)) / (Math.tan(f) * a)) * 1.08, z + (Math.abs(dot(p, u)) / Math.tan(f)) * 1.12); }
       dist *= view.zoom;
       cam.aspect = a;
-      cam.up.set(u[0]!, u[1]!, u[2]!); // the orbit's own up: never parallel to the view, so Top works
+      cam.up.set(u[0]!, u[1]!, u[2]!);
       cam.position.set(centre.x + dist * ce * ca, centre.y + dist * ce * sa, centre.z + dist * se);
       cam.lookAt(centre);
       cam.updateProjectionMatrix();

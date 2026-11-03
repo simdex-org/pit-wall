@@ -36,7 +36,6 @@ const hms = (s: number) => { s = Math.round(s); return `${Math.floor(s / 3600)}:
 const sgn = (v: number, d: number) => (v < 0 ? MINUS : "+") + nf(Math.abs(v), d);
 
 
-/** [key, label, unit]; what each field means is in its title. An empty field uses the live figure shown as its placeholder. */
 const FIELDS: [string, string, string][] = [
   ["fpl", "Fuel per lap", "L"], ["cap", "Tank", "L"], ["reserve", "Reserve", "laps"], ["extra", "Extra laps", "laps"], ["formL", "Formation", "L"],
   ["mand", "Mandatory stops", ""], ["maxStint", "Max driver stint", "min"], ["loss", "Pit loss", "s"], ["refuel", "Refuelling", "s/L"],
@@ -56,15 +55,14 @@ export const fuelCalc = defineModule({
   view({ ctx: c, size }) {
     const [state, setState] = useState(load);
     const [sel, setSel] = useState<number | null>(null);
-    const [mine, setMine] = useState<number[] | null>(null); // stop laps moved by hand
-    const [safe, setSafe] = useState(false); // one more lap of fuel kept at every stop and at the flag
+    const [mine, setMine] = useState<number[] | null>(null);
+    const [safe, setSafe] = useState(false);
     const shared = useRacePlan();
     const { v, f } = state;
     const update = (nv: Values, nf: Flags) => { setState({ v: nv, f: nf }); setSel(null); setMine(null); lsSet("pitwall.calc", { ...nv, tyres: nf.tyres, ...(nf.seq == null ? {} : { seq: nf.seq }) }); };
     const set = (k: string, val: string) => update({ ...v, [k]: val.replace(k === "lap" ? /[^0-9.,:]/g : /[^0-9.,]/g, "") }, f);
 
     const st = c.st, cfg = (c.cfg?.strategy ?? {}) as Record<string, number | string | null>, fx = c.r?.fixed;
-    // Live figures: the inputs' placeholders and the fallback of every empty field.
     const live: Record<string, number | null> = {
       fpl: st && st.fuel_per_lap > 0 ? st.fuel_per_lap : c.r && c.r.session.fuel_per_lap > 0 ? c.r.session.fuel_per_lap : null,
       lap: st && (st.my_pace_ms || st.lap_ref_ms) ? (st.my_pace_ms || st.lap_ref_ms) / 1000 : null,
@@ -72,7 +70,6 @@ export const fuelCalc = defineModule({
       loss: st ? st.drive_loss_s : (cfg.pit_loss_s as number | null), refuel: st ? st.refuel_s_per_l : (cfg.refuel_s_per_l as number | null),
       tyreS: st ? st.tyre_s : (cfg.tyre_s as number | null), minStat: cfg.min_stationary_s as number | null,
     };
-    // The race length the game gives: the lap count, or the bridge's estimate from the time left and the leader's pace.
     const ses = c.r?.session;
     const liveRace = ses && ses.kind === "Race" ? (ses.total_laps > 0 ? ses.total_laps : st?.laps_to_go != null ? ses.completed_laps + Math.ceil(st.laps_to_go) : null) : null;
     const ph: Record<string, string> = { race: liveRace ? String(liveRace) : "", extra: "0", formL: "0", maxStint: "none", wt: "0", lap: live.lap != null ? fmtLap(live.lap * 1000) : "m:ss.xxx" };
@@ -89,11 +86,8 @@ export const fuelCalc = defineModule({
     };
     const p = fuelPlan(inp);
     const even = p.total ? p.options.find((o) => o.n === sel) ?? p.best ?? p.options[0] : null;
-    // Stop laps moved by hand count only while they still fit the race and the chosen number of stops.
     const handmade = even && p.total && mine && mine.length === even.n && mine.every((x, k) => x >= 1 && x < p.total! && (k === 0 || x > mine[k - 1]!)) ? p.build(mine) : null;
     const pick = handmade ?? even;
-    // How far a stop may move: the stints either side must still fit the tank.
-    // Where a stop that costs this many seconds would put you, against the field as it is now (nobody else stops).
     const me = c.me != null ? c.cars.get(c.me) : undefined, ref = st?.lap_ref_ms ?? 0;
     const rejoinAt = (lossS: number): number | null => {
       if (!me || me.gap == null || !(ref > 0) || ses?.kind !== "Race") return null;
@@ -167,13 +161,11 @@ export const fuelCalc = defineModule({
     );
     const miss = !ok ? [!(((laps ? inp.raceLaps : inp.raceMin) ?? 0) > 0) && "the race length", !((inp.lapS ?? 0) > 0) && "a lap time", !((inp.fpl ?? 0) > 0) && "the fuel per lap"].filter(Boolean) : [];
 
-    // 13 + 13 + 13 + 10 reads as "13 L ×3, 10 L".
     const addsOf = (o: { stints: { add: number | null }[] }) => {
       const runs: [string, number][] = [];
       for (const t of o.stints.slice(1)) { const a = nf(t.add!, 0); if (runs.length && runs[runs.length - 1]![0] === a) runs[runs.length - 1]![1]++; else runs.push([a, 1]); }
       return runs.map(([a, n]) => (n > 1 ? `${a} L ×${n}` : `${a} L`)).join(", ");
     };
-    // What one more lap of fuel at every stop and at the flag costs, whichever side of it the plan is on.
     const other = ok && p.best ? fuelPlan({ ...inp, reserve: inp.reserve + (safe ? -1 : 1) }).best : null;
     const safeCost = other && p.best ? Math.abs(other.timeS - p.best.timeS) : null;
     const stintTable = (cols: "small" | "large") => pick ? (

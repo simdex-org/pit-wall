@@ -1,4 +1,3 @@
-// Which template and workspace this tab shows. They live in the address bar (#t=..&w=..), so each tab keeps its own.
 import { useSyncExternalStore } from "react";
 import { lsRaw, lsSet } from "../lib/storage";
 import { prefs } from "./prefs";
@@ -15,7 +14,6 @@ class Nav {
   private state!: NavState;
   private subs = new Set<() => void>();
 
-  /** Called once every module has registered and the templates are loaded. */
   start(): void {
     const h = readHash();
     const tpl = templates.get(h.t) ?? templates.get(lsRaw("pitwall.active")) ?? templates.get("builtin-race")!;
@@ -50,7 +48,6 @@ class Nav {
 
   showWorkspace(wsId: string): void { this.show(this.state.tpl, wsId); }
 
-  /** The tab's template changed in place (the editor): same tab, new contents. */
   replace(tpl: Template, wsId?: string): void { this.show(tpl, wsId ?? this.state.wsId); }
 
   stepWorkspace(d: number): void {
@@ -58,7 +55,6 @@ class Nav {
     this.showWorkspace(ws[(i + d + ws.length) % ws.length]!.id);
   }
 
-  /** The tab's template, and the default for new tabs. */
   useTemplate(id: string, wsId?: string): void {
     const tpl = templates.get(id) ?? templates.get("builtin-race")!;
     lsSet("pitwall.active", tpl.id);

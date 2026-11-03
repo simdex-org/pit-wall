@@ -1,4 +1,3 @@
-// The bridge sends these as indexes.
 export const FLAGS = ["none", "blue", "yellow", "black", "white", "chequered", "penalty", "green", "orange"] as const;
 
 export const PENALTIES: [code: string, why: string][] = [
@@ -8,7 +7,6 @@ export const PENALTIES: [code: string, why: string][] = [
   ["DSQ", "pit entry"], ["DSQ", "pit exit"], ["DSQ", "wrong way"], ["DT", "ignored driver stint"], ["DSQ", "ignored driver stint"],
   ["DSQ", "exceeded driver stint limit"],
 ];
-/** Penalties served in the pit lane. */
 export const SERVABLE = [1, 2, 3, 4, 7, 8, 9, 10, 19];
 
 export const GRIP = ["Green", "Fast", "Optimum", "Greasy", "Damp", "Wet", "Flooded"];

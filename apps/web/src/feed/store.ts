@@ -6,15 +6,12 @@ import type { BroadcastState, Car, Field, Json, LogLine, Payload } from "./types
 export type Focus = "self" | number;
 
 export interface Ctx {
-  /** The latest reading, its source driver, summary, strategy and lap list. */
   r: Json | null;
   from: string;
   s: Json | null;
   st: Json | null;
   laps: Json[];
-  /** Earlier sessions: {id, kind, track, laps, stints, stops, field}. */
   past: Json[];
-  /** The earlier session the page is showing in place of the live one, or null. */
   view: { id: number; label: string; carLaps: Record<string, Json[]> } | null;
   field: Field | null;
   entries: { track: Json | null; cars: Record<string, Json> } | null;
@@ -34,7 +31,6 @@ export interface Ctx {
   live: boolean;
   stale: boolean;
   wet: boolean;
-  /** Rate of readings over the last two seconds, for the engineer bar. */
   hz: number;
 }
 
@@ -62,7 +58,6 @@ function focusCar(c: Pick<Ctx, "cars" | "focus" | "me">): Car | null {
   return i == null ? null : c.cars.get(i) ?? null;
 }
 
-/** Fast field, slow fields and entry list merged by car index. */
 function mergeCars(entries: Ctx["entries"], field: Field | null, slow: Map<number, Partial<Car>>): Map<number, Car> {
   const cars = new Map<number, Car>();
   const ents = entries?.cars ?? {};
@@ -74,12 +69,7 @@ function mergeLog(it: Internals): LogLine[] {
   return it.bridgeLog.concat(it.pageLog).sort((a, b) => b.t - a.t).slice(0, LOG_LIMIT);
 }
 
-/**
- * One payload from the bridge applied to the context. Returns a new context; sections that did not change keep their identity.
- * `now` is a clock in ms, passed in so the rate can be tested.
- */
 export function applyPayload(prev: Ctx, it: Internals, raw: Payload, now: number): Ctx {
-  // These stay as sent: their strings reach the DOM only escaped by React.
   const { pit, pit_job: pitJob, pit_log: pitLog } = raw;
   const p = numbersOnly<Payload>({ ...raw, pit: undefined, pit_job: undefined, pit_log: undefined });
   const c: Ctx = { ...prev };
@@ -133,7 +123,6 @@ export function applyPayload(prev: Ctx, it: Internals, raw: Payload, now: number
   return c;
 }
 
-/** A line the page itself adds to the log (a sent plan, a saved template). */
 export function addPageLog(prev: Ctx, it: Internals, sev: number, cat: string, text: string): Ctx {
   const lap = prev.r ? prev.r.session.lap_number : 0;
   it.pageLog.unshift({ seq: -it.pageLog.length - 1, t: Date.now() / 1000, lap, sev: Math.max(0, Math.min(2, sev | 0)), cat: String(cat).slice(0, 8), text: String(text), src: "page" });
@@ -150,7 +139,6 @@ export function withFocus(prev: Ctx, v: Focus | null | undefined): Ctx {
   return next;
 }
 
-/** An earlier session's name: its kind, numbered when the same kind came before or comes after (the live session counts). */
 export function sessionLabel(c: Pick<Ctx, "past" | "r">, id: number | "live"): string {
   const kinds = c.past.map((p) => p.kind as string), live = c.r?.session.kind as string | undefined;
   const kind = id === "live" ? live ?? "Session" : (c.past.find((p) => p.id === id)?.kind as string) ?? "Session";
@@ -160,13 +148,12 @@ export function sessionLabel(c: Pick<Ctx, "past" | "r">, id: number | "live"): s
   return `${kind} ${all.slice(0, idx + 1).filter((k) => k === kind).length}`;
 }
 
-/** What an earlier session shows in place of the live one: its laps, stints, stops and, when the bridge has it, the field as it ended. */
 interface Frozen { id: number; field: Field | null; entries: Ctx["entries"]; cars: Map<number, Car>; carLaps: Record<string, Json[]>; view?: Ctx["view"]; viewOf?: Json[] }
 
 function overlay(c: Ctx, v: Frozen): Ctx {
   const p = c.past.find((q) => q.id === v.id);
   if (!p) return c;
-  if (v.viewOf !== c.past) { v.view = { id: v.id, label: sessionLabel(c, v.id), carLaps: v.carLaps }; v.viewOf = c.past; } // same object until the list changes
+  if (v.viewOf !== c.past) { v.view = { id: v.id, label: sessionLabel(c, v.id), carLaps: v.carLaps }; v.viewOf = c.past; }
   const next: Ctx = {
     ...c, laps: p.laps, field: v.field, entries: v.entries, cars: v.cars, me: v.field?.me ?? null, mode: v.field?.mode ?? (p.kind === "Race" ? "race" : "best"),
     s: c.s && { ...c.s, stints: p.stints, stops: p.stops }, view: v.view!,
@@ -176,7 +163,6 @@ function overlay(c: Ctx, v: Frozen): Ctx {
   return next;
 }
 
-/** A subscribable holder for the context; React reads it through useSyncExternalStore. */
 export class FeedStore {
   private live = emptyCtx();
   private ctx = this.live;
@@ -195,7 +181,7 @@ export class FeedStore {
     this.live = next;
     this.ctx = this.frozen ? overlay(next, this.frozen) : next;
     for (const fn of this.subs) {
-      try { fn(); } catch (e) { console.error(e); } // one failing listener must not starve the modules after it
+      try { fn(); } catch (e) { console.error(e); }
     }
   }
 
@@ -203,7 +189,6 @@ export class FeedStore {
   log(sev: number, cat: string, text: string): void { this.set(addPageLog(this.live, this.it, sev, cat, text)); }
   setFocus(v: Focus | null | undefined): void { this.set(withFocus(this.live, v)); }
 
-  /** Show an earlier session (its id from `past`), or the live one with null. */
   async showSession(id: number | null): Promise<void> {
     if (id === null) { this.frozen = null; return this.set(this.live); }
     const p = this.live.past.find((q) => q.id === id);

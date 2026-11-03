@@ -1,4 +1,3 @@
-// vJoy: a virtual controller the MFD actions can be bound to, so the driver's keyboard is never touched.
 import koffi from "koffi";
 import { sleep } from "./mfd.js";
 
@@ -15,7 +14,6 @@ export interface VJoy {
   RelinquishVJD(dev: number): void;
 }
 
-/** vJoy's interface with device `dev` acquired for this program. Throws with what to fix. */
 export function vjoyDevice(dev: number): VJoy {
   let lib: ReturnType<typeof koffi.load>;
   try { lib = koffi.load(VJOY_DLL); } catch { throw new Error(`vJoy is not installed (${VJOY_DLL} not found)`); }
@@ -28,7 +26,7 @@ export function vjoyDevice(dev: number): VJoy {
     SetBtn: lib.func("int SetBtn(int value, uint32 id, uint8 btn)"),
     RelinquishVJD: lib.func("void RelinquishVJD(uint32 id)"),
   };
-  const status = vj.GetVJDStatus(dev); // 0 owned by us, 1 free, 2 taken by another program, 3 missing
+  const status = vj.GetVJDStatus(dev);
   if (!vj.vJoyEnabled() || status === 2 || status === 3 || vj.GetVJDButtonNumber(dev) < Math.max(...Object.values(VJOY_BUTTONS))) {
     throw new Error(`vJoy device ${dev} is not usable: it must exist, have at least 6 buttons and not be used by another program (Configure vJoy, device 1, 8 buttons)`);
   }
@@ -44,7 +42,6 @@ export async function vjoyPress(vj: VJoy, dev: number, button: number, holdS: nu
   await sleep(holdS * 1000);
 }
 
-/** Help bind ACC's MFD actions to the vJoy buttons: each one is pressed every second for 10 s, announced by beeps. */
 export async function bindVjoy(dev = 1): Promise<void> {
   const vj = vjoyDevice(dev);
   const actions = [["pit", "MFD pitstop page"], ["up", "MFD up"], ["down", "MFD down"], ["left", "MFD left"], ["right", "MFD right"],

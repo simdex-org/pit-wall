@@ -1,12 +1,9 @@
-// Small numeric helpers: rounding half to even, a modulo that follows the sign of the divisor, and indexing from the end.
 
 export class ValueError extends Error {}
 
-/** Loose record for ACC's raw pages and the payloads built from them; the shapes are too many to type one by one. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Rec = Record<string, any>;
 
-/** Rounds half to even. */
 export function roundHalfEven(x: number): number {
   const f = Math.floor(x);
   const d = x - f;
@@ -15,10 +12,8 @@ export function roundHalfEven(x: number): number {
   return f % 2 === 0 ? f : f + 1;
 }
 
-/** x modulo m, with the sign of m. */
 export const mod = (x: number, m: number): number => ((x % m) + m) % m;
 
-/** An element by index, counting from the end when negative. */
 export const at = <T>(a: readonly T[], i: number): T => a[mod(i, a.length)] as T;
 
 export const sum = (xs: Iterable<number>): number => {
@@ -34,7 +29,6 @@ export const mean = (xs: Iterable<number | null | undefined>): number | null => 
 
 export const isObj = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** Floats to 3 decimals (NaN/inf to null), recursively; a new object. */
 export function rnd<T>(o: T): T {
   if (typeof o === "number") return (Number.isFinite(o) ? (Number.isInteger(o) ? o : Math.round(o * 1000) / 1000) : null) as T;
   if (Array.isArray(o)) return o.map(rnd) as T;

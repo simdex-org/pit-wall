@@ -1,5 +1,3 @@
-// ACC's three shared-memory pages (physics, graphics, static) as one raw reading.
-// Offsets follow Kunos' ACC Shared Memory Documentation 1.8.12.
 import { openShared } from "../win/shm.js";
 import { Rec } from "../util.js";
 
@@ -24,7 +22,7 @@ export class AccPages implements Pages {
     const p = this.m.physics(), g = this.m.graphics(), s = this.m.static();
     const ids = is(g, 976, 60), me = i(g, 1216);
     const car = Math.max(0, ids.indexOf(me));
-    const xyz = fs(g, 256, 3 * 60); // every active car's world position, the same frame as your own: where the cars really are, off track or not
+    const xyz = fs(g, 256, 3 * 60);
     const coords: Record<number, number[]> = {};
     for (let k = 0; k < Math.min(i(g, 252), 60); k++) {
       if (xyz[3 * k] || xyz[3 * k + 2]) coords[ids[k]!] = [xyz[3 * k]!, xyz[3 * k + 2]!];
@@ -56,7 +54,6 @@ export class AccPages implements Pages {
   }
 }
 
-/** The fields not yet checked in a real session, raw, once a second: compare them with what the game shows. */
 export async function probe(): Promise<never> {
   const pages = new AccPages();
   for (;;) {

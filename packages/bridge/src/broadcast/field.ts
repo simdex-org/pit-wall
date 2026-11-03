@@ -1,5 +1,3 @@
-// Broadcasting messages in, standings out. Times are ACC's session time in ms from the latest REALTIME_UPDATE,
-// which every car update in that batch shares.
 import { fmtLap } from "../telemetry/constants.js";
 import { mod, roundHalfEven, Rec } from "../util.js";
 import { CUPS, LOCS, MODELS, PHASES, PIT_LOCS, RACE } from "./models.js";
@@ -7,10 +5,9 @@ import { CUPS, LOCS, MODELS, PHASES, PIT_LOCS, RACE } from "./models.js";
 type Mark = [dist: number, t: number];
 export type FieldEvent = [sev: number, cat: string, text: string];
 
-/** When a car was at distance d (laps + spline), interpolated between its marks; null outside them. */
 function tAt(pts: Mark[], dists: number[], d: number): number | null {
   if (pts.length < 2 || !(dists[0]! <= d && d <= dists[dists.length - 1]!)) return null;
-  let lo = 0, hi = dists.length; // bisect_left
+  let lo = 0, hi = dists.length;
   while (lo < hi) { const m = (lo + hi) >> 1; if (dists[m]! < d) lo = m + 1; else hi = m; }
   const k = lo;
   if (k === 0) return pts[0]![1];
@@ -18,7 +15,6 @@ function tAt(pts: Mark[], dists: number[], d: number): number | null {
   return d1 > d0 ? t0 + ((t1 - t0) * (d - d0)) / (d1 - d0) : t1;
 }
 
-/** Relative only lists cars within this fraction of a lap of me. */
 const REL_WINDOW = 0.25;
 export const wrap = (x: number): number => mod(x + 1.5, 1) - 0.5;
 
@@ -36,17 +32,15 @@ export class Field {
   me: number | null = null;
   slowSeq = 0;
   events: FieldEvent[] = [];
-  /** The last session that ended and which one it is (counts up), for the bridge to file with the telemetry's own. */
   ended: Rec | null = null;
   endedSeq = 0;
   private xzS: number[][] = [];
   private xzMap: Axis | null = null;
   private xzDone = false;
 
-  // --- input ---
   on(kind: number, d: Rec): void {
     if (kind === 2) {
-      if (this.sidx !== null && d.session_idx !== this.sidx) { // new session: pits, marks and laps start over
+      if (this.sidx !== null && d.session_idx !== this.sidx) {
         if (this.cars.size) { this.ended = this.freeze(); this.endedSeq++; }
         this.cars = new Map();
       }
@@ -94,9 +88,9 @@ export class Field {
       this.cars.set(i, c);
     }
     let dist: number = d.laps + d.spl;
-    if (c.dist !== null && Math.abs(dist - c.dist) > 0.5) { // laps and spline wrap in different packets: take the nearer reading
+    if (c.dist !== null && Math.abs(dist - c.dist) > 0.5) {
       dist = Math.abs(dist - 1 - c.dist) <= Math.abs(dist + 1 - c.dist) ? dist - 1 : dist + 1;
-      if (Math.abs(dist - c.dist) > 0.5) { // back to the pits / teleported: the old marks mean nothing now
+      if (Math.abs(dist - c.dist) > 0.5) {
         c.marks.length = 0;
         dist = d.laps + d.spl;
       }
@@ -125,7 +119,7 @@ export class Field {
       c.int_hist = [...c.int_hist, c.int].slice(-5); c.gap_hist = [...c.gap_hist, c.gap].slice(-5);
       slow = true;
     } else if (c.hist.length && c.last !== null && last.ms !== c.last.ms && c.hist[c.hist.length - 1].n === d.laps) {
-      Object.assign(c.hist[c.hist.length - 1], { ms: last.ms, s: last.s.slice(0, 3), valid: last.valid }); // the last lap arrived a packet after the line
+      Object.assign(c.hist[c.hist.length - 1], { ms: last.ms, s: last.s.slice(0, 3), valid: last.valid });
       slow = true;
     }
     Object.assign(c, { pos: d.pos, cpos: d.cpos, laps: d.laps, spl: d.spl, kmh: d.kmh, gear: d.gear, loc, cur: d.cur.ms, delta: d.delta, drv: d.drv,
@@ -133,7 +127,6 @@ export class Field {
     if (slow || !c.seq) this.bump(c);
   }
 
-  // --- derived ---
   mode(): "race" | "best" {
     return this.rt && this.rt.type === RACE ? "race" : "best";
   }
@@ -149,15 +142,13 @@ export class Field {
     this.me = null;
   }
 
-  /** Broadcast WorldPosX/Y only count once they match shared memory's x, z under one of four axis mappings. */
   private xzCheck(hint: Rec | null): void {
     const c = this.me === null ? undefined : this.cars.get(this.me);
     if (this.xzDone || !hint || !c || (hint.kmh || 0) < 5) return;
     this.xzS.push([c.x, c.y, hint.xyz[0], hint.xyz[2]]);
     if (this.xzS.length < 30) return;
     this.xzDone = true;
-    if (this.xzS.every(([x, y]) => Math.abs(x!) < 1e-6 && Math.abs(y!) < 1e-6)) return; // zeros, as the Go SDK saw: no positions
-    // The two sources are up to 250 ms apart, so the error grows at speed. This is a fallback; the spline path comes first.
+    if (this.xzS.every(([x, y]) => Math.abs(x!) < 1e-6 && Math.abs(y!) < 1e-6)) return;
     const err = AXES.map((f) => this.xzS.reduce((s, [x, y, sx, sz]) => { const [a, b] = f(x!, y!); return s + Math.hypot(a - sx!, b - sz!); }, 0) / this.xzS.length);
     const k = err.indexOf(Math.min(...err));
     if (err[k]! < 5) this.xzMap = AXES[k]!;
@@ -169,7 +160,6 @@ export class Field {
     return [pts, pts.map((p) => p[0])];
   }
 
-  /** Race gap of b behind a, ms, plus whole laps when a is a lap or more ahead. */
   private gap(a: Rec, b: Rec): [number | null, number] {
     const diff = a.dist - b.dist;
     if (diff < 0) return [null, 0];
@@ -184,9 +174,7 @@ export class Field {
   }
 
   private order(): [number, Rec][] {
-    // ACC's positions come in per-car packets, so a snapshot can hold two P11s and no P26: a tie goes to whoever is further round
     const race = this.mode() === "race";
-    // ACC leaves Position at the grid order until the lights go out, so on the formation lap the order is who is further round
     if (race && this.phase !== null && this.phase > 0 && this.phase < 5) {
       return [...this.cars].sort(([ia, a], [ib, b]) => (b.dist ?? 0) - (a.dist ?? 0) || (a.pos || 999) - (b.pos || 999) || ia - ib);
     }
@@ -200,7 +188,7 @@ export class Field {
     const p1 = order.length ? order[0]![1] : null;
     const cupN = new Map<unknown, number>();
     order.forEach(([i, c], k) => {
-      c.pos = k + 1; // the order is the truth: ranks always run 1..n without repeats
+      c.pos = k + 1;
       const cup = this.ent.get(i)?.cup;
       if (c.cpos) { c.cpos = (cupN.get(cup) ?? 0) + 1; cupN.set(cup, c.cpos); }
       if (k === 0) {
@@ -208,8 +196,6 @@ export class Field {
       } else if (race) {
         const prev = order[k - 1]![1];
         [c.gap, c.gap_laps] = this.gap(p1!, c);
-        // the interval from the two gaps to P1 when both are in the same lap, so Gap and Int always agree (the
-        // car-to-car time is off while the car ahead crawls down the pit lane); car to car otherwise
         if (c.gap !== null && prev.gap !== null && c.gap_laps === prev.gap_laps) { c.int = Math.max(0, c.gap - prev.gap); c.int_laps = 0; }
         else [c.int, c.int_laps] = this.gap(prev, c);
       } else {
@@ -224,11 +210,11 @@ export class Field {
       c.rel = null;
       if (!me || c === me) { c.rel = c === me ? 0 : null; continue; }
       const f = wrap(c.spl - me.spl);
-      if (Math.abs(f) > REL_WINDOW) continue; // not a neighbour: "ahead" or "behind" there is only where the half-lap wrap cuts
-      if (f >= 0) { // ahead on track: how long ago it passed where I am
+      if (Math.abs(f) > REL_WINDOW) continue;
+      if (f >= 0) {
         const tc = tAt(c._pts[0], c._pts[1], c.dist - f);
         c.rel = tc === null ? null : roundHalfEven(this.t - tc);
-      } else { // behind: how long ago I passed where it is
+      } else {
         const tm = tAt(me._pts[0], me._pts[1], me.dist + f);
         c.rel = tm === null ? null : -roundHalfEven(this.t - tm);
       }
@@ -236,8 +222,6 @@ export class Field {
     return order;
   }
 
-  /** The `field` payload (fast part). meHint: {id, laps, spl, name, xyz, kmh, coords} from shared memory, or null.
-   * mandatory: stops every car owes in this race, or null; lossMs: what a stop costs, for the net position. */
   snapshot(meHint: Rec | null, mandatory: number | null, lossMs: number | null): Rec {
     this.resolveMe(meHint);
     this.xzCheck(meHint);
@@ -274,7 +258,6 @@ export class Field {
       lane_ms: c.lane_ms, stint_laps: c.laps - (c.exit_laps ?? 0), out: c.out, in: c.inl, int_hist: c.int_hist, gap_hist: c.gap_hist };
   }
 
-  /** Slow per-car fields (lap times, pits, histories) of cars that changed after seq, and the newest seq. */
   slowSince(seq: number): [Rec, number] {
     return [Object.fromEntries([...this.cars].filter(([, c]) => c.seq > seq).map(([i, c]) => [String(i), this.slowOf(c)])), this.slowSeq];
   }
@@ -284,7 +267,6 @@ export class Field {
       cars: Object.fromEntries([...this.ent].map(([i, e]) => [String(i), { ...e, drivers: e.drivers.map((d: Rec) => ({ ...d })) }])) };
   }
 
-  /** The session as it ended: standings, slow fields, entries and every car's laps, as the page merges them. */
   private freeze(): Rec {
     return { field: this.snapshot(null, null, null), slow: this.slowSince(-1)[0], entries: this.entries(), laps: Object.fromEntries([...this.cars.keys()].map((i) => [String(i), this.carLaps(i)])) };
   }
@@ -294,7 +276,6 @@ export class Field {
     return c ? c.hist.map((h: Rec) => ({ ...h, s: [...h.s] })) : [];
   }
 
-  /** What the telemetry's strategy needs from the field: the leader's distance and pace, and the session mode. */
   raceInfo(): Rec | null {
     const order = this.order();
     if (!order.length) return null;
@@ -302,8 +283,6 @@ export class Field {
     return { leader_dist: p1.dist, leader_pace_ms: this.pace(p1), mode: this.mode(), elapsed_ms: this.t };
   }
 
-  /** Where I come out if I stop now and it costs lossMs: my gap to the leader plus the loss, ranked against the cars
-   * not in the pits. {pos, ahead, behind, around}; gap_ms in around is signed (negative: ahead of me). null outside races. */
   rejoin(myIdx: number | null, lossMs: number | null): Rec | null {
     const me = myIdx === null ? undefined : this.cars.get(myIdx);
     if (this.mode() !== "race" || !me || lossMs === null || me.gap == null) return null;

@@ -1,8 +1,3 @@
-// Pit Wall: the race engineer's dashboard for Assetto Corsa Competizione.
-//
-// Runs on the driver's PC. Reads ACC's shared memory and, when ACC's broadcasting port is on, the timing of the whole field.
-// Serves the page plus a Server-Sent-Events stream it draws from, and, when the engineer sends a pit plan, sets it in the
-// game's pit page. Sending a plan or changing the shared thresholds needs the access key printed at start; watching does not.
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
@@ -52,7 +47,6 @@ const HELP = `Usage: pitwall-bridge [options]
   --bind-vjoy [N]            help bind ACC's MFD actions to vJoy buttons 1-6, then exit
 `;
 
-/** `--vjoy` and the other optional-number flags may stand alone: give them their default. */
 function normalize(argv: string[]): string[] {
   const out: string[] = [];
   const optionalNumber = new Set(["--vjoy", "--bind-vjoy", "--enable-broadcast"]);
@@ -138,18 +132,18 @@ async function main(): Promise<void> {
   try {
     if (simulate) PIT.mfd = fakeMfd;
     else { const { AccMfd } = await import("./pit/acc-mfd.js"); PIT.mfd = new AccMfd(v["pit-key"], Number(v["key-ms"]), v.vjoy === undefined ? undefined : Number(v.vjoy)); }
-  } catch (e) { console.log(`pit control off: ${(e as Error).message}`); } // not Windows (no named mappings / user32), a bad --pit-key, or no vJoy
+  } catch (e) { console.log(`pit control off: ${(e as Error).message}`); }
 
   let pages: FakePages | null = null;
   try {
     const t0 = performance.now() / 1000, k = Math.max(0.1, Number(v["sim-speed"]));
-    const clock = simulate ? () => t0 + (performance.now() / 1000 - t0) * k : () => performance.now() / 1000; // the pretend session's own time
+    const clock = simulate ? () => t0 + (performance.now() / 1000 - t0) * k : () => performance.now() / 1000;
     let src;
     if (simulate) src = pages = new FakePages({ session: simSession === "quali" ? 1 : simSession === "practice" ? 0 : 2, minutes: simMinutes, weekend: simSession === "weekend", clock, track: simTrack === "demo" ? undefined : simTrack, mfd: fakeMfd, field });
     else { const { AccPages } = await import("./telemetry/pages.js"); src = new AccPages(); }
     TEL.t = new Telemetry(STATE.config, clock);
     void accLoop(src, TEL.t, simulate);
-  } catch (e) { console.log(`telemetry off: ${(e as Error).message}`); } // not Windows: no named shared memory
+  } catch (e) { console.log(`telemetry off: ${(e as Error).message}`); }
   startField({ simulateAcc: simulate, simSession, broadcastPort: v["broadcast-port"] === undefined ? undefined : Number(v["broadcast-port"]),
     broadcastPassword: v["broadcast-password"] }, pages);
 
@@ -172,7 +166,7 @@ async function main(): Promise<void> {
     FIELD_CLOSE();
     PIT.mfd?.close?.();
     server.close();
-    setTimeout(() => process.exit(0), 200).unref(); // the unregister message goes out first
+    setTimeout(() => process.exit(0), 200).unref();
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
@@ -195,17 +189,15 @@ async function main(): Promise<void> {
 
 async function info() {
   let broadcastPort = 0;
-  try { broadcastPort = (await import("./broadcast/config.js")).readConfig().port; } catch { /* ACC has not written it yet */ }
+  try { broadcastPort = (await import("./broadcast/config.js")).readConfig().port; } catch {  }
   return { addresses: myAddresses(), hamachi: hamachiAddress(), broadcastPort };
 }
 
-/** This PC's IPv4 addresses, Hamachi's (25.x) first. */
 function myAddresses(): string[] {
   const ips = Object.values(networkInterfaces()).flat().filter((a) => a && a.family === "IPv4" && !a.internal).map((a) => a!.address);
   return [...new Set(ips)].sort((a, b) => Number(!a.startsWith("25.")) - Number(!b.startsWith("25.")));
 }
 
-/** The address of the Hamachi adapter: found by its name, else by the 25.x range. */
 function hamachiAddress(): string {
   const all = Object.entries(networkInterfaces()).flatMap(([name, list]) => (list ?? []).filter((a) => a.family === "IPv4").map((a) => ({ name, ip: a.address })));
   return (all.find((a) => /hamachi/i.test(a.name)) ?? all.find((a) => a.ip.startsWith("25.")))?.ip ?? "";

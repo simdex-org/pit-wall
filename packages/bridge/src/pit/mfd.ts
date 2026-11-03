@@ -1,4 +1,3 @@
-// What the page driver needs from an MFD, real or simulated.
 export type Key = "pit" | "up" | "down" | "left" | "right" | "close";
 
 export interface MfdSnapshot {
@@ -15,7 +14,6 @@ export interface MfdSnapshot {
 export interface Mfd {
   read(): MfdSnapshot;
   press(key: Key, n?: number): void | Promise<void>;
-  /** Resolves when the values read() returns have stopped changing after a key. */
   settle?(): Promise<void>;
 }
 

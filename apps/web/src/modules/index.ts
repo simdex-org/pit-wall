@@ -1,4 +1,3 @@
-// Importing a module file registers it. The built-in templates are checked against this list at start.
 import "./log";
 import "./timing";
 import "./strategy";

@@ -1,6 +1,3 @@
-// Rebuilds tracks.json from ACC's own racing lines.
-// Usage: node scripts/build.mjs <ACC folder>/AC2/Content/Cache [folder of the bridge's saved layouts]
-// The saved layouts add the sector lines, which only a driven lap knows.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

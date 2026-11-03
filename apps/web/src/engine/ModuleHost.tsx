@@ -15,12 +15,11 @@ const NA_MESSAGE: Partial<Record<Channel, string>> = {
   pit: "No pit control on this bridge.",
 };
 
-/** The `requires` channels: a missing one shows the module's unavailable state instead of its body. */
 function gate(def: ModuleDef, c: Ctx): string | null {
   for (const r of def.requires) {
     const missing = r === "field" ? !(c.bc?.state === "live" && c.field) : r === "reading" ? !c.r : r === "summary" ? !c.s : r === "pit" ? !c.pit : false;
     if (!missing) continue;
-    if (r === "field" && c.bc?.state === "off" && c.bc.msg) return c.bc.msg; // off on purpose or by setup: the bridge's own words say what to do
+    if (r === "field" && c.bc?.state === "off" && c.bc.msg) return c.bc.msg;
     return (NA_MESSAGE[r] ?? `Needs ${r}.`) + (r === "field" && c.bc?.msg ? " " + c.bc.msg : "");
   }
   return null;
@@ -41,7 +40,6 @@ function staleness(def: ModuleDef, c: Ctx): number {
 
 const EMPTY: ModuleView = {};
 
-/** Edit mode: move, options, duplicate, hide, remove. */
 function EditButtons({ inst }: { inst: ModuleInstance }) {
   const b = (act: string, label: string, icon: string, hint?: string) => (
     <button type="button" className="btn icon" data-act={act} title={hint ?? label} aria-label={label}><Icon name={icon} /></button>
@@ -54,7 +52,6 @@ function EditButtons({ inst }: { inst: ModuleInstance }) {
   );
 }
 
-/** Outside editing: a "view" choice (table, cards, chart) switches in the header, and Options opens the module's other settings. */
 function QuickView({ inst, def, quick }: { inst: ModuleInstance; def: ModuleDef | undefined; quick?: ReactNode }) {
   const toggle = (
     <button type="button" className="btn icon mhide" title={inst.hidden ? "Show the content" : "Hide the content"} aria-label={inst.hidden ? "Show the content" : "Hide the content"}
@@ -77,7 +74,6 @@ function QuickView({ inst, def, quick }: { inst: ModuleInstance; def: ModuleDef 
   );
 }
 
-/** The same controls floated over a module whose header is switched off. */
 function FloatView({ inst, def, quick }: { inst: ModuleInstance; def: ModuleDef | undefined; quick?: ReactNode }) {
   return <span className="float"><QuickView inst={inst} def={def} quick={quick} /></span>;
 }
@@ -93,7 +89,6 @@ function Frame({ inst, def, ctx, view, na, style, auto, edit }: { inst: ModuleIn
   }, [inst.id, view.alert?.[0], view.alert?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearAlert(inst.id), [inst.id]);
 
-  // Less space, less detail: blocks a module marks data-p="1".."9" (the higher, the sooner it goes) are dropped one by one until the body fits, so it needn't scroll.
   const fit = () => {
     const b = section.current?.querySelector<HTMLElement>(".mb");
     if (!b || b.hidden) return;
@@ -151,7 +146,6 @@ function Frame({ inst, def, ctx, view, na, style, auto, edit }: { inst: ModuleIn
   );
 }
 
-/** One module instance: its throttled context, its view, and the frame around it. */
 export function ModuleHost({ inst, style, auto, edit }: { inst: ModuleInstance } & Placed) {
   const def = registry.get(inst.type);
   if (!def) return <Missing inst={inst} style={style} auto={auto} edit={edit} />;
@@ -164,7 +158,6 @@ function Live({ inst, def, style, auto, edit }: { inst: ModuleInstance; def: Mod
   return na ? <Frame inst={inst} def={def} ctx={ctx} view={EMPTY} na={na} style={style} auto={auto} edit={edit} /> : <Running inst={inst} def={def} ctx={ctx} style={style} auto={auto} edit={edit} />;
 }
 
-/** The view runs only while its required channels are present, so it never has to guard against their absence. */
 function Running({ inst, def, ctx, style, auto, edit }: { inst: ModuleInstance; def: ModuleDef; ctx: Ctx } & Placed) {
   const view = def.view({ ctx, opts: inst.options, id: inst.id, size: { w: inst.w, h: inst.h } });
   return <Frame inst={inst} def={def} ctx={ctx} view={view} na={null} style={style} auto={auto} edit={edit} />;

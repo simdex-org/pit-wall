@@ -10,7 +10,6 @@ use tauri::{AppHandle, Manager};
 static ARCHIVE: &[u8] = include_bytes!("../resources.zip");
 static ROOT: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
-/** Where Node, the bridge and the page were unpacked; unpacks them on the first call of a new build. */
 pub fn root(app: &AppHandle) -> Result<PathBuf, String> {
     ROOT.get_or_init(|| unpack(app)).clone()
 }

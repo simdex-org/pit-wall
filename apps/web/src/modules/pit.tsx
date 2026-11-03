@@ -20,7 +20,6 @@ const clock = (d: Date) => d.toLocaleTimeString([], { hour12: false });
 const pstep = (u: UnitChoice) => ({ psi: 0.1, bar: 0.01, kpa: 1 } as Record<string, number>)[u.press] ?? 0.1;
 const toInput = (psi: number, u: UnitChoice) => +unit("press", u).f(psi).toFixed(unit("press", u).d);
 
-// ---------- a number with − and + (the design's stepper) ----------
 function Stepper({ value, onValue, min, max, step, label, disabled, title, cls = "" }: {
   value: number; onValue: (v: number) => void; min?: number; max?: number; step: number; label: string; disabled?: boolean; title?: string; cls?: string;
 }) {
@@ -61,11 +60,10 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
   const [, tick] = useState(0);
 
   const p = c.pit, job = c.pitJob, live = !!p && p.status === "live", running = !!job && job.state === "running", busy = running || !!(p && p.busy);
-  const closing = busy && !running && !!p && p.busy === "close"; // a Close pit page holds the bridge, not a plan
+  const closing = busy && !running && !!p && p.busy === "close";
   const noKey = !accessKey.value;
 
   useEffect(() => { planStore.seed(c); }, [c.pit, c.pitJob]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The job's own outcome replaces "Sent…": count endings rather than compare clocks on two PCs.
   useEffect(() => {
     if (job && job !== lastJob.current && job.state !== "running") {
       jobsDone.current++; setMsg("");
@@ -77,19 +75,18 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
   }, [job]);
   useEffect(() => { if (flash.size) setMsg(""); }, [flash]);
 
-  const wet = plan.compound === "wet"; // wet tyres have no sets in ACC: the bridge skips the tyre set
+  const wet = plan.compound === "wet";
   const set = (patch: Partial<PitPlan>) => planStore.set({ ...plan, ...patch });
 
   const doSend = async (only: Block[]) => {
-    if (sending) return; // one POST at a time: a double click would only earn a 409
+    if (sending) return;
     setPending(null);
     setMsg(`Sending ${only.join(" and ")}…`);
     setSending(true);
     const n0 = jobsDone.current;
-    const pads_from = lsGet<number[] | null>("pitwall.pads", null), repairs_from = lsGet<boolean[] | null>("pitwall.repairs", null); // the bridge only remembers these while it runs
+    const pads_from = lsGet<number[] | null>("pitwall.pads", null), repairs_from = lsGet<boolean[] | null>("pitwall.repairs", null);
     const r = await post("/pit", { ...plan, only, ...(pads_from ? { pads_from } : {}), ...(repairs_from ? { repairs_from } : {}) });
     setSending(false);
-    // A job that ended while the POST was in flight already shows its outcome.
     setMsg((r.status === 202 || r.status === 409) && jobsDone.current !== n0 ? ""
       : r.status === 0 ? r.text : r.status === 202 ? "Sent. Typing it into the driver's pit page; keep ACC focused on the driver's PC."
       : r.status === 403 ? "Wrong or missing access key: Settings › Connection." : r.status === 409 ? "Busy (409): " + r.text + "." : "Refused: " + r.text);
@@ -105,17 +102,17 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
   };
 
   const closePage = async () => {
-    setCloseUntil(performance.now() + 2000); // one Cycle MFD per 2 s: a second one would move the driver's MFD on to another page
+    setCloseUntil(performance.now() + 2000);
     setTimeout(() => tick((n) => n + 1), 2000);
     setMsg("Closing the pit page…");
     const r = await post("/mfd/close", {});
     const m = r.status === 202 ? `Cycle MFD queued ${clock(new Date())}: the event log confirms the press; ACC does not say which MFD page shows, check with the driver`
       : r.status === 403 ? "Wrong or missing access key: Settings › Connection." : r.status === 0 ? r.text : "Refused: " + r.text;
     setMsg(m);
-    if (r.status === 202) setTimeout(() => setMsg((cur) => (cur === m ? "" : cur)), 8000); // shown for 8 s once the press is done
+    if (r.status === 202) setTimeout(() => setMsg((cur) => (cur === m ? "" : cur)), 8000);
   };
 
-  const syncMfd = () => { // fuel, set and pressures are read from the game; ACC publishes nothing else, so the rest is what was last sent
+  const syncMfd = () => {
     if (!p || p.status !== "live") return;
     const last = <T,>(k: string, d: T): T => { const v = sentVal(c.pitLog, k); return v === undefined ? d : (v as T); };
     const pads = lsGet<number[] | null>("pitwall.pads", null);
@@ -131,12 +128,11 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
   const sendOff = !live || busy || noKey || sending;
   const sendTitle = noKey ? "Needs the access key: Settings › Connection" : !live ? "ACC is not live on the driver's PC" : closing ? "The pit page is being closed" : busy ? "A plan is still being typed" : "";
 
-  // Rows that differ from the MFD.
   let n = 0;
   for (const k of ["fuel", "tyres", "tyre_set", "compound", "p0", "p1", "p2", "p3", "brakes", "front_pad", "rear_pad", "repair_suspension", "repair_bodywork"]) {
     const v = nowOf(p, k), pl = pv(plan, k);
     const diff = !(wet && k === "tyre_set") && v != null && pl != null && !same(k, v, pl);
-    if (diff || (v === null && (k.startsWith("repair_") ? pl !== repairNow(c.pitLog, k) : pl === true && !(sentVal(c.pitLog, k) !== undefined && same(k, sentVal(c.pitLog, k), pl))))) n++; // a switch ACC does not publish counts until a send typed it
+    if (diff || (v === null && (k.startsWith("repair_") ? pl !== repairNow(c.pitLog, k) : pl === true && !(sentVal(c.pitLog, k) !== undefined && same(k, sentVal(c.pitLog, k), pl))))) n++;
   }
   const res = job && job.state === "done" ? (job.res as Record<string, string> | undefined) ?? {} : {};
   const vals = Object.values(res), verified = vals.length > 0 && vals.every((x) => OK_RES.includes(x));
@@ -149,7 +145,6 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
     : "";
   const closeDisabled = !live || busy || noKey || closeUntil > performance.now();
 
-  // ----- the figures the page shows -----
   const st = c.st, car = c.r?.car, max = c.r && c.r.fixed.max_fuel > 0 ? (c.r.fixed.max_fuel as number) : 0;
   const fpl = st?.fuel_per_lap || 0;
   const nowL = car?.fuel_litres ?? 0;
@@ -269,8 +264,8 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
         {sw("Brake pads", plan.brakes, (v) => set({ brakes: v }))}
         <span className="pwb-slot">{plan.brakes ? <>{padSeg("F", "front_pad")}{padSeg("R", "rear_pad")}</> : null}</span>
         <span className="pwb-dv" />
-        {sw(<><span className="pwb-long">Repair suspension</span><span className="pwb-short">Suspension</span></>, plan.repair_suspension, (v) => set({ repair_suspension: v, ...(v ? { repair_bodywork: true } : {}) })) /* ACC ticks Bodywork with Suspension */}
-        {sw(<><span className="pwb-long">Repair bodywork</span><span className="pwb-short">Bodywork</span></>, plan.repair_bodywork, (v) => set({ repair_bodywork: v, ...(v ? {} : { repair_suspension: false }) })) /* and unticks Suspension with Bodywork */}
+        {sw(<><span className="pwb-long">Repair suspension</span><span className="pwb-short">Suspension</span></>, plan.repair_suspension, (v) => set({ repair_suspension: v, ...(v ? { repair_bodywork: true } : {}) })) }
+        {sw(<><span className="pwb-long">Repair bodywork</span><span className="pwb-short">Bodywork</span></>, plan.repair_bodywork, (v) => set({ repair_bodywork: v, ...(v ? {} : { repair_suspension: false }) })) }
         <span className="sp" />
         {sendBtn(["brakes", "repairs"])}
       </div>
@@ -314,7 +309,6 @@ export const pitPlan = defineModule({
   },
 });
 
-// ---------- pit sends log ----------
 export const pitLog = defineModule({
   type: "pit-log", title: "Pit sends", group: "Pit", blurb: "Every plan sent to the MFD: when, by whom, which blocks, and what came back.",
   size: { w: 5, h: 8, minW: 4, minH: 4 }, needs: ["pit"],
@@ -345,7 +339,6 @@ export const pitLog = defineModule({
   },
 });
 
-// ---------- pressure correction ----------
 const NAMES = ["Front left", "Front right", "Rear left", "Rear right"];
 export const pressFix = defineModule({
   type: "press-fix", title: "Pressure correction", group: "Pit", blurb: "Hot pressures at the line against the window, and the cold pressures to set at the next stop.",

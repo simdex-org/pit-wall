@@ -11,7 +11,6 @@ export type Tokens = Record<keyof typeof TOKEN_VARS, string> & { font: string; n
 
 let cache: { ver: number; tk: Tokens } | null = null;
 
-/** The design tokens as resolved colours, read through a probe so color-mix() and theme overrides resolve too. */
 export function tokens(): Tokens {
   const ver = aux.version("theme");
   if (cache && cache.ver === ver) return cache.tk;
@@ -27,7 +26,6 @@ export function tokens(): Tokens {
 
 export type Ctx2D = CanvasRenderingContext2D;
 
-/** Sizes the canvas to its box at the device's pixel ratio and clears it. */
 export function fitCanvas(cv: HTMLCanvasElement): [Ctx2D, number, number] {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
@@ -49,7 +47,6 @@ export function chCursor(g: Ctx2D, x: number, h: number, tk: Tokens): void {
   g.strokeStyle = tk.text; g.lineWidth = 1; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(Math.round(x) + 0.5, 0); g.lineTo(Math.round(x) + 0.5, h); g.stroke(); g.setLineDash([]);
 }
 
-/** A value label on the line: a --bg box with the value in the series colour. */
 export function chTag(g: Ctx2D, x: number, y: number, text: string, color: string, tk: Tokens, w: number): void {
   g.font = `600 10px ${tk.num}`;
   const tw = g.measureText(text).width + 6, left = x + 6 + tw > w ? x - 6 - tw : x + 6, top = Math.round(y - 7);
@@ -57,7 +54,6 @@ export function chTag(g: Ctx2D, x: number, y: number, text: string, color: strin
   g.fillStyle = color; g.textBaseline = "middle"; g.textAlign = "left"; g.fillText(text, left + 3, top + 7.5);
 }
 
-/** Lane title and readouts, left to right, on a --bg strip so a title over a trace stays readable. */
 export function chLabel(g: Ctx2D, x: number, y: number, parts: [string, string][], tk: Tokens): void {
   g.font = `600 10px ${tk.font}`; g.textBaseline = "top"; g.textAlign = "left";
   let cx = x;

@@ -1,7 +1,6 @@
 import { feed } from "../feed/store";
 import { useFeed } from "../feed/useFeed";
 
-/** Shown while the page follows another car: one click goes back to your own. */
 export function FocusPopup() {
   const c = useFeed();
   if (c.focus === "self") return null;

@@ -13,7 +13,6 @@ export const KPI_LABEL: Record<KpiId, string> = {
   session: "Session", left: "Time left", lap: "Lap", pos: "Position", ahead: "Ahead", behind: "Behind", last: "Last", best: "Best", delta: "Delta", fuel: "Fuel", fuelLaps: "Fuel laps",
   stint: "Stint", flag: "Flag", temps: "Track · air", grip: "Grip", rain: "Rain", penalty: "Penalty", stintTime: "Driver stint", boxIn: "Box in",
 };
-// What the driver checks on a phone, first.
 const PHONE: KpiId[] = ["pos", "fuel", "boxIn", "left"];
 
 const U = ({ children }: { children: ReactNode }) => <span className="u">{children}</span>;
@@ -117,7 +116,6 @@ export function KpiStrip() {
   const ids = phone ? PHONE : p.kpi;
   const flag = c.r ? flags.current.now(c) : null;
 
-  // Drop cells from the end when the strip is too narrow, the phone set last, and say how many.
   useLayoutEffect(() => {
     const el = strip.current;
     if (!el || phone) { if (hidden.length) setHidden([]); return; }

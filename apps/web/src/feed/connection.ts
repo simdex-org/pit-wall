@@ -22,12 +22,10 @@ class Link {
     for (const fn of this.subs) fn();
   }
 
-  /** Trades the access key for the session cookie the stream is read with. */
   private async signIn(): Promise<void> {
-    try { await fetch("/auth", { method: "POST", headers: { "X-Pit-Key": accessKey.value } }); } catch { /* the stream's own retry reports it */ }
+    try { await fetch("/auth", { method: "POST", headers: { "X-Pit-Key": accessKey.value } }); } catch {  }
   }
 
-  /** (Re)opens the stream at a rate of 5, 10, 15, 30 or 60 readings a second. */
   connect(hz: number): void {
     this.es?.close();
     const token = (this.token = {});
@@ -37,12 +35,12 @@ class Link {
   private open(hz: number): void {
     const es = (this.es = new EventSource(`/events?hz=${hz}`));
     es.onmessage = (e) => {
-      try { feed.receive(JSON.parse(e.data) as Payload); } catch { /* a broken frame is skipped */ }
+      try { feed.receive(JSON.parse(e.data) as Payload); } catch {  }
     };
     es.onopen = () => this.set(true);
     es.onerror = () => {
       this.set(false);
-      if (es.readyState === EventSource.CLOSED) setTimeout(() => { if (this.es === es) this.connect(hz); }, 3000); // refused: the key or the cookie changed
+      if (es.readyState === EventSource.CLOSED) setTimeout(() => { if (this.es === es) this.connect(hz); }, 3000);
     };
   }
 }

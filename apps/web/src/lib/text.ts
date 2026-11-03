@@ -2,7 +2,6 @@ export const isObj = (o: unknown): o is Record<string, any> => !!o && typeof o =
 
 export const BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
-/** Control characters out, trimmed and cut to n. */
 export const cleanText = (s: unknown, n: number): string =>
   typeof s === "string" ? s.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim().slice(0, n) : "";
 

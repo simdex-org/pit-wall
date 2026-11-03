@@ -7,7 +7,6 @@ import { recorder } from "../state/recorder";
 
 const CATEGORIES = ["LAP", "PIT", "FLAG", "CAR", "ENG", "PLAN", "CFG", "RC", "FIELD"];
 const clock = (t: number) => new Date(t * 1000).toLocaleTimeString([], { hour12: false });
-/** The tag colour of an event type: pits and flags amber, a lap that went well green, a problem red. */
 const TAG: Record<string, string> = { PIT: "wn", FLAG: "wn", LAP: "p", CAR: "up", ENG: "n", PLAN: "n", CFG: "n", RC: "n", FIELD: "n" };
 const GROUPS: [string, string[]][] = [["ALL", []], ["LAPS", ["LAP"]], ["PITS", ["PIT", "PLAN"]], ["FLAGS", ["FLAG", "RC"]]];
 
@@ -99,7 +98,6 @@ export const advice = defineModule({
     const large = size.h >= 8;
     const n2 = a.filter((x) => sevOf(x.severity) >= 2).length, n1 = a.filter((x) => sevOf(x.severity) === 1).length, n0 = a.length - n1 - n2;
     const glyph = (s: number) => (s >= 2 ? ["▲", "up"] : s === 1 ? ["!", "wn"] : ["i", "di"]);
-    // "Right side damage 112. Aero loss likely." the first sentence is the headline, the rest is what to do
     const split = (t: string): [string, string] => { const m = /^(.*?[.:])\s+(.*)$/.exec(t); return m ? [m[1]!, m[2]!] : [t, ""]; };
     return {
       flush: true,

@@ -1,4 +1,3 @@
-/** What to tell the driver when the bridge exited without serving. */
 export function failureMessage(lines: string[], ip: string, port: string): string {
   const log = lines.join("\n");
   if (/EADDRNOTAVAIL/.test(log)) return `This PC does not have the address ${ip.trim()}. If you changed network or turned off the adapter that uses it, pick another address below.`;

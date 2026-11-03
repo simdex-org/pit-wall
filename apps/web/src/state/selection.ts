@@ -1,9 +1,8 @@
-// The REF and CMP laps and the cursor along the lap shared by the traces, the segments and the map.
 import { useSyncExternalStore } from "react";
 import { aux } from "../engine/versions";
 import { clamp } from "../lib/format";
 
-export interface Sel { ref: string | null; cmp: string | null; /** 0 to 1 along the lap. */ cursor: number | null; /** The corner the coach, the map and the traces are looking at. */ corner: number | null }
+export interface Sel { ref: string | null; cmp: string | null;  cursor: number | null;  corner: number | null }
 
 class Selection {
   private sel: Sel = { ref: null, cmp: null, cursor: null, corner: null };

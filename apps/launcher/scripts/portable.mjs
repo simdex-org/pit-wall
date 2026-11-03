@@ -1,4 +1,3 @@
-// One exe that carries Node, the bridge and the page and unpacks them on first start. Output: dist-portable/PitWall.exe
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

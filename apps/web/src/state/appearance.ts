@@ -1,5 +1,3 @@
-// Appearance: the colour tokens and layout settings of this browser. Built-ins are read-only; changing one forks it into
-// "<Name> (custom)", as templates do. Applied as CSS variables on <html>, so the page, the modules and the canvases all follow.
 import { useSyncExternalStore } from "react";
 import { aux } from "../engine/versions";
 import { lsGet, lsSet } from "../lib/storage";
@@ -22,7 +20,6 @@ export const TOKENS: [key: string, cssVar: string, role: string, group: string][
   ["chRL", "--c-rl", "Rear left traces", "Traces"], ["chRR", "--c-rr", "Rear right traces", "Traces"],
 ];
 
-/** The tokens checked for contrast; an invalid time is always struck through and tagged, so it may be dimmer than text. */
 export const CONTRAST_KEYS = new Set(["text", "muted", "dim", "ok", "warn", "bad", "cold", "best", "pb", "slow", "me", "accent"]);
 
 export const BASE_TOKENS: Record<string, string> = {
@@ -84,10 +81,6 @@ export function sanitizeTheme(raw: unknown): Theme | null {
 
 export const resolved = (t: Theme): Record<string, string> => ({ ...(builtin(t.base)?.tokens ?? BASE_TOKENS), ...t.tokens });
 
-/**
- * Text, muted and dim must stay readable on the background and the panels, or the editor (drawn with these same tokens) could be made
- * unreadable and the person locked out of undoing it. Returns why not, or "".
- */
 export function unreadable(t: Theme): string {
   const k = resolved(t);
   for (const x of ["text", "muted", "dim"]) for (const s of ["bg", "panel"]) {
@@ -128,13 +121,12 @@ class AppearanceStore {
     const root = document.documentElement, s = root.style, tok = resolved(t);
     for (const [k, v] of TOKENS) s.setProperty(v, tok[k]!);
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(tok.accent!.slice(i, i + 2), 16));
-    s.setProperty("--acc-ink", 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 140 ? "#08090b" : "#ffffff"); // text on the accent
+    s.setProperty("--acc-ink", 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 140 ? "#08090b" : "#ffffff");
     const comf = t.density === "comfortable";
     s.setProperty("--row", comf ? "32px" : "28px"); s.setProperty("--trow", comf ? "28px" : "24px"); s.setProperty("--pad", comf ? "12px" : "8px"); s.setProperty("--hh", "32px");
     s.setProperty("--fs", String(t.fontScale)); s.setProperty("--r", t.radius + "px");
     s.setProperty("--num", t.numFont === "sans" ? '"Barlow Semi Condensed", system-ui, sans-serif' : "ui-monospace, Consolas, monospace");
     root.dataset.density = t.density; root.dataset.panel = t.panel; root.dataset.labels = t.labels; root.dataset.num = t.numFont;
-    // A theme the editor would refuse: Settings keeps the default colours, so it can always be undone from there.
     const set = document.getElementById("settings"), safe = unreadable(t);
     if (set) for (const [k, v] of TOKENS) { if (safe) set.style.setProperty(v, BASE_TOKENS[k]!); else set.style.removeProperty(v); }
     s.colorScheme = lum(tok.bg!) > 0.4 ? "light" : "dark";
@@ -169,7 +161,6 @@ class AppearanceStore {
     return c;
   }
 
-  /** Any change to a built-in forks it first; returns the theme to change. */
   private editable(): Theme {
     if (!isBuiltinTheme(this.cur.id)) return this.cur;
     const c = this.copy(this.cur, `${this.cur.name} (custom)`);
@@ -177,7 +168,6 @@ class AppearanceStore {
     return c;
   }
 
-  /** Returns "" when applied, or why it was refused. */
   change(fn: (t: Theme) => void): string {
     const probe = deep(this.cur);
     fn(probe);
@@ -207,7 +197,6 @@ class AppearanceStore {
     return `Renamed to '${t.name}'.`;
   }
 
-  /** An imported theme, made this browser's; one that looks exactly like a theme already here is that theme. */
   adopt(raw: unknown): Theme | null {
     const t = sanitizeTheme(raw);
     if (!t) return null;
@@ -217,12 +206,11 @@ class AppearanceStore {
     t.name = this.uniqueName(t.name);
     this.users.push(t);
     this.saveUsers();
-    if (!unreadable(t)) this.use(t.id); // kept in the list, not applied: the dashboard would become unreadable
+    if (!unreadable(t)) this.use(t.id);
     else this.emit();
     return t;
   }
 
-  /** The export form of a theme. */
   pack(t: Theme): Record<string, unknown> {
     const o: Record<string, unknown> = { format: "pitwall-theme", schemaVersion: 1, id: t.id, name: t.name, base: t.base, tokens: isBuiltinTheme(t.id) ? {} : t.tokens };
     for (const k of themeLayoutKeys()) o[k] = t[k];

@@ -4,7 +4,6 @@ export interface FillLap { ms: number; valid: boolean; out?: boolean; in?: boole
 
 const mean = (v: number[]): number => v.reduce((a, b) => a + b, 0) / v.length;
 
-/** Race pace and fuel per lap from the clean laps of every session so far: the laps within 3 % of the best clean one. */
 export function fromLaps(laps: FillLap[]): { lap: string | null; fpl: string | null; n: number } {
   const clean = laps.filter((l) => l.valid && !l.out && !l.in && l.ms > 0);
   if (!clean.length) return { lap: null, fpl: null, n: 0 };

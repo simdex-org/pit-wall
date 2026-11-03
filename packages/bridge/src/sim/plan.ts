@@ -1,4 +1,3 @@
-// What the pretend teams decide: when to stop and how much fuel to take in a race, and how to run a qualifying session.
 import { clamp } from "../util.js";
 import { Box, SimCar, TANK } from "./car.js";
 import type { World } from "./world.js";
@@ -6,12 +5,10 @@ import type { World } from "./world.js";
 export const REFUEL_MS_PER_L = 370;
 export const SERVICE_START_MS = 900;
 
-/** The litres to drive for ms of racing, with a margin. */
 const fuelFor = (c: SimCar, ms: number): number => clamp(((ms / (c.lapSec * 1000)) * 1.06 + 0.8) * c.lpl, 8, TANK);
 
 const avgLapMs = (c: SimCar): number => c.lapSec * 1000 * 1.012;
 
-/** Race: the planned stop times (inside the pit window) and the fuel for the first stint. */
 export function setupRace(w: World, c: SimCar): void {
   const total = w.durMs, lm = avgLapMs(c);
   const need = (total / lm + 1) * c.lpl;
@@ -30,7 +27,6 @@ export function setupRace(w: World, c: SimCar): void {
   c.mandatoryDone = !w.mandatory;
 }
 
-/** Qualifying: when the car first leaves the garage, how many runs it makes, and the fuel for the first. */
 export function setupQuali(w: World, c: SimCar, slot: number): void {
   c.runsLeft = (c.spec.aggr > 0.62 ? 3 : 2) - 1;
   c.pushes = c.spec.tyreMgmt > 0.55 ? 2 : 1;
@@ -41,20 +37,18 @@ export function setupQuali(w: World, c: SimCar, slot: number): void {
 
 const runFuel = (c: SimCar): number => (c.pushes + 2.4) * c.lpl + 2;
 
-/** Called as a lap starts: what kind of lap it is, and whether the car comes in at its end. */
-/** On the wrong tyres for the track: slicks on a wet one, wets on a drying one. Drivers differ in how long they wait. */
 export const wrongTyres = (w: World, c: SimCar): boolean =>
   c.wetTyres ? w.wet < 0.14 && w.rain < 0.1 : w.wet > 0.33 + 0.1 * (1 - c.spec.aggr);
 
 export function lapStarted(w: World, c: SimCar): void {
-  if (c.penalty && c.laps > c.penalty.due) { // not served in time: the stewards add the time instead
+  if (c.penalty && c.laps > c.penalty.due) {
     c.timePen += 30000; c.penalty = null;
     w.say(3, c, `#${c.spec.num} +30 s: penalty not served`);
   }
   if (w.kind !== "race") {
     c.runLap++;
     c.kind = c.runLap === 1 ? "out" : c.runLap <= 1 + c.pushes ? "push" : "in";
-    if (c.kind === "push" && wrongTyres(w, c)) c.kind = "in"; // abandons the lap when the rain comes
+    if (c.kind === "push" && wrongTyres(w, c)) c.kind = "in";
     c.wantStop = c.kind === "in";
     c.wantPit = c.wantStop;
     return;
@@ -63,13 +57,12 @@ export function lapStarted(w: World, c: SimCar): void {
   const lm = avgLapMs(c), left = w.durMs - w.t;
   const due = c.stopTimes.length > 0 && w.t >= c.stopTimes[0]! && w.t <= w.durMs - lm;
   const short = c.fuel < c.lpl * Math.min(2.2, left / lm + 1.2);
-  const worn = c.wear > 0.88 && left > 4 * 60000; // stops before the cliff, not at the bottom of it
+  const worn = c.wear > 0.88 && left > 4 * 60000;
   const weather = c.laps >= 1 && left > 3 * lm && wrongTyres(w, c);
   c.wantStop = due || short || worn || weather || c.damageSum > 60 || c.st === "limp" || rivalStop(w, c, lm);
   c.wantPit = c.wantStop || c.penalty !== null;
 }
 
-/** Close to a planned stop, a rival's stop decides it: cover a car behind that has pitted, or jump a car ahead by going first. */
 function rivalStop(w: World, c: SimCar, lm: number): boolean {
   if (!c.stopTimes.length || w.t < w.pitOpen + 20000 || w.t > w.pitClose - 2 * lm || c.stopTimes[0]! - w.t > 0.4 * c.slot || c.wear < 0.3) return false;
   const r = w.rank(), i = r.indexOf(c), gap = (o: SimCar) => Math.abs(o.d - c.d) / Math.max(c.v, 25);
@@ -79,10 +72,8 @@ function rivalStop(w: World, c: SimCar, lm: number): boolean {
   return cover || under;
 }
 
-/** The planned stops still to come after one made now. */
 export const remainingStops = (w: World, c: SimCar, t0: number): number[] => c.stopTimes.filter((x) => x > t0 + 0.4 * c.slot);
 
-/** Bookkeeping when a stop ends: the plan moves on, and the mandatory stop is still owed if this one was out of the window. */
 export function afterStop(w: World, c: SimCar, box: Box): void {
   if (w.kind !== "race") return;
   if (w.t >= w.pitOpen && w.t <= w.pitClose) c.mandatoryDone = true;
@@ -91,7 +82,6 @@ export function afterStop(w: World, c: SimCar, box: Box): void {
   if (!c.mandatoryDone && !c.stopTimes.length && w.t < w.pitClose - 3 * lm) c.stopTimes = [clamp(w.t + c.slot, w.pitOpen + 20000, w.pitClose - 1.5 * lm)];
 }
 
-/** The stop a car makes now: fuel, tyres, repairs and how long it stands. The driver's own car may be changed by w.customize. */
 export function service(w: World, c: SimCar): Box {
   const t0 = w.t;
   const wet = c.wetTyres ? !(w.wet < 0.14 && w.rain < 0.1) : w.wet > 0.27 || w.rain > 0.4;
@@ -116,12 +106,11 @@ export function service(w: World, c: SimCar): Box {
   return box;
 }
 
-/** Sets the end of the stop and the fuel at its end from what is to be done. */
 export function seal(w: World, c: SimCar, box: Box): void {
   const fuelT = box.add > 0.05 ? SERVICE_START_MS + box.add * REFUEL_MS_PER_L : 0;
   const tyreT = box.tyres ? 10500 + (0.5 - c.spec.crew) * 2400 + w.rnd.normal(0, 900) : 0;
   const repairT = box.repair ? 5000 + c.damageSum * 400 : 0;
-  const fumble = box.tyres && w.rnd.random() < 0.05 * (1.5 - c.spec.crew) ? w.rnd.uniform(6000, 22000) : 0; // a stuck wheel nut, a late jack
+  const fumble = box.tyres && w.rnd.random() < 0.05 * (1.5 - c.spec.crew) ? w.rnd.uniform(6000, 22000) : 0;
   let svc = Math.max(fuelT, tyreT, 2500) + 1200 + repairT + fumble;
   if (fumble && c.id !== w.playerId) w.say(3, c, `#${c.spec.num} slow stop`);
   box.fuelEnd = box.fuel0 + box.add;
