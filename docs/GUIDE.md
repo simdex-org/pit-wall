@@ -11,13 +11,13 @@ ACC has **no API to write the pit strategy**: its shared memory and broadcasting
 | Fuel to add, tyre set, pressures | ✅ | ✅ read back from the game |
 | Change tyres, compound (dry/wet), change brakes | ✅ | ✅ indirectly, by which rows respond |
 | Front / rear pad compound | ✅ | ❌ sent, not published by ACC |
-| Repair suspension / bodywork | ✅ as a switch | ❌ ACC does not publish the current state |
+| Repair suspension / bodywork | ✅ | ❌ sent, not published by ACC |
 | Driver swap, strategy preset, electronics | ❌ | Not done (electronics are shown read-only) |
 
 - **ACC must be the focused window.** Keys are only sent while it is, and never to another program.
 - **Applying a plan takes 15 to 30 seconds**, and the driver sees the MFD moving.
 - **Changes apply without the driver confirming.** The engineer presses *Send* and it happens.
-- **Keyboard drivers:** use [vJoy](#vjoy-for-keyboard-and-mouse-drivers). Without it, the program types only while the driver holds no driving key, so a plan can take a lap or two to go in.
+- **Keyboard drivers:** the program types its keys whatever the driver is holding, so ACC may drop the driver's gas, brake or steering key for a moment each time. If that is noticeable, use [vJoy](#vjoy-for-keyboard-and-mouse-drivers): ACC then sees the MFD keys as a separate device.
 - **Not yet tested in a live race**, only against a simulated session and MFD. Try it once in practice before a race.
 
 <details>
@@ -80,10 +80,12 @@ ACC does not publish rival inputs, fuel or tyre wear, and the page never pretend
 <br>
 
 - **MFD now** is what the driver's pit page holds, read from the game. **Plan** is the next stop.
-- Blocks (**Fuel**, **Tyres**, **Pressures**, **Brakes**, **Repairs**) each have a *Send* button that touches only that block. *Send whole plan* sends everything. *Confirm before sending* is on by default.
+- Blocks (**Fuel**, **Tyres**, **Pressures**, **Brakes**, **Repairs**) each have a *Send* button that touches only that block. *Confirm before sending* is on by default.
 - **Result** says row by row: `✓ verified` (read back), `sent` (pressed, not published by ACC), or the problem.
-- Repairs are switches: ticking one flips that row once, since ACC does not say which state it is in.
+- Repairs are the state you want (all, bodywork only, or none). ACC links the two: ticking Suspension ticks Bodywork, and unticking Bodywork unticks Suspension, so the switches do the same. Whatever the game shows, the bridge reaches that state.
+- ACC does not publish the pad compounds, so the bridge starts from what it last sent, then what this page last sent, then the pads fitted on the car. After a bridge restart with none of those known, the result says `guessed`: check the pads once.
 - Wet tyres have no sets in ACC, so with *Compound* wet the tyre set is not sent.
+- A plan that went in closes the pit page by itself. A failed one leaves it open.
 - *Close pit page* sends Cycle MFD (Insert, or vJoy button 6), at most once every 2 s.
 
 </details>
