@@ -3,7 +3,7 @@
 import { Key, Mfd, MfdSnapshot } from "./mfd.js";
 import { CORNERS } from "./plan.js";
 
-export interface Layout { strategy: boolean; tyres: boolean; wet: boolean; brakes: boolean; driver: boolean }
+export interface Layout { tyres: boolean; wet: boolean; brakes: boolean; driver: boolean }
 
 export class FakeMfd implements Mfd {
   s: Layout;
@@ -12,19 +12,21 @@ export class FakeMfd implements Mfd {
   /** The set on the car: the simulated session moves it when the car takes new tyres. */
   current = 3;
   p = [27.5, 27.4, 27.3, 27.2];
-  pads = [2, 3];
+  pads = [1, 1]; // ACC wraps them from 4 to 1
   repair = [true, true];
   cur = 0;
   strat = 0;
+  /** Fuel to add ignores the keys while strategy 1 is on, as the greyed-out row does in ACC. */
+  lockedByStrategy = false;
   presses = 0;
 
   constructor(layout: Partial<Layout> = {}) {
-    this.s = { strategy: true, tyres: true, wet: false, brakes: false, driver: false, ...layout };
+    this.s = { tyres: true, wet: false, brakes: false, driver: false, ...layout };
   }
 
   rows(): string[] {
     const s = this.s;
-    let r = ["limiter", ...(s.strategy ? ["strategy"] : []), "fuel", "tyres"];
+    let r = ["limiter", "strategy", "fuel", "tyres"];
     if (s.tyres) r = [...r, ...(s.wet ? [] : ["set"]), "compound", "all", ...CORNERS];
     return [...r, "brakes", ...(s.brakes ? ["pad0", "pad1"] : []), ...(s.driver ? ["driver"] : []), "susp", "body"];
   }
@@ -40,14 +42,19 @@ export class FakeMfd implements Mfd {
       } else {
         const d = key === "right" ? 1 : -1, row = this.rows()[this.cur]!;
         const r1 = (x: number) => Math.round(x * 10) / 10;
-        if (row === "fuel") this.fuel = Math.min(120.0, Math.max(0.0, this.fuel + d));
+        if (row === "fuel") { if (!(this.lockedByStrategy && this.strat)) this.fuel = Math.min(120.0, Math.max(0.0, this.fuel + d)); }
         else if (row === "set") this.set = Math.min(50, Math.max(1, this.set + d));
         else if (row === "compound") { this.s.wet = d > 0; this.cur = this.rows().indexOf("compound"); }
         else if (row === "all") this.p = this.p.map((x) => r1(x + d * 0.1));
         else if ((CORNERS as readonly string[]).includes(row)) { const i = CORNERS.indexOf(row as (typeof CORNERS)[number]); this.p[i] = r1(this.p[i]! + d * 0.1); }
         else if (row === "tyres" || row === "brakes") this.s[row] = !this.s[row];
-        else if (row.startsWith("pad")) { const i = Number(row[3]); this.pads[i] = Math.min(4, Math.max(1, this.pads[i]! + d)); }
-        else if (row === "susp" || row === "body") { const i = row === "body" ? 1 : 0; this.repair[i] = !this.repair[i]; }
+        else if (row.startsWith("pad")) { const i = Number(row[3]); this.pads[i] = ((this.pads[i]! - 1 + d + 4) % 4) + 1; }
+        else if (row === "susp" || row === "body") { // ACC links them: Suspension on ticks Bodywork, Bodywork off unticks Suspension
+          const i = row === "body" ? 1 : 0;
+          this.repair[i] = !this.repair[i];
+          if (i === 0 && this.repair[0]) this.repair[1] = true;
+          if (i === 1 && !this.repair[1]) this.repair[0] = false;
+        }
         else if (row === "strategy") { // switching strategy loads that strategy's fuel and pressures
           this.strat ^= 1;
           [this.fuel, this.p] = this.strat ? [55.0, [27.0, 27.0, 27.0, 27.0]] : [30.0, [26.0, 26.0, 26.0, 26.0]];

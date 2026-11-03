@@ -3,7 +3,7 @@
 // The pit page, top to bottom (the pitstop key pressed twice leaves the cursor on the first row; Up from the first row wraps
 // to the last):
 //
-//     Pit limiter, [Strategy], Refuel, Change tyres,
+//     Pit limiter, Strategy, Refuel, Change tyres,
 //       [Tyre set (dry only), Compound, All four, FL, FR, RL, RR]   while Change tyres is on
 //     Change brakes, [Front pads, Rear pads]                          while Change brakes is on
 //     [Driver], Repair suspension, Repair bodywork
@@ -16,11 +16,18 @@ const diff = (a: MfdSnapshot, b: MfdSnapshot) => ({
   p: [0, 1, 2, 3].filter((i) => Math.abs(a.pressures[i]! - b.pressures[i]!) > 0.05),
 });
 
+const pads = new WeakMap<Mfd, number[]>(); // the pad compounds last sent, per MFD
+type Repairs = "all" | "body" | "none";
+const repairs = new WeakMap<Mfd, Repairs>(); // the repair ticks as last left, per MFD
+const repairState = (suspension: boolean, bodywork: boolean): Repairs => (suspension ? "all" : bodywork ? "body" : "none");
+
 /** Returns {field: "ok" | "sent" | "skipped" | problem}. "ok" was read back from the game; "sent" was pressed but ACC does not publish it. */
-export async function applyPlan(plan: Plan, mfd: Mfd): Promise<Record<string, string>> {
+/** `fitted` is the pads on the car (1 to 4), the best guess for where the pad rows start when nothing was sent before. */
+export async function applyPlan(plan: Plan, mfd: Mfd, fitted: (number | undefined)[] = []): Promise<Record<string, string>> {
   if (mfd.read().status !== "live") throw new Error("ACC is not in a live session on the driver's PC");
   const res: Record<string, string> = {};
   const press = async (k: Key, n = 1) => { await mfd.press(k, n); };
+  const look = async () => { await mfd.settle?.(); return mfd.read(); }; // ACC publishes a value a frame or two after the key
 
   let pos: number | null = null; // the row the cursor is on, counted from the top; null after the rows above it may have changed
 
@@ -43,26 +50,40 @@ export async function applyPlan(plan: Plan, mfd: Mfd): Promise<Record<string, st
   const probe = async (row: number) => { // what one step right on this row changes; the step is undone with one step left
     // Only one way: a row already at its right-hand limit (pads on 4) moves one step left. Trying the other way as well
     // moved rows at their left-hand limit instead (pads on 1, the usual case), which is the worse risk.
-    const a = mfd.read();
+    const a = await look();
     await at(row, "right");
-    const d = diff(a, mfd.read());
+    const d = diff(a, await look());
     await press("left");
     return d;
   };
 
   const steer = async (row: number, get: (m: MfdSnapshot) => number, target: number, step: number) => {
     for (let k = 0; k < 4; k++) {
-      const n = roundHalfEven((target - get(mfd.read())) / step);
+      const n = roundHalfEven((target - get(await look())) / step);
       if (n === 0) return "ok";
       await at(row, n > 0 ? "right" : "left", Math.abs(n));
     }
-    const v = get(mfd.read());
+    const v = get(await look());
     return roundHalfEven((target - v) / step) === 0 ? "ok" : `stopped at ${v}`;
   };
 
+  // Fuel to add is greyed out while a pit strategy holds it and ignores the keys. A press that moves nothing says so; the
+  // Strategy row is then stepped left (it reloads that strategy's tyres and pressures, so send those blocks too) until the row answers.
+  const steerFuel = async () => {
+    for (let unlock = 0; unlock < 4; unlock++) {
+      const before = (await look()).fuel;
+      if (Math.abs(plan.fuel - before) < 0.5) return "ok";
+      const r = await steer(REFUEL, (m) => m.fuel, plan.fuel, 1);
+      if ((await look()).fuel !== before || r === "ok") return unlock ? `ok (Pit Strategy stepped ${unlock}x)` : r;
+      if (unlock < 3) await at(STRATEGY, "left");
+    }
+    return "locked: Fuel to add does not answer, even with Pit Strategy changed";
+  };
+
   const only = new Set<string>(plan.only);
+  const setTyres = only.has("tyres") && plan.tyres; // with Change tyres off ACC ignores the compound, set and pressures
   const tyreRows = ["tyres", "pressures", "brakes"].some((g) => only.has(g)); // brakes are found by counting past the tyre rows
-  let refuel = 1, tyres = 2;
+  const STRATEGY = 1, REFUEL = 2, tyres = 3; // the page has the same top rows for everyone
 
   const wetNow = async () => { // row tyres+4 is FL when dry (a Tyre set row is above), FR when wet
     const d = (await probe(tyres + 4)).p;
@@ -78,15 +99,7 @@ export async function applyPlan(plan: Plan, mfd: Mfd): Promise<Record<string, st
     throw new Error("could not count the rows below the tyres");
   };
 
-  if ([...only].some((g) => g !== "repairs")) {
-    // Refuel is row 2 under a Strategy row, else row 1. Row 2 is probed, never row 1: stepping the Strategy row reloads that
-    // strategy's fuel, tyres and pressures. Without a Strategy row, row 2 is Change tyres, which the probe switches and back.
-    const d = await probe(2);
-    refuel = Math.abs(Math.abs(d.fuel) - 1) < 0.05 && !d.set && !d.p.length ? 2 : 1;
-    tyres = refuel + 1; // the Change tyres row
-  }
-
-  if (only.has("fuel")) res.fuel = await steer(refuel, (m) => m.fuel, plan.fuel, 1);
+  if (only.has("fuel")) res.fuel = await steerFuel();
 
   let tyresWereOn = false;
   if (tyreRows) {
@@ -96,15 +109,15 @@ export async function applyPlan(plan: Plan, mfd: Mfd): Promise<Record<string, st
       if (!(await probe(tyres + 3)).p.length) throw new Error("could not find the tyre rows on the pit page - is it the pitstop MFD page this key opens?");
     }
     let wet = await wetNow();
-    if (only.has("tyres") && (plan.compound === "wet") !== wet) {
+    if (setTyres && (plan.compound === "wet") !== wet) {
       await changed(tyres + (wet ? 1 : 2), plan.compound === "wet" ? "right" : "left"); // Right is wet, Left is dry, whatever it was
       wet = await wetNow();
     }
-    if (only.has("tyres")) {
+    if (setTyres) {
       res.compound = (plan.compound === "wet") === wet ? "ok" : "did not change";
       res.tyre_set = wet ? "skipped" : await steer(tyres + 1, (m) => m.tyre_set, plan.tyre_set, 1);
     }
-    if (only.has("tyres") || only.has("pressures")) {
+    if (setTyres || (only.has("pressures") && !only.has("tyres"))) {
       const first = tyres + (wet ? 3 : 4);
       for (let i = 0; i < CORNERS.length; i++) res[CORNERS[i]!] = await steer(first + i, (m) => m.pressures[i]!, plan.pressures[i]!, 0.1);
     }
@@ -118,19 +131,36 @@ export async function applyPlan(plan: Plan, mfd: Mfd): Promise<Record<string, st
       }
       res.brakes = brakesOn === plan.brakes ? "ok" : "did not change";
       if (plan.brakes && brakesOn) {
-        for (const [row, k] of [[brakes + 1, "front_pad"], [brakes + 2, "rear_pad"]] as const) {
-          await at(row, "left", 3); // down to compound 1, then up to the one asked for
-          await press("right", plan[k] - 1);
-          res[k] = "sent";
+        const memo = pads.get(mfd) ?? [];
+        for (const [i, row, k] of [[0, brakes + 1, "front_pad"], [1, brakes + 2, "rear_pad"]] as const) {
+          // The pads wrap from 4 to 1 and ACC does not publish them: step the shortest way from where they were left.
+          const car = fitted[i] != null && fitted[i]! >= 1 && fitted[i]! <= 4 ? fitted[i] : undefined;
+          const [from, how] = memo[i] ? [memo[i]!, "sent"] : plan.pads_from ? [plan.pads_from[i]!, "sent (from page)"]
+            : car ? [car, "sent (from car)"] : [1, "sent (guessed 1)"];
+          const n = (plan[k] - from + 4) % 4;
+          await at(row, n <= 2 ? "right" : "left", n <= 2 ? n : 4 - n);
+          memo[i] = plan[k];
+          res[k] = how;
         }
+        pads.set(mfd, memo);
       }
     }
   }
 
+  // ACC allows three states: all, bodywork only, none (ticking Suspension ticks Bodywork, unticking Bodywork unticks Suspension).
+  // Bodywork then Suspension ends at "all" from any state, so the start does not have to be known; from there one more press.
+  const setRepairs = async (to: Repairs) => {
+    await at(-1, "right");
+    await press("up"); await press("right");
+    if (to === "body") await press("right");
+    else if (to === "none") { await press("down"); await press("right"); }
+    repairs.set(mfd, to);
+  };
   if (only.has("repairs")) {
-    for (const [row, k] of [[-2, "flip_suspension"], [-1, "flip_bodywork"]] as const) {
-      if (plan[k]) { await at(row, "right"); res[k] = "sent"; }
-    }
+    await setRepairs(repairState(plan.repair_suspension, plan.repair_bodywork));
+    res.repairs = "sent";
+  } else if (tyreRows && !tyresWereOn) { // with the tyre rows hidden the probe above can land on a repair row: put them back
+    await setRepairs(repairs.get(mfd) ?? (plan.repairs_from ? repairState(...plan.repairs_from) : "all"));
   }
 
   if (tyreRows) {

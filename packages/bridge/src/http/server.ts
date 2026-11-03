@@ -57,7 +57,9 @@ async function runPlan(plan: ReturnType<typeof cleanPlan>, by: string): Promise<
   setJob({ state: "running", plan, by, only: plan.only });
   let end: Rec;
   try {
-    const res = await applyPlan(plan, PIT.mfd!);
+    const car = (STATE.reading as Rec | null)?.reading as Rec | undefined; // the pads fitted on the car
+    const cs = car?.car as Rec | undefined;
+    const res = await applyPlan(plan, PIT.mfd!, [cs?.front_pad_compound as number | undefined, cs?.rear_pad_compound as number | undefined]);
     end = { state: "done", res };
     console.log("pit plan applied:", res);
   } catch (e) { // anything: the page must hear it rather than see "running" forever
@@ -68,7 +70,8 @@ async function runPlan(plan: ReturnType<typeof cleanPlan>, by: string): Promise<
   STATE.pit_log = [...STATE.pit_log, { ...end, t: Date.now() / 1000, by, only: plan.only, plan }].slice(-50);
   STATE.pit_log_ver++;
   log(end.state === "done" ? 0 : 2, "PLAN", `Pit plan (${plan.only.join(", ")}) ` + (end.state === "done" ? `applied, sent by ${by}` : `failed, sent by ${by}: ${end.msg}`));
-  PIT.busy = false;
+  if (end.state === "done") { PIT.doing = "close"; await closePage(); } // a failed plan leaves the page open to see where it stopped
+  else PIT.busy = false;
 }
 
 async function readBody(req: IncomingMessage): Promise<unknown> {

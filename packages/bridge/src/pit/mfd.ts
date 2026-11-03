@@ -9,13 +9,14 @@ export interface MfdSnapshot {
   current_set: number;
   strategy_set: number;
   in_pit_lane: boolean;
-  waiting_lift?: boolean;
   busy?: string;
 }
 
 export interface Mfd {
   read(): MfdSnapshot;
   press(key: Key, n?: number): void | Promise<void>;
+  /** Resolves when the values read() returns have stopped changing after a key. */
+  settle?(): Promise<void>;
 }
 
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

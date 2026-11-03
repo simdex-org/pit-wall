@@ -12,15 +12,13 @@ describe.skipIf(process.platform !== "win32")("windows", () => {
     expect(r.g_flags).toHaveLength(8);
   });
 
-  test("the MFD reads, knows ACC is not focused, injects keys and runs its keyboard hook", async () => {
+  test("the MFD reads, knows ACC is not focused, injects keys", async () => {
     const m = new AccMfd("p", 40);
     expect(m.read().status).toMatch(/off|live|replay|pause/);
     expect(m.focused()).toBe(false); // the test runner is in the foreground, not ACC
     await expect(m.press("pit")).rejects.toThrow(/not the focused window/);
     // Two key-up events for F24 (scan 0x76) in one SendInput call: harmless, and it proves the INPUT array layout.
     expect(() => (m as unknown as { send(...k: [number, number][]): void }).send([0x76, 8 | 2], [0x76, 8 | 2])).not.toThrow();
-    await new Promise((r) => setTimeout(r, 300)); // the hook worker is up
-    m.close();
   });
 
   test("INPUT is 40 bytes like the Win32 struct, and pit keys map", () => {
