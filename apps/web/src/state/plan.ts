@@ -17,14 +17,14 @@ export interface PitPlan {
   brakes: boolean;
   front_pad: number;
   rear_pad: number;
-  flip_suspension: boolean;
-  flip_bodywork: boolean;
+  repair_suspension: boolean;
+  repair_bodywork: boolean;
 }
 
 /** Only the fallback while nothing is stored and the MFD is not live. */
 export const DEF_PLAN: PitPlan = {
   fuel: 0, tyres: false, compound: "dry", tyre_set: 1, pressures: [26.5, 26.5, 26.5, 26.5], brakes: false, front_pad: 1, rear_pad: 1,
-  flip_suspension: false, flip_bodywork: false,
+  repair_suspension: true, repair_bodywork: true,
 };
 
 export type Block = "fuel" | "tyres" | "pressures" | "brakes" | "repairs";
@@ -46,8 +46,8 @@ export const GROUPS: { title: string; block: Block; rows: Row[] }[] = [
     { key: "rear_pad", label: "Rear pads", kind: "select", choices: PADS },
   ] },
   { title: "Repairs", block: "repairs", rows: [
-    { key: "flip_suspension", label: "Suspension (switch)", kind: "check" },
-    { key: "flip_bodywork", label: "Bodywork (switch)", kind: "check" },
+    { key: "repair_suspension", label: "Repair suspension", kind: "check" },
+    { key: "repair_bodywork", label: "Repair bodywork", kind: "check" },
   ] },
 ];
 
@@ -57,15 +57,20 @@ export const BLOCK_OF: Record<string, Block> = Object.fromEntries(ROWS.map((r) =
 /** The key of each row in the bridge's result for a send. */
 export const RES: Record<string, string> = {
   fuel: "fuel", tyres: "tyres", compound: "compound", tyre_set: "tyre_set", p0: "fl", p1: "fr", p2: "rl", p3: "rr", brakes: "brakes",
-  front_pad: "front_pad", rear_pad: "rear_pad", flip_suspension: "flip_suspension", flip_bodywork: "flip_bodywork",
+  front_pad: "front_pad", rear_pad: "rear_pad", repair_suspension: "repairs", repair_bodywork: "repairs",
 };
 /** Results of a send that are not failures. */
-export const OK_RES = ["ok", "sent", "skipped", "switched on for the pressures"];
-export const RES_TEXT: Record<string, [string, string]> = { "switched on for the pressures": ["on", "Tyre change switched on: ACC fits the pressures only with a tyre change"] };
+export const OK_RES = ["ok", "sent", "skipped", "switched on for the pressures", "sent (from page)", "sent (from car)"];
+export const RES_TEXT: Record<string, [string, string]> = {
+  "switched on for the pressures": ["on", "Tyre change switched on: ACC fits the pressures only with a tyre change"],
+  "sent (from page)": ["sent", "ACC does not publish the pads: the start was what this page last sent"],
+  "sent (from car)": ["sent", "ACC does not publish the pads: the start was the pads fitted on the car"],
+  "sent (guessed 1)": ["guessed", "ACC does not publish the pads and the start was unknown, so pad 1 was assumed: check the MFD once"],
+};
 
 /** The plan keys each block sends. A block send fills the others with the bridge's placeholders, which are not a plan. */
 const KEYS: Record<Block, (keyof PitPlan)[]> = {
-  fuel: ["fuel"], tyres: ["tyres", "compound", "tyre_set", "pressures"], pressures: ["pressures"], brakes: ["brakes", "front_pad", "rear_pad"], repairs: [],
+  fuel: ["fuel"], tyres: ["tyres", "compound", "tyre_set", "pressures"], pressures: ["pressures"], brakes: ["brakes", "front_pad", "rear_pad"], repairs: ["repair_suspension", "repair_bodywork"],
 };
 
 const isPress = (k: string) => /^p\d$/.test(k);
@@ -156,6 +161,14 @@ export function sentVal(pitLog: Json[], k: string): unknown {
   return undefined;
 }
 
+/** The repair ticks ACC does not publish: what the last send left, else what this page last sent, else the default (both ticked). */
+export function repairNow(pitLog: Json[], k: string): boolean {
+  const sv = sentVal(pitLog, k);
+  if (typeof sv === "boolean") return sv;
+  const mem = lsGet<boolean[] | null>("pitwall.repairs", null);
+  return Array.isArray(mem) ? mem[k === "repair_bodywork" ? 1 : 0] === true : true;
+}
+
 export function show(k: string, v: unknown, units?: UnitChoice): string {
   if (v == null) return "–";
   if (typeof v === "boolean") return v ? "yes" : "no";
@@ -183,7 +196,8 @@ export function changeRows(p: PitPlan, pit: Json | null, only: Block | undefined
       if (n != null) {
         if (!same(k, n, v)) out.push({ label: LABEL[k]!, from: String(show(k, n, units)), to: String(show(k, v, units)), unit: unitText });
       } else {
-        const typed = v === true || (["compound", "front_pad", "rear_pad"].includes(k) && (only || p[k === "compound" ? "tyres" : "brakes"]));
+        if (k.startsWith("repair_")) { if (v !== repairNow(pitLog, k)) out.push({ label: LABEL[k]!, to: String(show(k, v, units)), unit: "" }); continue; }
+        const typed = v === true || (k === "compound" && (only || p.tyres)) || ((k === "front_pad" || k === "rear_pad") && p.brakes); // pads are only typed with Change brakes on
         const sv = sentVal(pitLog, k);
         if (typed && !(sv !== undefined && same(k, sv, v))) out.push({ label: LABEL[k]!, to: String(show(k, v, units)), unit: unitText });
       }

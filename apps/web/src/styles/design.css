@@ -899,7 +899,7 @@ dialog{background:var(--panel)}
 #drawer .dr-card:disabled .dr-go{color:var(--dim)}
 .mod .pw{position:relative;container:pw/size;flex-direction:column;flex:1;min-height:0;display:flex}
 .mod .pwb,.mod .pwb-svc,.mod .pwb-foot{--ctl:22px;--fuelw:230px;--gw:132px;--gnum:26px;--dw:70px;--g:6px;--pad:10px;--slot:208px;--svc:36px;--foot:40px;--fbtn:26px}
-.mod .pwb{flex:1;min-height:0;display:flex}
+.mod .pwb{flex:1;min-height:0;display:flex;overflow:auto}
 @container pw (min-height:360px){.mod .pwb,.mod .pwb-svc,.mod .pwb-foot{--ctl:24px;--fuelw:270px;--gw:190px;--gnum:34px;--dw:92px;--g:8px;--pad:12px;--slot:240px;--svc:40px;--foot:42px;--fbtn:28px}}
 @container pw (min-height:450px){.mod .pwb,.mod .pwb-svc,.mod .pwb-foot{--fuelw:300px;--gw:270px;--gnum:52px;--dw:112px;--pad:14px;--slot:256px;--svc:44px;--foot:46px}}
 .mod .pwb-fuel{flex:none;width:var(--fuelw);box-sizing:border-box;border-right:1px solid var(--ln);flex-direction:column;align-items:center;gap:var(--g);min-height:0;padding:calc(var(--pad) - 2px) var(--pad) var(--pad);display:flex}
@@ -939,7 +939,8 @@ dialog{background:var(--panel)}
 .mod .pwb-chip:hover:not(:disabled){color:var(--tx);border-color:var(--t3)}
 .mod .pwb-chip[aria-pressed=true]{border-color:var(--ac);color:var(--ac)}
 .mod .pwb-chip:disabled{opacity:.5}
-@container pw (min-height:360px){.mod .pwb-pin{display:flex}.mod .pwb-pr{display:none}.mod .pwb-pre{display:grid}.mod .pwb-pick{display:grid}}
+@container pw (min-height:360px){.mod .pwb-pin{display:flex}.mod .pwb-pr{display:none}}
+@container pw (min-height:420px){.mod .pwb-pre{display:grid}.mod .pwb-pick{display:grid}}
 @container pw (min-height:450px){.mod .pwb-tl,.mod .pwb-oc{display:inline}}
 .mod .pwb-figs{border-top:1px solid var(--ln2);grid-template-columns:1fr 1fr;align-self:stretch;margin-top:auto;padding:var(--g) 0 4px;display:grid}
 .mod .pwb-figs>div{flex-direction:column;gap:3px;min-width:0;display:flex}
@@ -996,6 +997,9 @@ dialog{background:var(--panel)}
 @container pw (max-width:540px){.mod .pwb{flex-direction:column;overflow:auto}.mod .pwb-fuel{border-right:0;border-bottom:1px solid var(--ln);width:auto}.mod .pwb-tyres{flex:none}}
 .mod .pwb-foot{border-top:1px solid var(--ln);background:var(--p1);box-sizing:border-box;flex:none;align-items:center;gap:8px;height:var(--foot);padding:0 var(--pad);display:flex}
 .mod .pwb-foot .btn{height:var(--fbtn)}
+.mod .pwb-foot [role=status]{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@container pw (max-width:400px){.mod .pwb{overflow-x:hidden}.mod .pwb-dials{grid-template-columns:minmax(0,1fr)}.mod .pwb-dc .step{max-width:none}.mod .pwb-pre,.mod .pwb-pick{grid-template-columns:repeat(2,minmax(0,1fr))}.mod .pwb-ctl{flex-wrap:wrap}}
+@container pw (max-width:540px){.mod .pwb-svc,.mod .pwb-foot{height:auto;min-height:var(--svc);flex-wrap:wrap;padding-top:6px;padding-bottom:6px}.mod .pwb-foot{min-height:var(--foot)}.mod .pwb-foot .sp{display:none}.mod .pwb-foot [role=status]{flex-basis:100%}.mod .pwb-svc .sp{flex:1}.mod .pwb-slot{width:auto}}
 
 .mod .pwb-xs{display:none}
 @container pw (max-height:300px){.mod .pwb,.mod .pwb-svc,.mod .pwb-foot{--ctl:20px;--fuelw:210px;--dw:54px;--g:5px;--pad:8px;--slot:196px;--svc:30px;--foot:34px;--fbtn:24px}

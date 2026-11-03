@@ -38,7 +38,7 @@ export function EngineerBar({ open, onToggle }: { open: boolean; onToggle: (on?:
   const m = w ? /^(.*?[.:])\s+(.*)$/.exec(w.text) : null, head = m ? m[1]! : w?.text ?? "", rest = m ? m[2]! : "";
   const fieldOn = !!(c.field && c.bc?.state === "live");
   const pit = !c.pit ? "pit off"
-    : (c.pitJob?.state === "running" || c.pit.busy) ? (c.pit.waiting_lift ? "pit busy: driver must lift" : "pit busy")
+    : (c.pitJob?.state === "running" || c.pit.busy) ? "pit busy"
     : !accessKey.value ? "pit: no key" : c.pit.status === "live" ? "pit ready" : "pit off";
   const status = `bridge ${location.host} · ${c.hz} Hz · ${fieldOn ? `field ${c.cars.size} cars` : "field off"} · ${pit} · ${tpl.name}`;
 

@@ -9,9 +9,10 @@ import { pressState } from "../lib/states";
 import { fv, unit, UnitChoice } from "../lib/units";
 import { accessKey, post, say } from "../state/bridge";
 import { feed } from "../feed/store";
+import { lsGet, lsSet } from "../lib/storage";
 import { usePrefs } from "../state/prefs";
 import {
-  Block, ChangeRow, changeRows, CORNERS, nowOf, OK_RES, PitPlan, planStore, pv, resOf, same, sentVal, show, usePlan, usePlanFlash,
+  Block, ChangeRow, changeRows, CORNERS, nowOf, OK_RES, PitPlan, planStore, pv, repairNow, resOf, same, sentVal, show, usePlan, usePlanFlash,
 } from "../state/plan";
 
 const clock = (d: Date) => d.toLocaleTimeString([], { hour12: false });
@@ -51,7 +52,7 @@ const PADS: [string, string][] = [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]
 function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean }) {
   const plan = usePlan(), flash = usePlanFlash(), prefs = usePrefs(), units = prefs.units;
   const [confirm, setConfirm] = useState(confirmDefault);
-  const [pending, setPending] = useState<{ only?: Block[]; title: string; rows: ChangeRow[] } | null>(null);
+  const [pending, setPending] = useState<{ only: Block[]; title: string; rows: ChangeRow[] } | null>(null);
   const [msg, setMsg] = useState("");
   const [sending, setSending] = useState(false);
   const [closeUntil, setCloseUntil] = useState(0);
@@ -66,7 +67,12 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
   useEffect(() => { planStore.seed(c); }, [c.pit, c.pitJob]); // eslint-disable-line react-hooks/exhaustive-deps
   // The job's own outcome replaces "Sent…": count endings rather than compare clocks on two PCs.
   useEffect(() => {
-    if (job && job !== lastJob.current && job.state !== "running") { jobsDone.current++; setMsg(""); }
+    if (job && job !== lastJob.current && job.state !== "running") {
+      jobsDone.current++; setMsg("");
+      const sent = job.plan as Partial<PitPlan> | undefined;
+      if (job.state === "done" && sent && (job.res as Record<string, string> | undefined)?.front_pad) lsSet("pitwall.pads", [sent.front_pad, sent.rear_pad]);
+      if (job.state === "done" && sent && (job.res as Record<string, string> | undefined)?.repairs) lsSet("pitwall.repairs", [!!sent.repair_suspension, !!sent.repair_suspension || !!sent.repair_bodywork]);
+    }
     lastJob.current = job;
   }, [job]);
   useEffect(() => { if (flash.size) setMsg(""); }, [flash]);
@@ -74,25 +80,25 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
   const wet = plan.compound === "wet"; // wet tyres have no sets in ACC: the bridge skips the tyre set
   const set = (patch: Partial<PitPlan>) => planStore.set({ ...plan, ...patch });
 
-  const doSend = async (only: Block[] | undefined) => {
+  const doSend = async (only: Block[]) => {
     if (sending) return; // one POST at a time: a double click would only earn a 409
     setPending(null);
-    setMsg(only ? `Sending ${only.join(" and ")}…` : "Sending the whole plan…");
+    setMsg(`Sending ${only.join(" and ")}…`);
     setSending(true);
     const n0 = jobsDone.current;
-    const r = await post("/pit", only ? { ...plan, only } : plan);
+    const pads_from = lsGet<number[] | null>("pitwall.pads", null), repairs_from = lsGet<boolean[] | null>("pitwall.repairs", null); // the bridge only remembers these while it runs
+    const r = await post("/pit", { ...plan, only, ...(pads_from ? { pads_from } : {}), ...(repairs_from ? { repairs_from } : {}) });
     setSending(false);
-    if (r.status === 202 && (!only || only.includes("repairs"))) planStore.set({ ...plan, flip_suspension: false, flip_bodywork: false }); // a repair switch is one-shot
     // A job that ended while the POST was in flight already shows its outcome.
     setMsg((r.status === 202 || r.status === 409) && jobsDone.current !== n0 ? ""
       : r.status === 0 ? r.text : r.status === 202 ? "Sent. Typing it into the driver's pit page; keep ACC focused on the driver's PC."
       : r.status === 403 ? "Wrong or missing access key: Settings › Connection." : r.status === 409 ? "Busy (409): " + r.text + "." : "Refused: " + r.text);
   };
-  const send = (only?: Block[]) => {
+  const send = (only: Block[]) => {
     if (sending) return;
     if (confirm) {
-      const rows = only ? only.flatMap((b) => changeRows(plan, c.pit, b, c.pitLog, units)) : changeRows(plan, c.pit, undefined, c.pitLog, units);
-      setPending({ only, title: only ? `Send ${only.join(" and ")}` : "Send the whole plan", rows });
+      const rows = only.flatMap((b) => changeRows(plan, c.pit, b, c.pitLog, units));
+      setPending({ only, title: `Send ${only.join(" and ")}`, rows });
       return;
     }
     void doSend(only);
@@ -109,10 +115,17 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
     if (r.status === 202) setTimeout(() => setMsg((cur) => (cur === m ? "" : cur)), 8000); // shown for 8 s once the press is done
   };
 
-  const copyMfd = () => {
+  const syncMfd = () => { // fuel, set and pressures are read from the game; ACC publishes nothing else, so the rest is what was last sent
     if (!p || p.status !== "live") return;
-    planStore.set({ ...plan, fuel: Math.round(p.fuel), tyre_set: p.tyre_set || 1, pressures: p.pressures.map((v: number) => +v.toFixed(1)) });
-    setMsg("MFD copied into the plan.");
+    const last = <T,>(k: string, d: T): T => { const v = sentVal(c.pitLog, k); return v === undefined ? d : (v as T); };
+    const pads = lsGet<number[] | null>("pitwall.pads", null);
+    planStore.set({
+      ...plan, fuel: Math.round(p.fuel), tyre_set: p.tyre_set || 1, pressures: p.pressures.map((v: number) => +v.toFixed(1)),
+      tyres: last("tyres", plan.tyres), compound: last("compound", plan.compound), brakes: last("brakes", plan.brakes),
+      front_pad: pads?.[0] ?? last("front_pad", plan.front_pad), rear_pad: pads?.[1] ?? last("rear_pad", plan.rear_pad),
+      repair_suspension: repairNow(c.pitLog, "repair_suspension"), repair_bodywork: repairNow(c.pitLog, "repair_bodywork"),
+    });
+    setMsg("Synced with the MFD: fuel, tyre set and pressures from the game, the rest from the last send.");
   };
 
   const sendOff = !live || busy || noKey || sending;
@@ -120,16 +133,16 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
 
   // Rows that differ from the MFD.
   let n = 0;
-  for (const k of ["fuel", "tyres", "tyre_set", "compound", "p0", "p1", "p2", "p3", "brakes", "front_pad", "rear_pad", "flip_suspension", "flip_bodywork"]) {
+  for (const k of ["fuel", "tyres", "tyre_set", "compound", "p0", "p1", "p2", "p3", "brakes", "front_pad", "rear_pad", "repair_suspension", "repair_bodywork"]) {
     const v = nowOf(p, k), pl = pv(plan, k);
     const diff = !(wet && k === "tyre_set") && v != null && pl != null && !same(k, v, pl);
-    if (diff || (v === null && pl === true && !(sentVal(c.pitLog, k) !== undefined && same(k, sentVal(c.pitLog, k), pl)))) n++; // a switch ACC does not publish counts until a send typed it
+    if (diff || (v === null && (k.startsWith("repair_") ? pl !== repairNow(c.pitLog, k) : pl === true && !(sentVal(c.pitLog, k) !== undefined && same(k, sentVal(c.pitLog, k), pl))))) n++; // a switch ACC does not publish counts until a send typed it
   }
   const res = job && job.state === "done" ? (job.res as Record<string, string> | undefined) ?? {} : {};
   const vals = Object.values(res), verified = vals.length > 0 && vals.every((x) => OK_RES.includes(x));
   const when = job && job.t ? clock(new Date(job.t * 1000)) : "";
   const stateText = !p ? "No pit control"
-    : busy ? (closing ? "Closing the pit page" : "Applying") + (p.waiting_lift ? ": waiting for the driver to lift" : "…")
+    : busy ? (closing ? "Closing the pit page" : "Applying") + "…"
     : msg ? msg
     : job && job.state === "error" ? "Failed: " + job.msg
     : job && job.state === "done" ? `Applied ${when}${job.by ? ` by ${job.by}` : ""}${verified ? " · verified" : " · check the results"}${n ? ` · draft: ${n} change${n === 1 ? "" : "s"}` : ""}`
@@ -184,7 +197,7 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
         <div className="pwb-ds">
           <span className={"pwb-st " + cls}>{cls === "lo" ? "Below" : cls === "hi" ? "Above" : "In window"}</span>
           <Stepper cls="sm" value={toInput(planV, units)} step={pStep} label={`${CORNERS[i]} cold pressure`}
-            onValue={(v) => { const q = plan.pressures.slice(); q[i] = +pu.b(v).toFixed(2); planStore.set({ ...plan, pressures: q }); }} />
+            onValue={(v) => { const q = plan.pressures.slice(); q[i] = +pu.b(v).toFixed(2); planStore.set({ ...plan, pressures: q, tyres: true }); }} />
           <span className="mu pwb-ml" title={`The MFD shows ${now != null ? fv("press", now, units) : NONE} now`}>MFD {now != null ? fv("press", now, units) : NONE}</span>
         </div>
       </div>
@@ -235,10 +248,10 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
             {sw("Change tyres", plan.tyres, (v) => set({ tyres: v }))}
             <span className="pwb-dv" />
             <span className="pwb-grp" style={plan.tyres ? undefined : { opacity: 0.5 }}>
-              <span className="seg">{(["dry", "wet"] as const).map((k) => <button key={k} type="button" aria-pressed={plan.compound === k} onClick={() => { const [l, h] = k === "wet" ? c.th.wet_psi : c.th.dry_psi, mid = +((l + h) / 2).toFixed(1); planStore.set({ ...plan, compound: k, pressures: [mid, mid, mid, mid] }, ["p0", "p1", "p2", "p3"]); }}>{k === "dry" ? "Dry" : "Wet"}</button>)}</span>
+              <span className="seg">{(["dry", "wet"] as const).map((k) => <button key={k} type="button" aria-pressed={plan.compound === k} onClick={() => { const [l, h] = k === "wet" ? c.th.wet_psi : c.th.dry_psi, mid = +((l + h) / 2).toFixed(1); planStore.set({ ...plan, compound: k, pressures: [mid, mid, mid, mid], tyres: true }, ["p0", "p1", "p2", "p3"]); }}>{k === "dry" ? "Dry" : "Wet"}</button>)}</span>
               <span className="pwb-set" style={wet ? { opacity: 0.4 } : undefined} title={wet ? "Wet tyres have no sets in ACC" : undefined}>
                 <span className="lab">Set</span>
-                <Stepper cls="sm" value={plan.tyre_set} min={1} max={50} step={1} label="Tyre set" disabled={wet} onValue={(v) => set({ tyre_set: v })} />
+                <Stepper cls="sm" value={plan.tyre_set} min={1} max={50} step={1} label="Tyre set" disabled={wet} onValue={(v) => set({ tyre_set: v, tyres: true })} />
                 <span className="mu pwb-oc">on car {live ? nf(p!.current_set, 0) : NONE}</span>
               </span>
             </span>
@@ -256,8 +269,8 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
         {sw("Brake pads", plan.brakes, (v) => set({ brakes: v }))}
         <span className="pwb-slot">{plan.brakes ? <>{padSeg("F", "front_pad")}{padSeg("R", "rear_pad")}</> : null}</span>
         <span className="pwb-dv" />
-        {sw(<><span className="pwb-long">Repair suspension</span><span className="pwb-short">Suspension</span></>, plan.flip_suspension, (v) => set({ flip_suspension: v }))}
-        {sw(<><span className="pwb-long">Repair bodywork</span><span className="pwb-short">Bodywork</span></>, plan.flip_bodywork, (v) => set({ flip_bodywork: v }))}
+        {sw(<><span className="pwb-long">Repair suspension</span><span className="pwb-short">Suspension</span></>, plan.repair_suspension, (v) => set({ repair_suspension: v, ...(v ? { repair_bodywork: true } : {}) })) /* ACC ticks Bodywork with Suspension */}
+        {sw(<><span className="pwb-long">Repair bodywork</span><span className="pwb-short">Bodywork</span></>, plan.repair_bodywork, (v) => set({ repair_bodywork: v, ...(v ? {} : { repair_suspension: false }) })) /* and unticks Suspension with Bodywork */}
         <span className="sp" />
         {sendBtn(["brakes", "repairs"])}
       </div>
@@ -276,12 +289,11 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
         </div>
       ) : null}
       <div className="pwb-foot">
-        <button type="button" className="btn pr" disabled={sendOff} title={sendTitle} onClick={() => send()}>Send whole plan</button>
-        <button type="button" className="btn" disabled={!live} onClick={copyMfd}>Copy MFD into plan</button>
+        <button type="button" className="btn" disabled={!live} title="Fuel, tyre set and pressures are read from the game. ACC publishes nothing else, so tyres, compound, brakes, pads and repairs come from the last send." onClick={syncMfd}>Sync MFD</button>
         <button type="button" className="btn" disabled={closeDisabled} title={noKey ? "Needs the access key: Settings › Connection" : closing ? "The pit page is being closed" : CLOSE_TITLE} onClick={closePage}>Close pit page</button>
         <label className="f v mu" style={{ gap: 6, marginLeft: 6 }}><Switch label="Confirm before sending" on={confirm} onSet={setConfirm} />Confirm</label>
         <span className="sp" />
-        <span className={"v " + (job && job.state === "error" && !msg ? "up" : busy ? "wn" : "mu")} role="status">{stateText || (n ? `${n} change${n === 1 ? "" : "s"}` : "No changes")}</span>
+        <span className={"v " + (job && job.state === "error" && !msg ? "up" : busy ? "wn" : "mu")} role="status" title={stateText}>{stateText || (n ? `${n} change${n === 1 ? "" : "s"}` : "No changes")}</span>
       </div>
     </div>
   );
@@ -289,7 +301,7 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
 
 
 export const pitPlan = defineModule({
-  type: "pit-plan", title: "Pit stop", group: "Pit", blurb: "The next stop, typed into the driver's MFD: the whole plan or one block.",
+  type: "pit-plan", title: "Pit stop", group: "Pit", blurb: "The next stop, typed into the driver's MFD: one block at a time.",
   size: { w: 7, h: 13, minW: 6, minH: 9, maxH: 24 }, multi: false, needs: ["pit", "reading", "summary", "config", "units"], requires: ["pit"], rate: 4,
   options: [{ key: "confirm", label: "Confirm before sending", type: "toggle", def: true }],
   view({ ctx: c, opts }) {
@@ -352,7 +364,7 @@ export const pressFix = defineModule({
     const sc = { th: c.th, wet: c.wet, fuelLowLaps: 3 };
     const all = (pl.psi as number[]).every((v) => pressState(v, sc) === "ok");
     const use = () => {
-      planStore.patch({ pressures: prop });
+      planStore.patch({ pressures: prop, tyres: true });
       feed.log(0, "PLAN", "Pressure corrections put in the pit plan");
       say("Pressure corrections put in the pit plan");
     };
