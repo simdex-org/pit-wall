@@ -9,7 +9,7 @@ const out = join(here, "..", "dist");
 rmSync(out, { recursive: true, force: true });
 
 await build({
-  entryPoints: { bridge: join(here, "../src/main.ts"), "hook-worker": join(here, "../src/pit/hook-worker.ts") },
+  entryPoints: { bridge: join(here, "../src/main.ts") },
   outdir: out,
   outExtension: { ".js": ".mjs" },
   bundle: true,
