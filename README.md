@@ -13,8 +13,7 @@
   <a href="https://github.com/simdex-org/pit-wall/releases/latest"><b>Download</b></a> ·
   <a href="#get-started">Get started</a> ·
   <a href="#connect-the-pcs">Connect</a> ·
-  <a href="#try-it-without-acc">Demo</a> ·
-  <a href="docs/GUIDE.md">Guide</a>
+  <a href="#try-it-without-acc">Demo</a>
 </p>
 
 <p align="center">
@@ -60,7 +59,7 @@ pnpm build
 pnpm --filter @pitwall/bridge start --http 25.x.x.x:8765
 ```
 
-Once, with ACC closed, switch on timing for the other cars: `pnpm --filter @pitwall/bridge start --enable-broadcast`. More in [development](docs/development.md).
+Once, with ACC closed, switch on timing for the other cars: `pnpm --filter @pitwall/bridge start --enable-broadcast`.
 
 </details>
 
@@ -78,12 +77,11 @@ Set-NetConnectionProfile -InterfaceAlias "Hamachi" -NetworkCategory Private
 pnpm --filter @pitwall/bridge start --simulate-acc --key demo
 ```
 
-A full session with a 20-car field and a working pit page. Options such as `--sim-session quali` and `--sim-track spa` are in the [guide](docs/GUIDE.md).
+A full session with a 20-car field and a working pit page. Add `--sim-session quali` for qualifying or `--sim-track spa` for another track.
 
 ## Good to know
 
 - ACC must be the focused window while a plan goes in, which takes 15 to 30 seconds. Try it once in practice before a race.
-- Everything else (modules, templates, vJoy, troubleshooting) is in the **[guide](docs/GUIDE.md)**.
 
 ## Credits
 
