@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useLink } from "../feed/connection";
 import { feed, sessionLabel } from "../feed/store";
 import { useFeed } from "../feed/useFeed";
@@ -24,16 +24,34 @@ function Clock() {
   return <span id="clock" className="n" title="Session time left">{c.r ? fmtClock(c.r.session.session_time_left_ms) : NONE}</span>;
 }
 
+/** Live, or one of the earlier sessions (practice, qualifying, race) kept by the bridge. Shown once there is an earlier one. */
 function SessionPicker() {
   const c = useFeed();
+  const pop = useRef<HTMLDivElement>(null);
   if (!c.past.length && !c.view) return null;
-  const live = sessionLabel(c, "live");
+  const cur: number | "live" = c.view?.id ?? "live";
+  const items: { id: number | "live"; name: string; meta: string }[] = [
+    { id: "live", name: `Live · ${sessionLabel(c, "live")}`, meta: "" },
+    ...c.past.slice().reverse().map((p) => ({ id: p.id, name: sessionLabel(c, p.id), meta: plural(p.laps.length, "lap") })),
+  ];
+  const label = items.find((i) => i.id === cur)?.name ?? "";
+  const pick = (id: number | "live") => { pop.current?.hidePopover(); void feed.showSession(id === "live" ? null : id); };
   return (
-    <select id="sessionSel" aria-label="Session shown" title="Session shown" data-past={c.view ? "" : undefined} value={c.view?.id ?? "live"}
-      onChange={(e) => void feed.showSession(e.target.value === "live" ? null : Number(e.target.value))}>
-      <option value="live">{`Live · ${live}`}</option>
-      {c.past.slice().reverse().map((p) => <option key={p.id} value={p.id}>{`${sessionLabel(c, p.id)} · ${plural(p.laps.length, "lap")}`}</option>)}
-    </select>
+    <>
+      <button type="button" id="sessionSel" popoverTarget="sessPop" aria-haspopup="listbox" title="Session shown" aria-label={`Session shown: ${label}`} data-past={c.view ? "" : undefined}>
+        <span>{label}</span><Icon name="chevron-down" />
+      </button>
+      <div id="sessPop" ref={pop} popover="auto" className="pop" role="listbox" aria-label="Session shown">
+        <div className="sp-h"><b>Session shown</b><span>Earlier sessions are kept by the bridge.</span></div>
+        {items.map((i) => (
+          <button key={i.id} type="button" role="option" aria-selected={i.id === cur} className="sp-row" onClick={() => pick(i.id)}>
+            <i className="sp-rd" /><span className="sp-n">{i.name}</span>
+            {i.id === "live" ? <span className="sp-live">Live now</span> : null}
+            <span className="sp-m">{i.meta}</span>
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -41,9 +59,14 @@ function Tabs() {
   const { tpl, wsId } = useNav();
   const c = useFeed();
   const ed = useEditor();
+  const nav_ = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = nav_.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (el && nav_.current) nav_.current.scrollTo({ left: el.offsetLeft - nav_.current.clientWidth / 2 + el.offsetWidth / 2, behavior: "smooth" });
+  }, [wsId, tpl.id]);
 
   return (
-    <nav id="tabs" role="tablist" aria-label="Workspaces">
+    <nav id="tabs" ref={nav_} role="tablist" aria-label="Workspaces">
       {tpl.workspaces.map((w, i) => {
         return (
           <span className="tabw" key={w.id}>
@@ -102,7 +125,7 @@ function TemplateMenu() {
   );
   return (
     <>
-      <button type="button" id="tplBtn" popoverTarget="tplPop" aria-haspopup="menu" title={`Template: ${tpl.name}`}><span id="tplName">{tpl.name}</span><Icon name="chevron-down" /></button>
+      <button type="button" id="tplBtn" popoverTarget="tplPop" aria-haspopup="menu" title={`Template: ${tpl.name}`}><span className="tpl-l">Template</span><span id="tplName">{tpl.name}</span><Icon name="chevron-down" /></button>
       <div id="tplPop" ref={pop} popover="auto" className="pop" role="menu" aria-label="Templates">
         <div className="pop-h">Built-in</div>
         {templates.builtins.map(row)}
@@ -150,7 +173,7 @@ export function TopBar({ onKeys }: { onKeys: () => void }) {
         <Icon name="pencil" />{ed.active ? "Editing" : "Edit layout"}
       </button>
       <button type="button" className="btn icon" id="btnSettings" title="Settings (,)" aria-label="Settings" onClick={() => ui.openSettings()}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.5" /><circle cx="8" cy="8" r="5.2" /><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1" /></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
       </button>
       <button type="button" className="btn icon" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" onClick={onKeys}><Icon name="keyboard" /></button>
     </header>

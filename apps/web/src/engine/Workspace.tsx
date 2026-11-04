@@ -8,9 +8,9 @@ import { ModuleHost } from "./ModuleHost";
 import { registry } from "./registry";
 
 const NARROW_PX = 1100;
-const AUTO_HEIGHT = new Set(["pit-plan", "standings", "stop-options", "laps", "stops", "pit-log", "pit-activity", "tyre-history", "race-plan", "rejoin", "rules",
+const AUTO_HEIGHT = new Set(["standings", "sector-compare", "fuel-calc", "stop-options", "laps", "stops", "pit-log", "pit-activity", "tyre-history", "race-plan", "rejoin", "rules",
   "brakes", "weather", "damage", "electronics", "flags", "press-fix", "battle", "relative", "car-status"]);
-const MIN_ROWS: Record<string, number> = { tyres: 11 };
+const MIN_ROWS: Record<string, number> = { tyres: 11, "pit-plan": 38, "weather-center": 26 };
 const STACK_ORDER: Record<string, number> = { "race-plan": 1, relative: 2, "lap-timer": 2, tyres: 3, "press-fix": 4, rejoin: 5, "stop-options": 6, battle: 7, standings: 8, "fuel-calc": 9, "pit-plan": 20 };
 
 const cssNumber = (name: string, fallback: number) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || fallback;

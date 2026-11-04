@@ -204,8 +204,8 @@ export const fuelCalc = defineModule({
       flush: true,
       info: ["EMPTY FIELDS TAKE THE LIVE VALUE"],
       body: (
-        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-          <div className="fc" style={{ width: 330, flex: "none", padding: 12, borderRight: "1px solid var(--ln)", overflow: "auto" }}>
+        <div className="fc-split" style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          <div className="fc fc-in" style={{ width: 330, flex: "none", padding: 12, borderRight: "1px solid var(--ln)", overflow: "auto" }}>
             <span className="lab">Inputs</span>
             <div className="r"><span>Race length</span>{raceInput("f fi")}</div>
             <div className="r"><span>Lap time</span><div className="f fi"><input className="inp sm" placeholder={ph.lap} value={v.lap ?? ""} aria-label="Lap time" onChange={(e) => set("lap", e.target.value)} /><span className="v di">m:ss.xxx</span></div></div>

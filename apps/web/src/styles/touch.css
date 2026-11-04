@@ -1,0 +1,284 @@
+/* Tablets and phones: safe areas, two columns on a tablet, bigger touch targets, drag that does not fight page scroll */
+
+.app{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#settings .set{width:min(1100px,100vw - 24px);height:min(720px,100dvh - 24px)}
+#drawer .cat{max-width:calc(100vw - 16px);max-height:calc(100dvh - 24px)}
+.pop{max-height:70dvh}
+#engDrawer{max-height:50dvh;overflow:auto;padding-right:16px}
+
+/* a tablet: two columns, tables across both */
+@media (min-width:720px) and (max-width:1099px){
+  .ws.narrow{flex-flow:row wrap;align-items:flex-start;align-content:flex-start}
+  .ws.narrow>.mod{flex:0 0 calc(50% - 4px)}
+  .ws.narrow>.mod.auto-h,.ws.narrow>.mod[data-wide]{flex-basis:100%}
+}
+
+/* charts drag sideways only, the page keeps its vertical scroll; the map, 3D car and plots take every touch */
+.cv>canvas{touch-action:pan-y}
+.cv.c3,.cv.c3>canvas,.cv.map>canvas{touch-action:none}
+
+@media (pointer:coarse){
+  .btn.sm{height:30px;padding:0 10px}
+  .tt td,.tt th{padding-top:6px;padding-bottom:6px}
+  input[type=checkbox]{width:40px;height:22px}
+  input[type=checkbox]:before{width:16px;height:16px}
+  input[type=checkbox]:checked:before{transform:translate(18px)}
+  input:not([type=checkbox]):not([type=range]),select{min-height:36px;font-size:16px}
+  #tabs [role=tab]{min-height:36px}
+  #top .btn,#top .btn.icon{height:36px}
+  #top .btn.icon{width:36px}
+}
+
+@media (max-width:560px){
+  #drawer .cat{width:100vw;height:100dvh;max-width:none;max-height:none;border-radius:0}
+  #settings .set{width:100vw;height:100dvh;border:0;border-radius:0}
+}
+
+/* pit stop on a phone: a bigger dial so its text sits inside the ring, and everything centred in the column */
+@container pw (max-width:540px){
+  .mod .pwb,.mod .pwb-svc,.mod .pwb-foot{--gw:min(240px,72cqw);--gnum:44px;--ctl:34px}
+  .mod .pwb-gc{top:34%}
+  .mod .pwb-tl{display:inline;font-size:12px;white-space:nowrap}
+  .mod .pwb-pr{margin-top:-6px}
+  .mod .pwb-fuel,.mod .pwb-tyres{padding-left:12px;padding-right:12px}
+  .mod .pwb-th{justify-content:space-between}
+}
+
+/* the header below 1100px: logo and template on the left, workspace tabs, session, clock over link status, settings.
+   A tablet keeps it on one row; a phone moves the tabs and session to a second row. */
+.tpl-l{display:none}
+@property --fade-l{syntax:"<length>";inherits:false;initial-value:0px}
+@property --fade-r{syntax:"<length>";inherits:false;initial-value:28px}
+@keyframes tabsEdge{0%{--fade-l:0px;--fade-r:28px}6%{--fade-l:28px}94%{--fade-r:28px}100%{--fade-l:28px;--fade-r:0px}}
+@media (max-width:1099px){
+  #top{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto auto;grid-template-rows:auto auto;column-gap:14px;row-gap:3px;height:72px;padding:0 16px;align-items:center}
+  #top .top-gap,#top #btnEdit,#top>.btn[aria-label="Keyboard shortcuts"]{display:none}
+  #top>.brand{grid-area:1/1/3/2}
+  #top>#tplBtn{grid-area:1/2/3/3;height:44px;max-width:220px;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:0 10px;display:grid;grid-template-columns:auto auto;justify-content:start;justify-items:start;align-items:center;column-gap:4px;text-align:left;border:0;background:none}
+  #top>#tplBtn .tpl-l{display:block;grid-column:1/-1;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);line-height:1;font-weight:400}
+  #top>#tplBtn #tplName{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  #top>#tabs{position:relative;grid-area:1/3/3/4;align-self:stretch;min-width:0;margin:0 0 0 8px;padding:0;gap:2px;overflow-x:auto;scrollbar-width:none;
+    mask-image:linear-gradient(90deg,transparent,#000 var(--fade-l),#000 calc(100% - var(--fade-r)),transparent);animation:tabsEdge linear both;animation-timeline:scroll(self inline)}
+  #tabs .tabw{display:flex;flex:none;align-items:stretch}
+  #tabs .tab-sel,#tabs .tab-add{display:none}
+  #tabs [role=tab]{align-self:stretch;height:auto;min-height:44px;padding:0 16px;font-size:16px;font-weight:500;color:var(--mut)}
+  #tabs [role=tab][aria-selected=true]{box-shadow:inset 0 -3px 0 var(--acc);color:var(--txt)}
+  #top>#sessionSel{grid-area:1/4/3/5;align-self:center;justify-content:space-between;height:36px;min-width:0;max-width:160px}
+  #top>#clock{grid-area:1/5;margin:0;padding:0;font-size:24px;line-height:1;align-self:end;justify-self:end}
+  #top>#link{grid-area:2/5;justify-self:end;align-self:start;height:auto;max-width:none;padding:0;border:0;background:none;gap:5px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;overflow:visible;display:flex;align-items:center}
+  #top>#link[data-state=live]{color:var(--ok)}
+  #top>#btnSettings{grid-area:1/6/3/7;width:44px;height:44px;color:var(--mut);border:0;background:none}
+}
+@media (max-width:560px){
+  #top{grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-rows:auto auto 48px;height:auto;padding:8px 12px 0;column-gap:10px;row-gap:3px}
+  #top>.brand{grid-area:1/1/3/2}
+  #top>#tplBtn{grid-area:1/2/3/3;max-width:none;min-width:0}
+  #top>#clock{grid-area:1/3;font-size:20px}
+  #top>#link{grid-area:2/3}
+  #top>#btnSettings{grid-area:1/4/3/5}
+  #top>#tabs{grid-area:3/1/4/3;margin:0 0 0 -12px}
+  #top>#sessionSel{grid-area:3/3/4/5;align-self:center;max-width:none}
+}
+
+/* settings on a phone or small tablet: the section list becomes a scrolling tab row above the page */
+@media (max-width:760px){
+  #settings .set{grid-template-columns:minmax(0,1fr);grid-template-rows:56px auto minmax(0,1fr)}
+  #settings .set-h{padding:0 8px 0 16px}
+  #settings .set-h .btn,#settings .set-h button{min-width:44px;min-height:44px}
+  #settings .set-nav{flex-direction:row;padding:0;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;
+    mask-image:linear-gradient(90deg,transparent,#000 var(--fade-l),#000 calc(100% - var(--fade-r)),transparent);animation:tabsEdge linear both;animation-timeline:scroll(self inline)}
+  #settings .set-nav button{flex:none;height:44px;padding:0 16px;font-size:13px}
+  #settings .set-nav button[aria-selected=true]{background:none;box-shadow:inset 0 -3px 0 var(--acc);color:var(--txt)}
+  #settings .set-pane{padding:16px}
+  #settings .set-pane>*{max-width:none}
+  #settings .set-pane :is(input[type=text],input[type=password],input:not([type]),select,textarea){max-width:100%}
+  #settings .set-pane .btn{min-height:44px}
+}
+
+/* the engineer bar: on a phone the headline wraps over two lines and the rest of the advice sits in the drawer */
+@media (max-width:760px){
+  #eng{height:auto;min-height:44px}
+  #eng .eng-main{padding:6px 12px;gap:8px;min-width:0}
+  #eng .eng-head{flex:1 1 0;min-width:0;white-space:normal;line-height:1.25}
+  #eng .eng-text,#eng .eng-main .sp,#eng .eng-main .btn.gh{display:none}
+  .eng-info{display:none}
+}
+
+/* finger-sized controls inside modules */
+@media (max-width:1099px),(pointer:coarse){
+  .mh .btn.icon,.mb .btn.icon{width:36px;height:36px}
+  .mod :is(.btn,.chip,.pwb-chip,.pwb-sw,.seg button,[role=tab]):not(table *){min-height:34px}
+  .mod .btn.sm{height:auto;min-height:34px;padding:0 10px}
+  .mod :is(select,input:not([type=checkbox]):not([type=range])){min-height:36px}
+}
+@media (max-width:1099px),(pointer:coarse){
+  .mod .mh .btn.icon,.mod .mb .btn.icon{width:36px;min-width:36px;height:36px}
+  .mod :is(.seg,.tabs2,.tg) button{min-height:34px}
+}
+
+/* fuel and stints: inputs above the result */
+@media (max-width:760px){
+  .mod .fc-split{flex-direction:column;overflow:visible}
+  .mod .fc-split>.fc-in{width:auto!important;border-right:0!important;border-bottom:1px solid var(--ln);overflow:visible!important}
+}
+
+/* template manager: the buttons go under the name */
+@media (max-width:560px){
+  #dlgTemplates .tm-row{flex-direction:column;align-items:stretch;gap:10px;padding:12px}
+  #dlgTemplates .tm-acts{display:flex;flex-wrap:wrap;gap:8px;text-align:left}
+  #dlgTemplates .tm-acts .btn{flex:1 1 auto;min-height:40px;margin:0}
+  #dlgTemplates .tm-title{white-space:normal}
+}
+
+/* the pit stop panel lays out in two columns once it has the width, and needs less height there */
+@media (min-width:720px) and (max-width:1099px){
+  .ws.narrow>.mod[data-type=pit-plan]{flex-basis:100%;height:640px!important}
+}
+
+/* module headers on a phone or tablet: tall enough for fingers, and the title, filters and tools wrap instead of being clipped */
+@media (max-width:1099px),(pointer:coarse){
+  .mod .mh{height:auto;min-height:44px;flex-wrap:wrap;align-items:center;gap:4px 10px;padding-top:4px;padding-bottom:4px}
+  .mod .mh .mt{flex:none}
+  .mod .mh .mi{flex:1 1 0;min-width:0;font-size:11px;display:block;text-align:right;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+  .mod .mh .mi>span+span{margin-left:10px}
+  .mod .mh .seg{height:36px;margin:0}
+  .mod .mh .seg button{height:34px;min-width:44px;padding:0 12px;font-size:12px}
+  .mod .mh .mtools,.mod .mh .mquick{display:flex;align-items:center;gap:2px;flex:none}
+}
+
+/* the session picker: a pill that opens a list (a bottom sheet on a phone, a popover otherwise) */
+#sessionSel{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 10px 0 12px;border:1px solid var(--line);border-radius:999px;background:var(--raise);color:var(--txt);font-size:14px;font-weight:500;white-space:nowrap;anchor-name:--sess}
+#sessionSel>span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+#sessionSel svg{color:var(--mut);flex:none;transition:rotate .12s}
+#sessionSel:has(+ #sessPop:popover-open){border-color:var(--acc)}
+#sessionSel:has(+ #sessPop:popover-open) svg{rotate:180deg}
+#sessionSel[data-past]{border-color:var(--warn);color:var(--warn)}
+#sessPop{inset:auto;margin:0;padding:0;width:340px;max-width:calc(100vw - 16px);overflow:hidden;border-radius:12px;top:60px;right:16px;box-shadow:0 12px 32px #00000080}
+@supports (top:anchor(bottom)){#sessPop{position-anchor:--sess;top:calc(anchor(bottom) + 6px);right:anchor(right);left:auto}}
+#sessPop::backdrop{background:#05060899}
+#sessPop .sp-h{display:flex;flex-direction:column;gap:3px;padding:14px 20px 10px}
+#sessPop .sp-h b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:500}
+#sessPop .sp-h span{display:none;font-size:13px;color:var(--mut)}
+#sessPop .sp-row{display:flex;align-items:center;gap:12px;width:100%;height:52px;padding:0 20px;border-top:1px solid var(--line);text-align:left;position:relative}
+#sessPop .sp-row[aria-selected=true]{background:var(--acc-soft);box-shadow:inset 3px 0 0 var(--acc)}
+#sessPop .sp-row[aria-selected=true]::after{content:none}
+#sessPop .sp-rd{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--dim);flex:none}
+#sessPop .sp-row[aria-selected=true] .sp-rd{box-shadow:inset 0 0 0 2px var(--acc);background:radial-gradient(circle,var(--acc) 0 4px,transparent 5px)}
+#sessPop .sp-n{font-size:16px;font-weight:600;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sessPop .sp-live{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ok);font-weight:500}
+#sessPop .sp-m{margin-left:auto;font:500 14px var(--num);color:var(--mut)}
+@media (max-width:560px){
+  #sessPop{position:fixed;inset:auto 0 0 0;width:100%;max-width:none;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+  #sessPop .sp-h{padding:16px 20px 14px}
+  #sessPop .sp-h b{font-size:18px;letter-spacing:0;text-transform:none;color:var(--txt);font-weight:600}
+  #sessPop .sp-h span{display:block}
+  #sessPop .sp-row{height:60px}
+}
+
+/* the module switches are drawn with a square knob moved by `left`: scale track and knob together */
+@media (max-width:1099px),(pointer:coarse){
+  .mod .sw{width:42px;height:24px;min-height:0}
+  .mod .sw:before{width:16px;height:16px;top:3px;left:3px;transform:none}
+  .mod .sw:checked:before{left:21px;transform:none}
+}
+
+/* tables in a narrow column: header words wrap and cells are tighter, so most fit without a sideways scroll that only shows empty columns */
+.ws.narrow .mod.auto-h table{table-layout:auto;width:100%;min-width:0!important}
+.ws.narrow .mod.auto-h table :is(th,td){padding-left:5px;padding-right:5px}
+.ws.narrow .mod.auto-h table th{white-space:normal;line-height:1.15;vertical-align:bottom}
+.ws.narrow .mod.auto-h table td{white-space:nowrap;max-width:none;text-overflow:clip}
+
+/* the pit stop panel wraps its controls instead of running past the module */
+@container pw (max-width:760px){
+  .mod .pwb-ctl,.mod .pwb-grp,.mod .pwb-h{flex-wrap:wrap}
+  .mod .pwb-th{row-gap:6px}
+}
+.ws.narrow .mod.auto-h table td>*{max-width:none;text-overflow:clip;overflow:visible}
+.ws.narrow .mod.auto-h table th{padding-left:6px;padding-right:6px}
+.ws.narrow .mod.auto-h table :is(col,th){width:auto!important}
+.ws.narrow [data-type=stop-options] table td:first-child{white-space:normal;line-height:1.2;min-width:90px}
+.ws.narrow [data-type=fuel-calc] .mb{overflow-x:hidden}
+.ws.narrow [data-type=fuel-calc] table td{white-space:normal}
+.ws.narrow [data-type=fuel-calc] :is(div,section){min-width:0;max-width:100%}
+.ws.narrow [data-type=fuel-calc] .mb div[style*="overflow: auto"]{overflow-x:hidden!important}
+.ws.narrow [data-type=fuel-calc] table{font-size:11px}
+.ws.narrow [data-type=fuel-calc] table th{letter-spacing:0;font-size:10px}
+.ws.narrow [data-type=fuel-calc] table :is(th,td){padding-left:3px;padding-right:3px}
+
+/* log and the other modules that scrolled a few pixels sideways at 320-336 px */
+.ws.narrow [data-type=event-log] table{width:100%;min-width:0!important;table-layout:auto}
+.ws.narrow [data-type=event-log] table td{white-space:normal;overflow-wrap:anywhere;text-overflow:clip;max-width:none}
+.ws.narrow [data-type=event-log] .mb,.ws.narrow [data-type=event-log] .mb>div{overflow-x:hidden}
+.ws.narrow [data-type=gg] .fc,.ws.narrow [data-type=sector-compare] .mb>*{min-width:0;max-width:100%}
+.ws.narrow [data-type=sector-compare] .mb{overflow-x:hidden}
+.ws.narrow [data-type=gg] .mb{overflow-x:hidden}
+
+
+/* pit stops keeps every figure on a phone: the lane ranking goes below, and fuel and tyres drop to a second line in each stop */
+@media (max-width:760px){
+  .ws.narrow [data-type=stops] .mb>div{flex-direction:column}
+  .ws.narrow [data-type=stops] .mb>div>div:nth-child(2){width:auto!important;border-left:0!important;border-top:1px solid var(--ln)}
+  .ws.narrow [data-type=stops] .pr{grid-template-columns:62px minmax(0,1fr) 54px 54px!important;height:auto!important;min-height:44px;row-gap:2px;padding-top:4px;padding-bottom:4px}
+  .ws.narrow [data-type=stops] .pr.hd>span:nth-child(n+5){display:none}
+  .ws.narrow [data-type=stops] .pr>:nth-child(5){grid-column:1/3;justify-self:start;padding-left:2px}
+  .ws.narrow [data-type=stops] .pr>:nth-child(6){grid-column:3/5;justify-self:end}
+}
+
+/* a chart with a side panel (Pace, G-G, Car damage and others): the panel goes under the chart, which gets the full width */
+@media (max-width:760px){
+  .ws.narrow .mb>div[style*="display: flex"]:has(>[style*="border-left"]){flex-direction:column}
+  .ws.narrow .mb>div[style*="display: flex"]:has(>[style*="border-left"])>:first-child{flex:none!important;min-height:240px;width:100%!important}
+  .ws.narrow .mb>div[style*="display: flex"]>[style*="border-left"]{width:auto!important;flex:none!important;border-left:0!important;border-top:1px solid var(--ln)}
+}
+@media (max-width:760px){
+  .ws.narrow .mod:has(>.mb>div[style*="display: flex"]>[style*="border-left"]){height:auto!important}
+}
+@media (max-width:760px){
+  .ws.narrow .mb>div[style*="display: flex"]:has(>[style*="border-left"]){flex:none!important;height:auto!important}
+  .ws.narrow .mb>div[style*="display: flex"]:has(>[style*="border-left"])>:first-child{height:auto!important;max-height:none}
+  .ws.narrow [data-type=gg] .mb>div>:first-child{aspect-ratio:1;max-width:340px;align-self:center;min-height:0}
+}
+
+/* laps on a phone: each lap is a two-line card, so the compare buttons stay in reach and nothing needs a sideways scroll */
+@media (max-width:760px){
+  .ws.narrow [data-type=laps] :is(table,tbody){display:block;width:100%}
+  .ws.narrow [data-type=laps] thead{display:none}
+  .ws.narrow [data-type=laps] tr.grp{display:block}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8)){display:grid;grid-template-columns:34px repeat(4,minmax(0,1fr)) auto;align-items:center;column-gap:8px;row-gap:2px;padding:8px 10px;border-bottom:1px solid var(--ln)}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td{padding:0;border:0;text-align:left;white-space:nowrap;min-width:0}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(1){grid-area:1/1}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(2){grid-area:1/2/2/4;font-size:17px;font-weight:600}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(8){grid-area:1/4/2/6;font-size:12px}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(9){grid-area:1/6;display:flex;gap:6px;justify-content:flex-end}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(n+3):nth-child(-n+7){font-size:12px;color:var(--mut)}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(3){grid-area:2/2}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(4){grid-area:2/3}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(5){grid-area:2/4}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(6){grid-area:2/5}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(7){grid-area:2/6;text-align:right}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(3)::before{content:"S1 ";opacity:.6}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(4)::before{content:"S2 ";opacity:.6}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(5)::before{content:"S3 ";opacity:.6}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(6)::before{content:"Fuel ";opacity:.6}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(7)::before{content:"P";opacity:.6}
+}
+
+/* Events: the time never wraps; the driver column of a table may wrap under its name so tags stay in their own cell */
+.ws.narrow [data-type=event-log] table td:first-child{white-space:nowrap;overflow-wrap:normal}
+.ws.narrow .mod.auto-h table td.l{white-space:normal}
+.ws.narrow [data-type=sector-compare] table :is(th,td){padding-left:4px;padding-right:4px}
+@container pw (max-width:400px){
+  .mod .pwb-dials{grid-template-rows:none;grid-auto-rows:auto;align-content:start}
+  .mod .pwb-dc{padding:10px}
+}
+.ws.narrow [data-type=standings] table td{white-space:normal}
+.ws.narrow .mod .pwb,.ws.narrow .mod .pwb-svc,.ws.narrow .mod .pwb-foot{--ctl:34px}
+.ws.narrow .mod .pwb-dc .step{max-width:none}
+@media (min-width:720px) and (max-width:1099px){
+  .ws.narrow>.mod:is([data-type=car-3d],[data-type=gg],[data-type=degradation],[data-type=track-map],[data-type=lap-map],[data-type=coach],[data-type=traces],[data-type=fuel-calc],[data-type=weather-center],[data-type=channels],[data-type=laps],[data-type=lap-picker],[data-type=event-log],[data-type=tyre-history]){flex-basis:100%}
+}
+.mod .step input{min-height:0!important}
+
+/* the lane/box bar of a stop never runs into the figures beside it, however narrow the module is */
+[data-type=stops] .pb{min-width:0;overflow:hidden}
+[data-type=stops] .pb>i{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

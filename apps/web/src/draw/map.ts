@@ -396,20 +396,37 @@ function meMark(g: Ctx2D, x: number, y: number, ang: number, num: number | undef
 
 export function bindMapControls(cv: HTMLCanvasElement, view: MapView, onChange: () => void, onClick: (x: number, y: number) => void): () => void {
   let drag: { x: number; y: number; moved: boolean } | null = null;
-  const wheel = (e: WheelEvent) => {
-    e.preventDefault();
-    const z0 = view.zoom, z1 = clamp(z0 * (e.deltaY < 0 ? 1.25 : 0.8), 1, 40);
+  const touches = new Map<number, { x: number; y: number }>();
+  let pinch = 0;
+  const zoomAt = (factor: number, cx: number, cy: number) => {
+    const z0 = view.zoom, z1 = clamp(z0 * factor, 1, 40);
     if (z1 === z0) return;
     if (view.sc && view.c && view.mid && !view.follow) {
-      const b = cv.getBoundingClientRect(), px = e.clientX - b.left - b.width / 2, py = e.clientY - b.top - b.height / 2, sc1 = (view.sc * z1) / z0;
+      const b = cv.getBoundingClientRect(), px = cx - b.left - b.width / 2, py = cy - b.top - b.height / 2, sc1 = (view.sc * z1) / z0;
       view.dx += px / view.sc - px / sc1; view.dy += py / view.sc - py / sc1;
     }
     view.zoom = z1;
     if (z1 === 1) view.dx = view.dy = 0;
     onChange();
   };
-  const down = (e: PointerEvent) => { drag = { x: e.clientX, y: e.clientY, moved: false }; cv.setPointerCapture(e.pointerId); };
+  const wheel = (e: WheelEvent) => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.25 : 0.8, e.clientX, e.clientY); };
+  const down = (e: PointerEvent) => {
+    drag = { x: e.clientX, y: e.clientY, moved: false };
+    cv.setPointerCapture(e.pointerId);
+    if (e.pointerType !== "touch") return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2) { const [a, b] = [...touches.values()]; pinch = Math.hypot(a!.x - b!.x, a!.y - b!.y); if (drag) drag.moved = true; }
+  };
   const move = (e: PointerEvent) => {
+    if (touches.has(e.pointerId)) {
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) {
+        const [a, b] = [...touches.values()], d = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+        if (pinch > 0 && d > 0) zoomAt(d / pinch, (a!.x + b!.x) / 2, (a!.y + b!.y) / 2);
+        pinch = d;
+        return;
+      }
+    }
     if (!drag) return;
     if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return;
     const sc = view.sc || 1;
@@ -420,6 +437,7 @@ export function bindMapControls(cv: HTMLCanvasElement, view: MapView, onChange: 
   };
   const up = (e: PointerEvent) => {
     const d = drag;
+    touches.delete(e.pointerId);
     drag = null;
     if (d && !d.moved) { const b = cv.getBoundingClientRect(); onClick(e.clientX - b.left, e.clientY - b.top); }
   };
@@ -428,9 +446,10 @@ export function bindMapControls(cv: HTMLCanvasElement, view: MapView, onChange: 
   cv.addEventListener("pointerdown", down);
   cv.addEventListener("pointermove", move);
   cv.addEventListener("pointerup", up);
+  cv.addEventListener("pointercancel", up);
   cv.addEventListener("dblclick", dbl);
   return () => {
     cv.removeEventListener("wheel", wheel); cv.removeEventListener("pointerdown", down); cv.removeEventListener("pointermove", move);
-    cv.removeEventListener("pointerup", up); cv.removeEventListener("dblclick", dbl);
+    cv.removeEventListener("pointerup", up); cv.removeEventListener("pointercancel", up); cv.removeEventListener("dblclick", dbl);
   };
 }
