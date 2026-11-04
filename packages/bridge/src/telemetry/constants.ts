@@ -1,4 +1,4 @@
-export const SESSIONS: Record<number, string> = { 0: "Practice", 1: "Qualifying", 2: "Race", 3: "Hotlap", 4: "Time attack", 7: "Hotstint", 8: "Superpole" };
+export const SESSIONS: Record<number, string> = { 0: "Practice", 1: "Qualifying", 2: "Race", 3: "Hotlap", 4: "Time attack", 5: "Drift", 6: "Drag", 7: "Hotstint", 8: "Superpole" };
 export const STATUS = ["Off", "Replay", "Live", "Pause"];
 export const CORNERS = ["FL", "FR", "RL", "RR"];
 export const GFLAGS = ["yellow", "y1", "y2", "y3", "white", "green", "chequered", "red"];

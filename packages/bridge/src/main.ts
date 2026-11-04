@@ -25,6 +25,7 @@ const HELP = `Usage: pitwall-bridge [options]
   --pit-key KEY             ACC's key for the pitstop MFD page (default p)
   --key-ms MS                how long each key is held and released, ms (default 40)
   --vjoy [N]                 press the MFD through vJoy device N (default 1) instead of the keyboard
+  --game acc|ac              which game to read: ACC (default) or Assetto Corsa (no pit control, no field timing)
   --simulate-acc             a pretend session, 20-car field and pit page instead of the game
   --broadcast-port PORT      ACC's broadcasting UDP port for field timing, on 127.0.0.1 only (default: updListenerPort in
                              broadcasting.json; 0 turns field timing off, also with --simulate-acc)
@@ -70,7 +71,7 @@ async function main(): Promise<void> {
       options: {
         http: { type: "string", default: "127.0.0.1:8765" }, "no-browser": { type: "boolean" }, key: { type: "string" }, open: { type: "boolean" },
         "pit-key": { type: "string", default: "p" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
-        "simulate-acc": { type: "boolean" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
+        "simulate-acc": { type: "boolean" }, game: { type: "string", default: "acc" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
         "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" },
         "tls-cert": { type: "string" }, "tls-key": { type: "string" }, "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, sectors: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
         help: { type: "boolean", short: "h" },
@@ -92,10 +93,13 @@ async function main(): Promise<void> {
     }
   }
   if (v.sectors) { const { recordSectors } = await import("./telemetry/sectors.js"); return void (await recordSectors()); }
+  if (v.probe && v.game === "ac") { const { probeAc } = await import("./telemetry/ac-pages.js"); return void (await probeAc()); }
   if (v.probe) { const { probe } = await import("./telemetry/pages.js"); return void (await probe()); }
   if (v["bind-vjoy"] !== undefined) { const { bindVjoy } = await import("./pit/vjoy.js"); return void (await bindVjoy(Number(v["bind-vjoy"]))); }
 
   const simulate = !!v["simulate-acc"];
+  const game = v.game;
+  if (game !== "acc" && game !== "ac") return fail("--game must be acc or ac");
   const [, hh = "", hp = ""] = /^(.*):(\d+)$/.exec(v.http!) ?? [];
   if (!hh || !hp) return fail("--http must be ADDRESS:PORT, e.g. --http 25.1.2.3:8765");
   const simSession = v["sim-session"];
@@ -131,6 +135,7 @@ async function main(): Promise<void> {
   const fakeMfd = new FakeMfd();
   try {
     if (simulate) PIT.mfd = fakeMfd;
+    else if (game === "ac") console.log("pit control off: Assetto Corsa has no pit menu to drive");
     else { const { AccMfd } = await import("./pit/acc-mfd.js"); PIT.mfd = new AccMfd(v["pit-key"], Number(v["key-ms"]), v.vjoy === undefined ? undefined : Number(v.vjoy)); }
   } catch (e) { console.log(`pit control off: ${(e as Error).message}`); }
 
@@ -140,11 +145,12 @@ async function main(): Promise<void> {
     const clock = simulate ? () => t0 + (performance.now() / 1000 - t0) * k : () => performance.now() / 1000;
     let src;
     if (simulate) src = pages = new FakePages({ session: simSession === "quali" ? 1 : simSession === "practice" ? 0 : 2, minutes: simMinutes, weekend: simSession === "weekend", clock, track: simTrack === "demo" ? undefined : simTrack, mfd: fakeMfd, field });
+    else if (game === "ac") { const { AcPages } = await import("./telemetry/ac-pages.js"); src = new AcPages(); }
     else { const { AccPages } = await import("./telemetry/pages.js"); src = new AccPages(); }
     TEL.t = new Telemetry(STATE.config, clock);
-    void accLoop(src, TEL.t, simulate);
+    void accLoop(src, TEL.t, simulate, game === "ac" ? "Assetto Corsa" : "ACC");
   } catch (e) { console.log(`telemetry off: ${(e as Error).message}`); }
-  startField({ simulateAcc: simulate, simSession, broadcastPort: v["broadcast-port"] === undefined ? undefined : Number(v["broadcast-port"]),
+  startField({ game, simulateAcc: simulate, simSession, broadcastPort: v["broadcast-port"] === undefined ? undefined : Number(v["broadcast-port"]),
     broadcastPassword: v["broadcast-password"] }, pages);
 
   const server = createBridgeServer(tlsFiles);

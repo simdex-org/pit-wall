@@ -74,7 +74,7 @@ export const fuel = defineModule({
 const SHARED = [
   { key: "reserve_laps", label: "Reserve laps", min: 0, max: 10, step: 0.1, ph: "" },
   { key: "laps_override", label: "Laps override", min: 1, max: 999, step: 1, ph: "auto" },
-  { key: "mandatory_stops", label: "Mandatory stops", min: 0, max: 9, step: 1, ph: "ACC" },
+  { key: "mandatory_stops", label: "Mandatory stops", min: 0, max: 9, step: 1, ph: "game" },
 ] as const;
 
 function SharedInputs({ cfg }: { cfg: Json | null }) {

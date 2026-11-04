@@ -27,7 +27,7 @@ export interface Ring { i: number; n: number; data: Record<TraceKey, Float32Arra
 export interface RecLap { id: string; n: number; ms: number; valid: boolean; src: "live" | "bridge" | "import"; label: string; data: LapData | null }
 export type LinePoint = [x: number, z: number, spl?: number];
 export interface RecLine { n: number; valid: boolean; ms: number; pts: LinePoint[] }
-export interface Layout { track: string; pts: [number, number, number][]; sec: number[] }
+export interface Layout { track: string; pts: [number, number, number][]; sec: number[]; partial?: boolean }
 interface Sample { p: number; t: number; speed: number; thr: number; brk: number; steer: number; gear: number; rpm: number; glat: number; glon: number; tc: number; abs: number }
 
 const CORNER_KEYS = ["FL", "FR", "RL", "RR"] as const;
@@ -201,8 +201,8 @@ class Recorder {
 
   async ensureLayout(r: Json | null): Promise<void> {
     const t = r?.fixed.track as string | undefined;
-    if (!t || this.layout?.track === t) return;
-    const k = t + "|" + this.lines.length;
+    if (!t || (this.layout?.track === t && !this.layout.partial)) return;
+    const k = t + "|" + this.lines.length + "|" + Math.floor(Date.now() / 10000);
     if (this.layoutTried === k) return;
     this.layoutTried = k;
     const j = await get<Json>("/track");
@@ -211,7 +211,9 @@ class Recorder {
       track: t,
       pts: (j.line as unknown[]).filter((q): q is number[] => Array.isArray(q) && q.length > 2 && q.every((v) => typeof v === "number" && isFinite(v))).map((q) => [q[0]!, q[1]!, q[2]!]),
       sec: (Array.isArray(j.sec) ? (j.sec as number[]) : []).filter(isFinite).sort((a, b) => a - b),
+      partial: false,
     };
+    this.layout.partial = j.partial === true || !this.layout.sec.length;
     this.bump();
   }
 

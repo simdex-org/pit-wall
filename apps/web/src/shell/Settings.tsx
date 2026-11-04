@@ -64,7 +64,7 @@ function Connection() {
       </div>
       <h3 className="mt">Field timing</h3>
       <p>{bc ? <><b className="tag">{String(bc.state || "off").toUpperCase()}</b> {bc.msg}{bc.port ? ` · port ${bc.port}` : ""}</> : "This bridge does not report field timing."}</p>
-      <p className="note">Other cars come from ACC's broadcasting port, on the driver's PC only. To turn it on there, use the switch in the Pit Wall window (or <code>pitwall-bridge --enable-broadcast</code>), then restart ACC.</p>
+      <p className="note">Other cars come from the game on the driver's PC only. ACC: its broadcasting port, turned on with the switch in the Pit Wall window (or <code>pitwall-bridge --enable-broadcast</code>), then restart ACC. Assetto Corsa: the Pit Wall app, switched on in the in-game app bar.</p>
       <p className="note set-msg" role="status">{msg}</p>
     </>
   );
@@ -180,7 +180,7 @@ function Strategy() {
           <option value="parallel">At once (longest counts)</option><option value="sequential">One by one (added)</option>
         </select>
       </label>
-      <p className="note">Pit window: both or neither. Empty fields mean "not set": the bridge uses what ACC reports.</p>
+      <p className="note">Pit window: both or neither. Empty fields mean "not set": the bridge uses what the game reports.</p>
       <button type="button" className="btn primary" disabled={dis} onClick={() => void save()}>Save</button>
       <p className="note set-msg" role="status">{msg}</p>
     </div>

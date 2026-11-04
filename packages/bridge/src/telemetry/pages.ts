@@ -3,11 +3,11 @@ import { Rec } from "../util.js";
 
 const SIZES = { physics: 800, graphics: 1588, static: 688 } as const;
 
-const f = (b: Buffer, o: number): number => b.readFloatLE(o);
-const fs = (b: Buffer, o: number, n: number): number[] => Array.from({ length: n }, (_, k) => b.readFloatLE(o + 4 * k));
-const i = (b: Buffer, o: number): number => b.readInt32LE(o);
-const is = (b: Buffer, o: number, n: number): number[] => Array.from({ length: n }, (_, k) => b.readInt32LE(o + 4 * k));
-const w = (b: Buffer, o: number, n = 33): string => b.subarray(o, o + 2 * n).toString("utf16le").split("\0", 1)[0]!;
+export const f = (b: Buffer, o: number): number => b.readFloatLE(o);
+export const fs = (b: Buffer, o: number, n: number): number[] => Array.from({ length: n }, (_, k) => b.readFloatLE(o + 4 * k));
+export const i = (b: Buffer, o: number): number => b.readInt32LE(o);
+export const is = (b: Buffer, o: number, n: number): number[] => Array.from({ length: n }, (_, k) => b.readInt32LE(o + 4 * k));
+export const w = (b: Buffer, o: number, n = 33): string => b.subarray(o, o + 2 * n).toString("utf16le").split("\0", 1)[0]!;
 
 export interface Pages { read(): Rec }
 

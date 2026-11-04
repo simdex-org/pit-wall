@@ -15,7 +15,7 @@ export function saveLayout(name: string, lay: Rec): void {
   let out: Rec = lay;
   if (!lay.line) {
     if (!lay.sec) return;
-    out = old ? { ...old, sec: old.sec ?? lay.sec } : { valid: false, ms: null, ...lay };
+    out = old ? { ...old, sec: old.sec?.length ? old.sec : lay.sec } : { valid: false, ms: null, ...lay };
   } else if (old) {
     const a = [old.valid ? 0 : 1, old.ms ?? 9e9], b = [lay.valid ? 0 : 1, lay.ms];
     if (a[0]! < b[0]! || (a[0] === b[0] && a[1]! <= b[1]!)) return;

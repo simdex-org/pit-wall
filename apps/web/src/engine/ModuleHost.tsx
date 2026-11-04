@@ -9,7 +9,7 @@ import type { Channel, ModuleDef, ModuleView } from "./types";
 import { useModuleCtx } from "./useModuleCtx";
 
 const NA_MESSAGE: Partial<Record<Channel, string>> = {
-  field: "Field timing needs ACC's broadcasting port. On the driver's PC turn on field timing in the Pit Wall window, then restart ACC.",
+  field: "Field timing is not running yet.",
   reading: "Waiting for the driver.",
   summary: "Waiting for the bridge summary.",
   pit: "No pit control on this bridge.",

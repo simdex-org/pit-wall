@@ -1,4 +1,5 @@
 import type { FieldSource } from "./broadcast/client.js";
+import { AcPlugin } from "./broadcast/ac-plugin.js";
 import { Client } from "./broadcast/client.js";
 import { enable, readConfig } from "./broadcast/config.js";
 import { FakeField } from "./broadcast/fake-field.js";
@@ -33,7 +34,7 @@ function fileField(tel: Telemetry): void {
   }
 }
 
-function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number, rate: number): Rec | false | null {
+function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number, rate: number, fromField: boolean): Rec | false | null {
   let raw: Rec;
   try { raw = pages.read(); } catch { return null; }
   const live = raw.status === 2 || raw.status === 3;
@@ -41,7 +42,7 @@ function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number,
   let ext: Rec = {}, race: Rec | null = null, me: Rec | null = null;
   try { [ext, race, me] = fieldExt(); } catch (e) { fieldErr(e); }
   tel.config = STATE.config;
-  if (sim && me) {
+  if (fromField && me) {
     const behind = STATE.field.cars.find((c: Rec) => c.pos === me!.pos + 1);
     Object.assign(raw, { position: me.pos, gap_ahead: me.int || 0, gap_behind: behind?.int || 0 });
   }
@@ -63,7 +64,7 @@ function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number,
     const cfgM = STATE.config.strategy.mandatory_stops;
     CTX.mandatory = cfgM !== null ? cfgM : ml !== null ? ml + tel.stops.length : null;
   }
-  CTX.hint = { id: raw.me, laps: raw.laps, spl: raw.track_pos, name: raw.name, xyz: raw.xyz, kmh: raw.speed, coords: raw.coords };
+  CTX.hint = { id: raw.me, sidx: raw.session_index, session: raw.session, len: raw.track_len, laps: raw.laps, spl: raw.track_pos, name: raw.name, xyz: raw.xyz, kmh: raw.speed, coords: raw.coords };
   reading.reading.xz = Object.entries(raw.coords ?? {}).flatMap(([i, q]) => [Number(i), (q as number[])[0], (q as number[])[1]]);
   STATE.reading = rnd(reading); STATE.t_reading = Date.now() / 1000; STATE.lap = raw.laps + 1;
   if (summary) { STATE.summary = rnd(summary); STATE.t_summary = Date.now() / 1000; }
@@ -79,22 +80,22 @@ function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number,
   return raw;
 }
 
-export async function accLoop(pages: Pages | FakePages, tel: Telemetry, sim: boolean): Promise<never> {
+export async function accLoop(pages: Pages | FakePages, tel: Telemetry, sim: boolean, game = "ACC"): Promise<never> {
   let n = 0, said: boolean | null = null, due = performance.now();
   for (;;) {
     const rate = FAST.n ? 60 : 30;
     due = Math.max(due + 1000 / rate, performance.now() - 100);
     await sleep(Math.max(0, due - performance.now()));
-    const raw = tick(pages, tel, sim, ++n, rate);
+    const raw = tick(pages, tel, sim, ++n, rate, sim || game !== "ACC");
     if (raw === null) continue;
     if (!!raw !== said) {
-      console.log(raw ? `ACC: ${raw.car} at ${raw.track}, ${raw.name} driving` : "ACC: waiting for a session on this PC");
+      console.log(raw ? `${game}: ${raw.car} at ${raw.track}, ${raw.name} driving` : `${game}: waiting for a session on this PC`);
       said = !!raw;
     }
   }
 }
 
-export interface FieldArgs { broadcastPort?: number; broadcastPassword?: string; simulateAcc: boolean; simSession: "race" | "quali" | "practice" | "weekend" }
+export interface FieldArgs { game: "acc" | "ac"; broadcastPort?: number; broadcastPassword?: string; simulateAcc: boolean; simSession: "race" | "quali" | "practice" | "weekend" }
 
 function makeSink(field: Field) {
   const last = { t: 0, key: null as string | null };
@@ -122,7 +123,9 @@ export function startField(args: FieldArgs, pages: FakePages | null): void {
   const off = (msg: string) => { STATE.bc = { state: "off", msg, port: 0 }; console.log(msg); };
   if (args.broadcastPort === 0) return off("Field timing off (--broadcast-port 0).");
   let src: FieldSource, f: Field;
-  if (args.simulateAcc) {
+  if (args.game === "ac" && !args.simulateAcc) {
+    src = new AcPlugin(() => CTX.hint); f = new Field();
+  } else if (args.simulateAcc) {
     if (!pages) return off("Field timing off: no simulated session.");
     const ff = new FakeField(pages);
     src = ff; f = ff;
@@ -143,5 +146,5 @@ export function startField(args: FieldArgs, pages: FakePages | null): void {
   }
   FIELD.f = f; FIELD.src = src; STATE.bc = src.state;
   src.start(makeSink(f));
-  console.log("Field timing: " + (args.simulateAcc ? `simulated ${pages?.world.cars.length ?? 20}-car field${args.simSession === "race" ? "" : ` (${args.simSession === "quali" ? "qualifying" : args.simSession})`}` : `listening to ACC's broadcasting on 127.0.0.1:${(src as Client).state.port}`));
+  console.log("Field timing: " + (args.game === "ac" && !args.simulateAcc ? "listening for the Pit Wall app in Assetto Corsa on 127.0.0.1:" + src.state.port : args.simulateAcc ? `simulated ${pages?.world.cars.length ?? 20}-car field${args.simSession === "race" ? "" : ` (${args.simSession === "quali" ? "qualifying" : args.simSession})`}` : `listening to ACC's broadcasting on 127.0.0.1:${(src as Client).state.port}`));
 }

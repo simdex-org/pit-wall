@@ -33,12 +33,12 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
           <div aria-live="polite">
             {row("Bridge address", up ? "ok" : "wait", up ? "found" : "searching")}
             {row("Access key", accessKey.value ? "ok" : "off", accessKey.value ? "accepted" : "not needed to watch")}
-            {row("Game", r ? "ok" : "wait", r ? "connected" : "waiting for ACC")}
+            {row("Game", r ? "ok" : "wait", r ? "connected" : "waiting")}
           </div>
           {help ? (
             <ul className="wc-help">
-              <li>ACC must be in a session (on track or in the pits) on the driver's PC, the same PC that runs Pit Wall.</li>
-              <li>The Pit Wall window on that PC says when it sees ACC and which car and track.</li>
+              <li>The game must be in a session (on track or in the pits) on the driver's PC, the same PC that runs Pit Wall.</li>
+              <li>The Pit Wall window on that PC says when it sees the game and which car and track.</li>
               <li>If this page does not load at all: check the VPN shows the driver online, and that Pit Wall is allowed through the driver's Windows firewall on <b>Private</b> networks only.</li>
             </ul>
           ) : null}

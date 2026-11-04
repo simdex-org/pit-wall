@@ -259,7 +259,7 @@ export const weatherCenter = defineModule({
                 <span><i>Grip</i> {gripName}</span>
               </div>
             ) : null}
-            {showNote ? <div className="wx-note">{which === "rain" ? "Solid line: recorded while this page is open. Hatched: ACC's forecast at +10 and +30 min, sliding toward Now until ACC updates it. ACC sends levels, not chances." : "Recorded while this page is open. ACC sends no temperature forecast."}</div> : null}
+            {showNote ? <div className="wx-note">{which === "rain" ? "Solid line: recorded while this page is open. Hatched: the game's forecast at +10 and +30 min, sliding toward Now until it updates. The game sends levels, not chances." : "Recorded while this page is open. The game sends no temperature forecast."}</div> : null}
           </div>
           {keep.size && !hideChart ? <div className="wx-side">{["cond", "temp", "wind", "grip"].filter((id) => keep.has(id)).map((id) => sections[id]![1])}</div> : null}
         </div>

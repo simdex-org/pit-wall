@@ -132,6 +132,12 @@ function intParam(q: URLSearchParams, name: string, lo: number, hi: number): num
   return v >= lo && v <= hi ? v : null;
 }
 
+// Until a lap is saved, the line driven so far is the map
+function partialLayout(): Rec | null {
+  const line = TEL.t?.line;
+  return line && line.length >= 100 ? { partial: true, valid: false, ms: null, sec: [], line: line.map(([x, z, p]) => [Math.round(x! * 10) / 10, Math.round(z! * 10) / 10, Math.round(p! * 1e5) / 1e5]) } : null;
+}
+
 const DATA = new Set(["/events", "/lap", "/field/laps", "/session", "/track"]);
 
 function get(req: IncomingMessage, res: Res): void {
@@ -164,7 +170,7 @@ function get(req: IncomingMessage, res: Res): void {
   }
   if (u.pathname === "/track") {
     const name = STATE.reading?.reading?.fixed?.track;
-    const lay = name && loadLayout(name);
+    const lay = (name && loadLayout(name)) || partialLayout();
     return lay ? replyJson(res, 200, lay) : replyJson(res, 404, {});
   }
   serveStatic(req, res, WEB_DIR, u.pathname);

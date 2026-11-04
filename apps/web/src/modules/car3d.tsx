@@ -41,7 +41,7 @@ function Key({ m }: { m: Model }) {
   return (
     <div className="c3-key">
       {rows.map(([t, vs]) => <span className="c3-row" key={t}><b>{t}</b>{vs.map((v, i) => <span key={i}>{sw(i / 4)}{v}</span>)}</span>)}
-      <span className="c3-row"><b>Grey</b><span>no data from ACC</span></span>
+      <span className="c3-row"><b>Grey</b><span>no data from the game</span></span>
     </div>
   );
 }
@@ -143,7 +143,7 @@ function Wrapper({ c, opts, rows, parts }: { c: Ctx; opts: Record<string, unknow
   const m = model(c, opts);
   return (
     <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", padding: "var(--pad)" }} title="ACC reports bodywork damage in five zones, suspension damage per corner and brake pad thickness; the glass, steering, engine, wing on its own and tyre wear stay grey.">
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", padding: "var(--pad)" }} title="The game reports bodywork damage in five zones and, where it provides them, suspension damage per corner and brake pad thickness; the glass, steering, engine, wing on its own and tyre wear stay grey.">
         <Car3D m={m} onFail={() => setFailed(true)} />
       </div>
       {parts ? <Parts c={c} m={m} rows={rows} /> : null}
@@ -152,7 +152,7 @@ function Wrapper({ c, opts, rows, parts }: { c: Ctx; opts: Record<string, unknow
 }
 
 export const car3d = defineModule({
-  type: "car-3d", title: "Car damage 3D", group: "Car", blurb: "A GT3 painted green to red by ACC's damage: five body zones, suspension per corner and brake pads. Drag to turn it.",
+  type: "car-3d", title: "Car damage 3D", group: "Car", blurb: "A GT3 painted green to red by the game's damage: five body zones, suspension per corner and brake pads. Drag to turn it.",
   size: { w: 8, h: 14, minW: 4, minH: 8 }, needs: ["reading", "config", "theme", "resize"], requires: ["reading"], rate: 10,
   options: [
     { key: "bodyRed", label: "Bodywork is red at", type: "select", choices: [["50", "50"], ["100", "100"], ["200", "200"]], def: "100" },
