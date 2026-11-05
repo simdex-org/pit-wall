@@ -45,7 +45,7 @@ function Stepper({ value, onValue, min, max, step, label, disabled, title, cls =
 
 const Switch = ({ label, on, onSet }: { label: string; on: boolean; onSet: (v: boolean) => void }) => <input type="checkbox" className="sw" aria-label={label} checked={on} onChange={(e) => onSet(e.target.checked)} />;
 
-const CLOSE_TITLE = "Takes the pit page off the driver's screen (ACC's Cycle MFD: Insert, or vJoy button 6)";
+const CLOSE_TITLE = "Takes the pit page off the driver's screen (ACC's Cycle MFD key, or vJoy button 6)";
 const PADS: [string, string][] = [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]];
 
 function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean }) {

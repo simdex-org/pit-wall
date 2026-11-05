@@ -22,7 +22,7 @@ const HELP = `Usage: pitwall-bridge [options]
   --tls-cert FILE --tls-key FILE   serve https with this certificate and private key (PEM)
   --key KEY                  access key for sending pit plans and changing thresholds (default: a new one each start)
   --open                     no access key: anyone who can reach the address may send pit plans
-  --pit-key KEY             ACC's key for the pitstop MFD page (default p)
+  --pit-key KEY             ACC's key for the pitstop MFD page (default: read from ACC's controls)
   --key-ms MS                how long each key is held and released, ms (default 40)
   --vjoy [N]                 press the MFD through vJoy device N (default 1) instead of the keyboard
   --game acc|ac              which game to read: ACC (default) or Assetto Corsa (no pit control, no field timing)
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
       args: normalize(process.argv.slice(2)),
       options: {
         http: { type: "string", default: "127.0.0.1:8765" }, "no-browser": { type: "boolean" }, key: { type: "string" }, open: { type: "boolean" },
-        "pit-key": { type: "string", default: "p" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
+        "pit-key": { type: "string" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, game: { type: "string", default: "acc" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
         "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" },
         "tls-cert": { type: "string" }, "tls-key": { type: "string" }, "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, sectors: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
@@ -136,7 +136,8 @@ async function main(): Promise<void> {
   try {
     if (simulate) PIT.mfd = fakeMfd;
     else if (game === "ac") console.log("pit control off: Assetto Corsa has no pit menu to drive");
-    else { const { AccMfd } = await import("./pit/acc-mfd.js"); PIT.mfd = new AccMfd(v["pit-key"], Number(v["key-ms"]), v.vjoy === undefined ? undefined : Number(v.vjoy)); }
+    else { const { AccMfd } = await import("./pit/acc-mfd.js"); const mfd = new AccMfd(v["pit-key"], Number(v["key-ms"]), v.vjoy === undefined ? undefined : Number(v.vjoy)); PIT.mfd = mfd;
+      if (v.vjoy === undefined) console.log(`pit keys: ${Object.entries(mfd.keys).map(([k, n]) => `${k} ${n}`).join(", ")}`); }
   } catch (e) { console.log(`pit control off: ${(e as Error).message}`); }
 
   let pages: FakePages | null = null;
