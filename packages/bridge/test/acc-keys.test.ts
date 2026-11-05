@@ -11,12 +11,12 @@ describe("ACC's MFD keys", () => {
     expect(accKeys("not json")).toEqual(d);
   });
 
-  test("bindings replace the defaults; None, modifiers and other actions are skipped", () => {
+  test("bindings replace the defaults; None, modifiers, Up/Down and other actions are skipped", () => {
     const keys = accKeys(controls([
       entry("SetMfdPitstop", "One"), entry("Up", "Q"), entry("Down", "A"), entry("Left", "E"), entry("Right", "D"),
       entry("CycleHudMfd", "None"), entry("CycleHudMfd", "Two"), entry("Up", "W", true), entry("KeyboardGas", "W"),
     ]));
-    expect(keys).toEqual({ pit: "One", up: "Q", down: "A", left: "E", right: "D", close: "Two" });
+    expect(keys).toEqual({ pit: "One", up: "Up", down: "Down", left: "E", right: "D", close: "Two" });
   });
 
   test("Unreal key names map to virtual keys, with the extended flag where Windows needs it", () => {

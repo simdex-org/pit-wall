@@ -5,7 +5,8 @@ import type { Key } from "./mfd.js";
 
 export interface KeyCode { vk: number; ext: boolean }
 
-const ACTIONS: Record<string, Key> = { SetMfdPitstop: "pit", Up: "up", Down: "down", Left: "left", Right: "right", CycleHudMfd: "close" };
+// ACC moves the pit page up and down with the arrow keys whatever Up and Down are bound to, so only the arrows go up and down
+const ACTIONS: Record<string, Key> = { SetMfdPitstop: "pit", Left: "left", Right: "right", CycleHudMfd: "close" };
 const DEFAULTS: Record<Key, string> = { pit: "P", up: "Up", down: "Down", left: "Left", right: "Right", close: "Insert" };
 const DIGITS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
 const NAMED: Record<string, KeyCode> = {
@@ -28,7 +29,7 @@ export function keyCode(name: string): KeyCode {
   throw new Error(`Pit Wall cannot press ACC key '${name}'`);
 }
 
-// The keyboard keys ACC has for the pitstop page, cycling the MFD and moving in it; ACC's own default where nothing is set
+// The keyboard keys ACC has for the pitstop page, cycling the MFD and changing a value; ACC's own default where nothing is set
 export function accKeys(controlsJson?: string): Record<Key, string> {
   const keys = { ...DEFAULTS };
   if (controlsJson === undefined) {
