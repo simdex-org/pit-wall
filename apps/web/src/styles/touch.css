@@ -10,7 +10,7 @@
 @media (min-width:720px) and (max-width:1099px){
   .ws.narrow{flex-flow:row wrap;align-items:flex-start;align-content:flex-start}
   .ws.narrow>.mod{flex:0 0 calc(50% - 4px)}
-  .ws.narrow>.mod.auto-h,.ws.narrow>.mod[data-wide]{flex-basis:100%}
+  .ws.narrow>.mod.auto-h,.ws.narrow>.mod[data-wide],.ws.narrow>.mod.is-hidden{flex-basis:100%}
 }
 
 /* charts drag sideways only, the page keeps its vertical scroll; the map, 3D car and plots take every touch */
@@ -23,7 +23,7 @@
   input[type=checkbox]{width:40px;height:22px}
   input[type=checkbox]:before{width:16px;height:16px}
   input[type=checkbox]:checked:before{transform:translate(18px)}
-  input:not([type=checkbox]):not([type=range]),select{min-height:36px;font-size:16px}
+  input:not([type=checkbox]):not([type=range]),select{min-height:36px;font-size:calc(16px * var(--k))}
   #tabs [role=tab]{min-height:36px}
   #top .btn,#top .btn.icon{height:36px}
   #top .btn.icon{width:36px}
@@ -38,7 +38,7 @@
 @container pw (max-width:540px){
   .mod .pwb,.mod .pwb-svc,.mod .pwb-foot{--gw:min(240px,72cqw);--gnum:44px;--ctl:34px}
   .mod .pwb-gc{top:34%}
-  .mod .pwb-tl{display:inline;font-size:12px;white-space:nowrap}
+  .mod .pwb-tl{display:inline;font-size:calc(12px * var(--k));white-space:nowrap}
   .mod .pwb-pr{margin-top:-6px}
   .mod .pwb-fuel,.mod .pwb-tyres{padding-left:12px;padding-right:12px}
   .mod .pwb-th{justify-content:space-between}
@@ -55,17 +55,17 @@
   #top .top-gap,#top #btnEdit,#top>.btn[aria-label="Keyboard shortcuts"]{display:none}
   #top>.brand{grid-area:1/1/3/2}
   #top>#tplBtn{grid-area:1/2/3/3;height:44px;max-width:220px;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:0 10px;display:grid;grid-template-columns:auto auto;justify-content:start;justify-items:start;align-items:center;column-gap:4px;text-align:left;border:0;background:none}
-  #top>#tplBtn .tpl-l{display:block;grid-column:1/-1;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);line-height:1;font-weight:400}
-  #top>#tplBtn #tplName{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  #top>#tplBtn .tpl-l{display:block;grid-column:1/-1;font-size:calc(11px * var(--k));letter-spacing:.08em;text-transform:uppercase;color:var(--mut);line-height:1;font-weight:400}
+  #top>#tplBtn #tplName{font-size:calc(16px * var(--k));font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   #top>#tabs{position:relative;grid-area:1/3/3/4;align-self:stretch;min-width:0;margin:0 0 0 8px;padding:0;gap:2px;overflow-x:auto;scrollbar-width:none;
     mask-image:linear-gradient(90deg,transparent,#000 var(--fade-l),#000 calc(100% - var(--fade-r)),transparent);animation:tabsEdge linear both;animation-timeline:scroll(self inline)}
   #tabs .tabw{display:flex;flex:none;align-items:stretch}
   #tabs .tab-sel,#tabs .tab-add{display:none}
-  #tabs [role=tab]{align-self:stretch;height:auto;min-height:44px;padding:0 16px;font-size:16px;font-weight:500;color:var(--mut)}
+  #tabs [role=tab]{align-self:stretch;height:auto;min-height:44px;padding:0 16px;font-size:calc(16px * var(--k));font-weight:500;color:var(--mut)}
   #tabs [role=tab][aria-selected=true]{box-shadow:inset 0 -3px 0 var(--acc);color:var(--txt)}
   #top>#sessionSel{grid-area:1/4/3/5;align-self:center;justify-content:space-between;height:36px;min-width:0;max-width:160px}
-  #top>#clock{grid-area:1/5;margin:0;padding:0;font-size:24px;line-height:1;align-self:end;justify-self:end}
-  #top>#link{grid-area:2/5;justify-self:end;align-self:start;height:auto;max-width:none;padding:0;border:0;background:none;gap:5px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;overflow:visible;display:flex;align-items:center}
+  #top>#clock{grid-area:1/5;margin:0;padding:0;font-size:calc(24px * var(--k));line-height:1;align-self:end;justify-self:end}
+  #top>#link{grid-area:2/5;justify-self:end;align-self:start;height:auto;max-width:none;padding:0;border:0;background:none;gap:5px;font-size:calc(11px * var(--k));letter-spacing:.08em;text-transform:uppercase;overflow:visible;display:flex;align-items:center}
   #top>#link[data-state=live]{color:var(--ok)}
   #top>#btnSettings{grid-area:1/6/3/7;width:44px;height:44px;color:var(--mut);border:0;background:none}
 }
@@ -73,10 +73,11 @@
   #top{grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-rows:auto auto 48px;height:auto;padding:8px 12px 0;column-gap:10px;row-gap:3px}
   #top>.brand{grid-area:1/1/3/2}
   #top>#tplBtn{grid-area:1/2/3/3;max-width:none;min-width:0}
-  #top>#clock{grid-area:1/3;font-size:20px}
+  #top>#clock{grid-area:1/3;font-size:calc(20px * var(--k))}
   #top>#link{grid-area:2/3}
   #top>#btnSettings{grid-area:1/4/3/5}
-  #top>#tabs{grid-area:3/1/4/3;margin:0 0 0 -12px}
+  #top>#tabs{grid-area:3/1/4/5;margin:0 0 0 -12px}
+  #top:has(>#sessionSel)>#tabs{grid-area:3/1/4/3}
   #top>#sessionSel{grid-area:3/3/4/5;align-self:center;max-width:none}
 }
 
@@ -87,7 +88,7 @@
   #settings .set-h .btn,#settings .set-h button{min-width:44px;min-height:44px}
   #settings .set-nav{flex-direction:row;padding:0;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;
     mask-image:linear-gradient(90deg,transparent,#000 var(--fade-l),#000 calc(100% - var(--fade-r)),transparent);animation:tabsEdge linear both;animation-timeline:scroll(self inline)}
-  #settings .set-nav button{flex:none;height:44px;padding:0 16px;font-size:13px}
+  #settings .set-nav button{flex:none;height:44px;padding:0 16px;font-size:calc(13px * var(--k))}
   #settings .set-nav button[aria-selected=true]{background:none;box-shadow:inset 0 -3px 0 var(--acc);color:var(--txt)}
   #settings .set-pane{padding:16px}
   #settings .set-pane>*{max-width:none}
@@ -139,15 +140,15 @@
 @media (max-width:1099px),(pointer:coarse){
   .mod .mh{height:auto;min-height:44px;flex-wrap:wrap;align-items:center;gap:4px 10px;padding-top:4px;padding-bottom:4px}
   .mod .mh .mt{flex:none}
-  .mod .mh .mi{flex:1 1 0;min-width:0;font-size:11px;display:block;text-align:right;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
+  .mod .mh .mi{flex:1 1 0;min-width:0;font-size:calc(11px * var(--k));display:block;text-align:right;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
   .mod .mh .mi>span+span{margin-left:10px}
   .mod .mh .seg{height:36px;margin:0}
-  .mod .mh .seg button{height:34px;min-width:44px;padding:0 12px;font-size:12px}
+  .mod .mh .seg button{height:34px;min-width:44px;padding:0 12px;font-size:calc(12px * var(--k))}
   .mod .mh .mtools,.mod .mh .mquick{display:flex;align-items:center;gap:2px;flex:none}
 }
 
 /* the session picker: a pill that opens a list (a bottom sheet on a phone, a popover otherwise) */
-#sessionSel{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 10px 0 12px;border:1px solid var(--line);border-radius:999px;background:var(--raise);color:var(--txt);font-size:14px;font-weight:500;white-space:nowrap;anchor-name:--sess}
+#sessionSel{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 10px 0 12px;border:1px solid var(--line);border-radius:999px;background:var(--raise);color:var(--txt);font-size:calc(14px * var(--k));font-weight:500;white-space:nowrap;anchor-name:--sess}
 #sessionSel>span{overflow:hidden;text-overflow:ellipsis;min-width:0}
 #sessionSel svg{color:var(--mut);flex:none;transition:rotate .12s}
 #sessionSel:has(+ #sessPop:popover-open){border-color:var(--acc)}
@@ -157,20 +158,20 @@
 @supports (top:anchor(bottom)){#sessPop{position-anchor:--sess;top:calc(anchor(bottom) + 6px);right:anchor(right);left:auto}}
 #sessPop::backdrop{background:#05060899}
 #sessPop .sp-h{display:flex;flex-direction:column;gap:3px;padding:14px 20px 10px}
-#sessPop .sp-h b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:500}
-#sessPop .sp-h span{display:none;font-size:13px;color:var(--mut)}
+#sessPop .sp-h b{font-size:calc(11px * var(--k));letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:500}
+#sessPop .sp-h span{display:none;font-size:calc(13px * var(--k));color:var(--mut)}
 #sessPop .sp-row{display:flex;align-items:center;gap:12px;width:100%;height:52px;padding:0 20px;border-top:1px solid var(--line);text-align:left;position:relative}
 #sessPop .sp-row[aria-selected=true]{background:var(--acc-soft);box-shadow:inset 3px 0 0 var(--acc)}
 #sessPop .sp-row[aria-selected=true]::after{content:none}
 #sessPop .sp-rd{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--dim);flex:none}
 #sessPop .sp-row[aria-selected=true] .sp-rd{box-shadow:inset 0 0 0 2px var(--acc);background:radial-gradient(circle,var(--acc) 0 4px,transparent 5px)}
-#sessPop .sp-n{font-size:16px;font-weight:600;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#sessPop .sp-live{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ok);font-weight:500}
-#sessPop .sp-m{margin-left:auto;font:500 14px var(--num);color:var(--mut)}
+#sessPop .sp-n{font-size:calc(16px * var(--k));font-weight:600;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sessPop .sp-live{font-size:calc(12px * var(--k));letter-spacing:.06em;text-transform:uppercase;color:var(--ok);font-weight:500}
+#sessPop .sp-m{margin-left:auto;font:500 calc(14px * var(--k)) var(--num);color:var(--mut)}
 @media (max-width:560px){
   #sessPop{position:fixed;inset:auto 0 0 0;width:100%;max-width:none;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}
   #sessPop .sp-h{padding:16px 20px 14px}
-  #sessPop .sp-h b{font-size:18px;letter-spacing:0;text-transform:none;color:var(--txt);font-weight:600}
+  #sessPop .sp-h b{font-size:calc(18px * var(--k));letter-spacing:0;text-transform:none;color:var(--txt);font-weight:600}
   #sessPop .sp-h span{display:block}
   #sessPop .sp-row{height:60px}
 }
@@ -183,10 +184,11 @@
 }
 
 /* tables in a narrow column: header words wrap and cells are tighter, so most fit without a sideways scroll that only shows empty columns */
-.ws.narrow .mod.auto-h table{table-layout:auto;width:100%;min-width:0!important}
+.ws.narrow .mod.auto-h table:not(.fx){table-layout:auto;width:100%;min-width:0!important}
 .ws.narrow .mod.auto-h table :is(th,td){padding-left:5px;padding-right:5px}
 .ws.narrow .mod.auto-h table th{white-space:normal;line-height:1.15;vertical-align:bottom}
 .ws.narrow .mod.auto-h table td{white-space:nowrap;max-width:none;text-overflow:clip}
+.mod .t.rel th.g{width:76px}
 
 /* the pit stop panel wraps its controls instead of running past the module */
 @container pw (max-width:760px){
@@ -195,14 +197,20 @@
 }
 .ws.narrow .mod.auto-h table td>*{max-width:none;text-overflow:clip;overflow:visible}
 .ws.narrow .mod.auto-h table th{padding-left:6px;padding-right:6px}
-.ws.narrow .mod.auto-h table :is(col,th){width:auto!important}
+.ws.narrow .mod.auto-h table:not(.fx) :is(col,th){width:auto!important}
 .ws.narrow [data-type=stop-options] table td:first-child{white-space:normal;line-height:1.2;min-width:90px}
+.ws.narrow [data-type=stop-options] table td{padding-top:6px;padding-bottom:6px;height:auto}
+.ws.narrow [data-type=stop-options] table :is(th,td):first-child{padding-left:var(--pad)}
+.ws.narrow [data-type=stop-options] table :is(th,td):last-child{padding-right:var(--pad)}
+.ws.narrow [data-type=stop-options] table td .tag{white-space:normal;line-height:1.15;text-align:left;height:auto;padding-top:2px;padding-bottom:2px}
+.ws.narrow [data-type=stop-options] table th.l:last-child{width:84px!important}
+.ws.narrow .mod.auto-h table:not(.fx) td.l .tag{white-space:normal;line-height:1.15;height:auto}
 .ws.narrow [data-type=fuel-calc] .mb{overflow-x:hidden}
 .ws.narrow [data-type=fuel-calc] table td{white-space:normal}
 .ws.narrow [data-type=fuel-calc] :is(div,section){min-width:0;max-width:100%}
 .ws.narrow [data-type=fuel-calc] .mb div[style*="overflow: auto"]{overflow-x:hidden!important}
-.ws.narrow [data-type=fuel-calc] table{font-size:11px}
-.ws.narrow [data-type=fuel-calc] table th{letter-spacing:0;font-size:10px}
+.ws.narrow [data-type=fuel-calc] table{font-size:calc(11px * var(--k))}
+.ws.narrow [data-type=fuel-calc] table th{letter-spacing:0;font-size:calc(10px * var(--k))}
 .ws.narrow [data-type=fuel-calc] table :is(th,td){padding-left:3px;padding-right:3px}
 
 /* log and the other modules that scrolled a few pixels sideways at 320-336 px */
@@ -247,10 +255,10 @@
   .ws.narrow [data-type=laps] tr:has(>td:nth-child(8)){display:grid;grid-template-columns:34px repeat(4,minmax(0,1fr)) auto;align-items:center;column-gap:8px;row-gap:2px;padding:8px 10px;border-bottom:1px solid var(--ln)}
   .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td{padding:0;border:0;text-align:left;white-space:nowrap;min-width:0}
   .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(1){grid-area:1/1}
-  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(2){grid-area:1/2/2/4;font-size:17px;font-weight:600}
-  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(8){grid-area:1/4/2/6;font-size:12px}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(2){grid-area:1/2/2/4;font-size:calc(17px * var(--k));font-weight:600}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(8){grid-area:1/4/2/6;font-size:calc(12px * var(--k))}
   .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(9){grid-area:1/6;display:flex;gap:6px;justify-content:flex-end}
-  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(n+3):nth-child(-n+7){font-size:12px;color:var(--mut)}
+  .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(n+3):nth-child(-n+7){font-size:calc(12px * var(--k));color:var(--mut)}
   .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(3){grid-area:2/2}
   .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(4){grid-area:2/3}
   .ws.narrow [data-type=laps] tr:has(>td:nth-child(8))>td:nth-child(5){grid-area:2/4}
@@ -271,7 +279,7 @@
   .mod .pwb-dials{grid-template-rows:none;grid-auto-rows:auto;align-content:start}
   .mod .pwb-dc{padding:10px}
 }
-.ws.narrow [data-type=standings] table td{white-space:normal}
+.ws.narrow .mod.auto-h[data-type=standings] table td.l{white-space:nowrap}
 .ws.narrow .mod .pwb,.ws.narrow .mod .pwb-svc,.ws.narrow .mod .pwb-foot{--ctl:34px}
 .ws.narrow .mod .pwb-dc .step{max-width:none}
 @media (min-width:720px) and (max-width:1099px){
@@ -282,3 +290,4 @@
 /* the lane/box bar of a stop never runs into the figures beside it, however narrow the module is */
 [data-type=stops] .pb{min-width:0;overflow:hidden}
 [data-type=stops] .pb>i{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws.narrow>.mod.is-hidden{align-self:stretch}

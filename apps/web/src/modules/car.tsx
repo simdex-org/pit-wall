@@ -106,9 +106,9 @@ export const lapTimer = defineModule({
           const v = done[k], live = k === now && done.length === k && !inv, mark = v != null && v === sbest(k) ? "◆ " : v != null && v === pb(k) && lapsDone.length >= 3 ? "● " : "";
           const vs = Number.isFinite(pb(k)) && v != null ? v - pb(k) : null;
           return (
-            <div className="c" key={k} aria-current={live ? "step" : undefined} style={compact ? { flexDirection: "row", alignItems: "center", gap: 6, padding: "4px var(--pad)" } : { gap: 4 }}>
-              <span className="lab">S{k + 1}</span>
-              {v != null ? <span className={(compact ? "v " : "mid ") + (mark === "◆ " ? "b" : mark ? "p" : "")}>{mark}{fmtSector(v)}</span>
+            <div className="c" key={k} aria-current={live ? "step" : undefined} style={compact ? { flexDirection: "row", alignItems: "baseline", gap: 6, padding: "6px var(--pad) 2px" } : { gap: 4 }}>
+              <span className="lab" style={compact ? { transform: "translateY(calc((var(--fs) - var(--lab)) * -.35))" } : undefined}>S{k + 1}</span>
+              {v != null ? <span className={(compact ? "v " : "mid ") + (mark === "◆ " ? "b" : mark ? "p" : vs == null || vs === 0 ? "" : vs < 0 ? "dn" : "up")}>{mark}{fmtSector(v)}</span>
                 : live ? <span className={(compact ? "v " : "mid ") + "ac"}>{fmtSector(s.current_lap_ms - done.reduce((a, b) => a + b, 0))}</span> : <span className={(compact ? "v " : "mid ") + "mu"} title={prev?.[k] != null ? "Last lap" : undefined}>{prev?.[k] != null ? fmtSector(prev[k]) : NONE}</span>}
               {!compact && size.h >= 7 && vs != null && Math.abs(vs) >= 1 ? <span className="v"><Delta ms={vs} /></span> : null}
             </div>

@@ -6,12 +6,13 @@ import { fmtLap, MINUS, nf, NONE, plural } from "../lib/format";
 import { lsGet, lsSet } from "../lib/storage";
 import { say } from "../state/bridge";
 import { planStore } from "../state/plan";
+import { driverOf, nameOf, useTeam } from "../state/team";
 import { expectedFuel, nextStop, racePlan, useRacePlan } from "../state/racePlan";
 
 type Values = Record<string, string> & { unit?: "min" | "laps" };
 type Flags = { tyres: boolean; seq: boolean | null };
 
-const NUMS = ["race", "extra", "fpl", "cap", "reserve", "formL", "mand", "maxStint", "loss", "refuel", "tyreS", "minStat", "wt", "drivers", "spd"];
+const NUMS = ["race", "extra", "fpl", "cap", "reserve", "formL", "mand", "loss", "refuel", "tyreS", "minStat", "wt"];
 
 function load(): { v: Values; f: Flags } {
   const o = lsGet<Record<string, unknown>>("pitwall.calc", {});
@@ -38,16 +39,13 @@ const sgn = (v: number, d: number) => (v < 0 ? MINUS : "+") + nf(Math.abs(v), d)
 
 const FIELDS: [string, string, string][] = [
   ["fpl", "Fuel per lap", "L"], ["cap", "Tank", "L"], ["reserve", "Reserve", "laps"], ["extra", "Extra laps", "laps"], ["formL", "Formation", "L"],
-  ["mand", "Mandatory stops", ""], ["maxStint", "Max driver stint", "min"], ["loss", "Pit loss", "s"], ["refuel", "Refuelling", "s/L"],
-  ["drivers", "Drivers", ""], ["spd", "Stints per driver", ""], ["tyreS", "Tyres", "s"], ["minStat", "Min. stationary", "s"], ["wt", "Weight / 10 L", "s/lap"],
+  ["mand", "Mandatory stops", ""], ["loss", "Pit loss", "s"], ["refuel", "Refuelling", "s/L"],
+  ["tyreS", "Tyres", "s"], ["minStat", "Min. stationary", "s"], ["wt", "Weight / 10 L", "s/lap"],
 ];
 const TIPS: Record<string, string> = {
   extra: "Laps driven after the timer reaches zero, on top of finishing the lap in progress (already counted).",
   reserve: "Laps of fuel left in the tank at the flag, and when you arrive at each stop.",
   formL: "Fuel burnt before lap 1 (formation lap, grid).",
-  maxStint: "Longest time one driver may drive in a row: forces stops. Empty = no limit.",
-  drivers: "Drivers sharing the race. Stints go to them in turn; the stops table shows who drives each stint and the plan shows each driver's total time.",
-  spd: "Stints a driver drives in a row before the next driver takes over. 2 = a double stint: the car stops for fuel in between with the same driver.",
   wt: "How much slower a lap is per 10 L of fuel carried (average over the lap). 0 = ignore; a stop then costs only its time.",
 };
 
@@ -61,7 +59,7 @@ export const fuelCalc = defineModule({
     const [safe, setSafe] = useState(false);
     const [full, setFull] = useState(false);
     const stopsRef = useRef<HTMLDivElement>(null);
-    const shared = useRacePlan();
+    const shared = useRacePlan(), tm = useTeam();
     const { v, f } = state;
     const update = (nv: Values, nf: Flags) => { setState({ v: nv, f: nf }); setSel(null); setMine(null); lsSet("pitwall.calc", { ...nv, tyres: nf.tyres, ...(nf.seq == null ? {} : { seq: nf.seq }) }); };
     const set = (k: string, val: string) => update({ ...v, [k]: val.replace(k === "lap" ? /[^0-9.,:]/g : /[^0-9.,]/g, "") }, f);
@@ -76,7 +74,7 @@ export const fuelCalc = defineModule({
     };
     const ses = c.r?.session;
     const liveRace = ses && ses.kind === "Race" ? (ses.total_laps > 0 ? ses.total_laps : st?.laps_to_go != null ? ses.completed_laps + Math.ceil(st.laps_to_go) : null) : null;
-    const ph: Record<string, string> = { race: liveRace ? String(liveRace) : "", extra: "0", formL: "0", maxStint: "none", wt: "0", lap: live.lap != null ? fmtLap(live.lap * 1000) : "m:ss.xxx" };
+    const ph: Record<string, string> = { race: liveRace ? String(liveRace) : "", extra: "0", formL: "0", wt: "0", lap: live.lap != null ? fmtLap(live.lap * 1000) : "m:ss.xxx" };
     for (const k of ["fpl", "cap", "reserve", "mand", "loss", "refuel", "tyreS", "minStat"]) ph[k] = live[k] == null ? "" : String(+(+live[k]!).toFixed(2));
 
     const n = (k: string) => num(v[k]);
@@ -85,13 +83,12 @@ export const fuelCalc = defineModule({
     const seq = f.seq != null ? f.seq : cfg.fuel_and_tyres === "sequential";
     const inp: PlanInputs = {
       raceMin: !v.race && liveRace ? null : laps ? null : n("race"), raceLaps: !v.race && liveRace ? liveRace : laps ? n("race") : null, extra: n("extra") || 0, lapS: v.lap ? lapSecs(v.lap) : live.lap ?? null,
-      fpl: or("fpl", null), cap: or("cap", null), reserve: or("reserve", 1)! + (safe ? 1 : 0), formL: n("formL") || 0, mand: Math.round(or("mand", 0)!), maxStintMin: n("maxStint"),
+      fpl: or("fpl", null), cap: or("cap", null), reserve: or("reserve", 1)! + (safe ? 1 : 0), formL: n("formL") || 0, mand: Math.round(or("mand", 0)!), maxStintMin: tm.maxStintMin,
       lossS: or("loss", 25)!, refuelSpl: or("refuel", 0.25)!, tyreS: or("tyreS", 30)!, tyres: f.tyres, seq, minStat: or("minStat", 0)!, wt: n("wt") || 0,
     };
     const p = fuelPlan(inp);
     const even = p.total ? (sel != null && sel >= 0 && sel <= p.maxStops ? (full ? p.full(sel) : p.even(sel)) : full && p.best ? p.full(p.best.n) : p.best ?? p.options[0]) : null;
-    const drivers = Math.max(1, Math.min(10, Math.round(n("drivers") ?? 1))), spd = Math.max(1, Math.min(10, Math.round(n("spd") ?? 1)));
-    const who = (stint: number) => Math.floor((stint - 1) / spd) % drivers;
+    const drivers = tm.drivers, who = (stint: number) => driverOf(tm, stint);
     const handmade = even && p.total && mine && mine.length === even.n && mine.every((x, k) => x >= 1 && x < p.total! && (k === 0 || x > mine[k - 1]!)) ? p.build(mine) : null;
     const pick = handmade ?? even;
     const me = c.me != null ? c.cars.get(c.me) : undefined, ref = st?.lap_ref_ms ?? 0;
@@ -207,6 +204,7 @@ export const fuelCalc = defineModule({
             <div className="r"><span>Race length</span>{raceInput("f fi")}</div>
             <div className="r"><span>Lap time</span><div className="f fi"><input className="inp sm" placeholder={ph.lap} value={v.lap ?? ""} aria-label="Lap time" onChange={(e) => set("lap", e.target.value)} /><span className="v di">m:ss.xxx</span></div></div>
             {FIELDS.map(([k, l, u]) => fld(k, l, u))}
+            <span className="v di" style={{ marginBottom: 4 }}>{tm.drivers > 1 ? `${tm.drivers} drivers, ${tm.spd} stint${tm.spd > 1 ? "s" : ""} each in a row` : "Solo"}{tm.maxStintMin ? `, max stint ${tm.maxStintMin} min` : ""}. Change them in Stint Drivers.</span>
             <label className="f v mu" style={{ minHeight: 28 }}><input type="checkbox" className="sw" checked={f.tyres} onChange={(e) => update(v, { ...f, tyres: e.target.checked })} /> Tyres at every stop</label>
             <label className="f v mu" style={{ minHeight: 28 }}><input type="checkbox" className="sw" checked={seq} onChange={(e) => update(v, { ...f, seq: e.target.checked })} /> Fuel, then tyres</label>
             <div className="f" style={{ marginTop: 8 }}><button type="button" className="btn" title="Fuel per lap and lap time from the clean laps of practice, qualifying and this session; empty fields take the live figures." onClick={autoFill}>Auto-fill</button><button type="button" className="btn gh" onClick={clear}>Clear inputs</button></div>
@@ -247,7 +245,7 @@ export const fuelCalc = defineModule({
                           return (
                             <tr key={t.n} className={lapNow != null && lapNow >= t.from && lapNow <= t.to ? "cur" : lapNow != null && lapNow > t.to ? "done" : undefined}>
                               <td className="l">{t.n}</td>
-                              {drivers > 1 ? <td>D{who(t.n) + 1}</td> : null}
+                              {drivers > 1 ? <td>{nameOf(tm, who(t.n))}</td> : null}
                               <td>{t.from}–{t.to} <span className="di">({t.laps})</span></td>
                               <td className="fs-t">{inp.lapS ? hms(t.laps * inp.lapS) : NONE}</td>
                               <td>{last ? <span className="di">flag</span> : <span className="stpc"><button type="button" className="btn" aria-label={`Pit ${t.n} one lap earlier`} disabled={!shift(k, -1)} onClick={() => move(k, -1)}>−</button><b>{t.to}</b><button type="button" className="btn" aria-label={`Pit ${t.n} one lap later`} disabled={!shift(k, 1)} onClick={() => move(k, 1)}>+</button></span>}</td>
@@ -262,7 +260,7 @@ export const fuelCalc = defineModule({
                       <div className="fs-drv">
                         {Array.from({ length: drivers }, (_, d) => {
                           const mine = pick.stints.filter((t) => who(t.n) === d);
-                          return <span key={d} title={`${mine.length} stints`}><b>D{d + 1}</b> {hms(mine.reduce((a, t) => a + t.laps, 0) * inp.lapS!)}</span>;
+                          return <span key={d} title={`${mine.length} stints`}><b>{nameOf(tm, d)}</b> {hms(mine.reduce((a, t) => a + t.laps, 0) * inp.lapS!)}</span>;
                         })}
                       </div>
                     ) : null}

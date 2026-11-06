@@ -8,6 +8,7 @@ import { clamp, fmtClock, fmtDelta, fmtGap, fmtLap, fmtRel, fmtSector, MINUS, nf
 import { fv, unit } from "../lib/units";
 import { editor } from "../state/editor";
 import { KpiId, usePrefs } from "../state/prefs";
+import { driverOf, nameOf, swapAt, useTeam } from "../state/team";
 import { cell as kpiCell } from "../shell/KpiStrip";
 import { CarTr, carNum, carTitle, driver, fieldOn, sortedCars, Spark, useRowCursor } from "./cars";
 import { Delta } from "./delta";
@@ -16,7 +17,7 @@ const R = ({ k, children, cls }: { k: ReactNode; children: ReactNode; cls?: stri
 
 const SCOLS: [string, string][] = [["car", "Car"], ["class", "Class"], ["cup", "Cup"], ["laps", "Laps"], ["gap", "Gap"], ["int", "Int"], ["last", "Last"], ["best", "Best"], ["sectors", "S1–S3 of the last lap"],
   ["pits", "Pits"], ["stint", "Stint"], ["net", "Net position"], ["deltaMe", "Δ to my best"]];
-const DROP_ORDER = ["car", "sectors", "deltaMe", "best", "stint", "pits", "net", "last", "int"];
+const COLW: Record<string, number> = { car: 120, class: 60, cup: 60, laps: 48, gap: 72, int: 72, last: 112, best: 80, sectors: 204, pits: 48, stint: 52, net: 72, deltaMe: 80 };
 
 const dash = <>{NONE}</>;
 
@@ -41,7 +42,6 @@ interface StdOpts { scope: string; cols: string[]; around: number; names: "short
 
 function StandingsTable({ c, o, rows, cup, byClass, mine, race, cursor }: { c: Ctx; o: StdOpts; rows: Car[]; cup: boolean; byClass: boolean; mine: Car | undefined; race: boolean; cursor: number | null }) {
   const wrap = useRef<HTMLDivElement>(null);
-  const [drop, setDrop] = useState<{ key: string; set: string[] }>({ key: "", set: [] });
   const sb = c.field?.best?.ms;
   const bestS = [0, 1, 2].map((k) => Math.min(...rows.map((x) => (x.best_s ?? [])[k] ?? 0).filter((v) => v > 0), Infinity));
   const net = o.cols.includes("net") && race && rows.every((x) => x.net != null);
@@ -57,26 +57,14 @@ function StandingsTable({ c, o, rows, cup, byClass, mine, race, cursor }: { c: C
     show = (lo > 0 ? [rows[0]!] : []).concat(lo > 1 ? [null as unknown as Car] : [], rows.slice(lo, hi));
   }
 
-  const cols = o.cols.filter((k) => SCOLS.some(([id]) => id === k) && (k !== "net" || net) && !drop.set.includes(k));
-  const wkey = `${wrap.current?.parentElement?.clientWidth ?? 0}|${o.cols.join()}`;
-
-  useLayoutEffect(() => {
-    const body = wrap.current?.parentElement;
-    if (!body) return;
-    const key = `${body.clientWidth}|${o.cols.join()}`;
-    if (drop.key !== key) { setDrop({ key, set: [] }); return; }
-    if (body.clientWidth <= 0 || body.scrollWidth <= body.clientWidth + 1) return;
-    const next = DROP_ORDER.find((k) => cols.includes(k));
-    if (next) setDrop({ key, set: [...drop.set, next] });
-  });
-  void wkey;
+  const cols = o.cols.filter((k) => SCOLS.some(([id]) => id === k) && (k !== "net" || net));
 
   const gapF = (ms: number | null | undefined, laps: number) => (race ? fmtGap(ms, laps) : fmtDelta(ms));
   const ncol = 3 + cols.reduce((n, k) => n + (k === "sectors" ? 3 : 1), 0);
   const head: Record<string, ReactNode> = {
     car: <th className="l">Car</th>, class: <th className="l">Class</th>, cup: <th className="l">Cup</th>, laps: <th>Laps</th>,
     gap: <th>{race ? "Gap" : "To P1"}</th>, int: <th>{race ? "Int" : "To next"}</th>,
-    last: <th>Last</th>, best: <th>Best</th>,
+    last: <th className="w">Last</th>, best: <th>Best</th>,
     sectors: <><th>S1</th><th>S2</th><th>S3</th></>,
     pits: <th>Pits</th>, stint: <th>Stint</th>, net: <th>Net</th>, deltaMe: <th title="My best minus theirs">Δ me</th>,
   };
@@ -90,7 +78,7 @@ function StandingsTable({ c, o, rows, cup, byClass, mine, race, cursor }: { c: C
       case "int": return <td className="mu">{x.pos === 1 ? NONE : gapF(x.int, x.int_laps)}</td>;
       case "last": {
         const inLap = x.last_pit_lap != null && x.laps === x.last_pit_lap + 1;
-        return <td><LapCell x={x} sb={sb} />{x.last_valid === false && okMs(x.last) ? <> <b className="tag n">INV</b></> : null}{okMs(x.last) && inLap ? <> <b className="tag n">IN</b></> : null}</td>;
+        return <td><LapCell x={x} sb={sb} />{okMs(x.last) && (x.last_valid === false ? <b className="tag n">INV</b> : inLap ? <b className="tag n">IN</b> : null)}</td>;
       }
       case "best": return <td>{okMs(x.best) ? (x.best === sb ? <span className="b">◆ {fmtLap(x.best)}</span> : fmtLap(x.best)) : NONE}</td>;
       case "sectors": return <>{[0, 1, 2].map((i) => <td key={i}><SectorCell x={x} k={i} bestS={bestS} /></td>)}</>;
@@ -104,7 +92,8 @@ function StandingsTable({ c, o, rows, cup, byClass, mine, race, cursor }: { c: C
 
   return (
     <div ref={wrap}>
-      <table className="t fx" style={{ minWidth: 238 + 88 * (ncol - 3) }}>
+      <table className="t fx" style={{ minWidth: 238 + cols.reduce((n, k) => n + (COLW[k] ?? 80), 0) }}>
+        <colgroup><col style={{ width: 44 }} /><col style={{ width: 44 }} /><col style={{ width: 150 }} />{cols.flatMap((k) => k === "sectors" ? [0, 1, 2].map((i) => <col key={k + i} style={{ width: COLW[k]! / 3 }} />) : [<col key={k} style={{ width: COLW[k] }} />])}</colgroup>
         <thead><tr><th className="s">P</th><th className="s">#</th><th className="l d">Driver</th>{cols.map((k) => <Fragment key={k}>{head[k]}</Fragment>)}</tr></thead>
         <tbody>
           {show.map((x, n) => x == null ? (
@@ -214,15 +203,15 @@ export const relative = defineModule({
     const myD = mine.laps + mine.spl;
     const lapRel = (x: Car) => {
       const f = ((x.spl - mine.spl + 1.5) % 1) - 0.5, k = Math.round(x.laps + x.spl - myD - f);
-      return k > 0 ? <b className="tag n">+{k}L</b> : k < 0 ? <b className="tag n">{MINUS}{-k}L</b> : null;
+      return k > 0 ? <> <b className="tag n">+{k}L</b></> : k < 0 ? <> <b className="tag n">{MINUS}{-k}L</b></> : null;
     };
     return {
       flush: true,
       info: large ? "TRACK ORDER" : `±${N}`,
       onKey: nav.onKey,
       body: (
-        <table className="t fx" style={{ minWidth: (large ? 44 : 0) + 338 }}>
-          <thead><tr>{large ? <th className="s">P</th> : null}<th className="s">#</th><th className="l d">Driver</th><th>Gap</th><th>Trend</th></tr></thead>
+        <table className="t fx rel" style={{ minWidth: (large ? 44 : 0) + 338 }}>
+          <thead><tr>{large ? <th className="s">P</th> : null}<th className="s">#</th><th className="l d">Driver</th><th className="g">Gap</th><th>Trend</th></tr></thead>
           <tbody>
             {ahead.concat([mine], behind, pin ? [pin] : []).map((x) => {
               const t = trend.get(`${x.i}${Math.sign(x.rel ?? 0)}`), isAhead = (x.rel ?? 0) > 0;
@@ -378,28 +367,40 @@ export const sectorCompare = defineModule({
     } as Record<"last" | "best", (number | null | undefined)[]>;
     const theirs = { last: [other.last, ...(other.last_s ?? [])], best: [other.best, ...(other.best_s ?? [])] } as typeof mineSet;
     const ord = [1, 2, 3, 0];
-    const cellOf = (v: number | null | undefined, k: number, cls = "") => <td key={k} className={cls || undefined}>{!okMs(v) ? NONE : k === 3 ? fmtLap(v) : fmtSector(v)}</td>;
-    const block = (k: "last" | "best", withBest: boolean) => (
-      <Fragment key={k}>
-        <tr className="own"><td className="l">You {k}</td>{ord.map((o, i) => cellOf(mineSet[k][o], i, k === "best" && withBest && okMs(mineSet[k][o]) && okMs(theirs[k][o]) && mineSet[k][o]! < theirs[k][o]! ? "p" : ""))}</tr>
-        <tr><td className="l ac" title={carTitle(other)}>{carNum(other)} {k}</td>{ord.map((o, i) => cellOf(theirs[k][o], i))}</tr>
-        <tr><td className="l mu">Δ {k}</td>{ord.map((o, i) => <td key={i}>{okMs(mineSet[k][o]) && okMs(theirs[k][o]) ? <Delta ms={mineSet[k][o]! - theirs[k][o]!} /> : NONE}</td>)}</tr>
-      </Fragment>
-    );
+    const tm = (v: number | null | undefined, k: number) => (!okMs(v) ? NONE : k === 0 ? fmtLap(v) : fmtSector(v));
+    const dOf = (k: "last" | "best", o: number) => (okMs(mineSet[k][o]) && okMs(theirs[k][o]) ? mineSet[k][o]! - theirs[k][o]! : null);
+    const block = (k: "last" | "best") => {
+      const d = dOf(k, 0);
+      return (
+        <section key={k} className="vs">
+          <div className="vs-t">
+            <div><span className="lab">{k} lap</span>{d == null ? NONE : <Delta ms={d} />}</div>
+            <div className="times"><span>You {tm(mineSet[k][0], 0)}</span><span>{carNum(other)} {tm(theirs[k][0], 0)}</span></div>
+          </div>
+          <div className="vs-g">
+            {[1, 2, 3].map((o) => {
+              const x = dOf(k, o);
+              return (
+                <div key={o} className={"vs-s" + (x == null || Math.abs(x) < 0.5 ? "" : x < 0 ? " o" : " b")}>
+                  <span className="tm"><span className="lab">S{o}</span><Delta ms={x} /></span>
+                  <span className="tm"><i>You</i><b>{tm(mineSet[k][o], o)}</b></span>
+                  <span className="tm"><i>{carNum(other)}</i><span>{tm(theirs[k][o], o)}</span></span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      );
+    };
     const large = size.h >= 7;
     return {
       flush: true,
       info: [`${carNum(other)}${large ? " " + carName(other, "last").toUpperCase() : ""}`],
       body: (
-        <table className="t">
-          <thead><tr><th className="l" /><th>S1</th><th>S2</th><th>S3</th><th>Lap</th></tr></thead>
-          <tbody>
-            {block("last", false)}{large ? block("best", true) : null}
-            {large ? (
-              <tr><td className="l mu">Pits · stint</td><td colSpan={2}>You {nf(mine.pits, 0)} · {nf(c.s ? c.s.stint_laps : mine.stint_laps, 0)}</td><td colSpan={2}>{carNum(other)} {nf(other.pits, 0)} · {nf(other.stint_laps, 0)}</td></tr>
-            ) : null}
-          </tbody>
-        </table>
+        <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-evenly" }}>
+          {block("last")}{large ? block("best") : null}
+          {large ? <div className="vs vs-f"><span>Pits · stint</span><span>You {nf(mine.pits, 0)} · {nf(c.s ? c.s.stint_laps : mine.stint_laps, 0)}</span><span>{carNum(other)} {nf(other.pits, 0)} · {nf(other.stint_laps, 0)}</span></div> : null}
+        </div>
       ),
     };
   },
@@ -506,14 +507,17 @@ export const rules = defineModule({
     const used = sl >= 0 && top.current > 0 && !(left > 0 && sl > left + FLAG_SLACK) ? clamp((1 - sl / top.current) * 100, 0, 100) : 0;
     const win = !w || s.kind !== "Race" ? (s.kind !== "Race" ? "races only" : NONE) : lap < w.open_lap ? `opens lap ${w.open_lap} · closes lap ${w.close_lap}` : lap <= w.close_lap ? `open until lap ${w.close_lap}` : "closed";
     const done = ml === 0 ? "STOPS DONE" : ml != null && ml > 0 ? `${ml} STOP${ml > 1 ? "S" : ""} LEFT` : "";
+    const tm = useTeam(), nStint = ((c.s?.stops as unknown[] | undefined) ?? []).length + 1;
+    const swap = swapAt(tm, nStint);
     return {
       info: done,
       alert: [c.s && (c.s.advice ?? []).some((a: { id: string }) => a.id === "window_closing") ? 1 : 0],
       body: (
         <>
+          {tm.drivers > 1 && s.kind === "Race" ? <div className="fb"><span className="mu">Driver</span><span className="v">{nameOf(tm, driverOf(tm, nStint))} · stint {nStint} · {swap ? `${nameOf(tm, swap.to)} next` : "same driver next"}</span></div> : null}
           <div className="fb"><span className="mu">Pit window</span><span className="v">{win}</span></div>
           <div className="bar tk ac"><i style={{ width: total && w ? clamp((lap / total) * 100, 0, 100) + "%" : "0%" }} /></div>
-          <div className="fb"><span className="mu">Driver stint</span><span className="v">{stint ?? NONE}</span></div>
+          <div className="fb"><span className="mu">Driver stint</span><span className="v">{stint === "no limit" && tm.maxStintMin ? `plan max ${tm.maxStintMin} min` : stint ?? NONE}</span></div>
           <div className="bar tk"><i style={{ width: used + "%" }} /></div>
         </>
       ),

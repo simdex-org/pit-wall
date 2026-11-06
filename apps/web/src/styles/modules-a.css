@@ -16,23 +16,23 @@ svg.spark circle{fill:var(--txt)}
 .dg-grid{stroke:var(--line);stroke-width:1}
 .dg-dot{fill:var(--txt);stroke:var(--bg);stroke-width:1}
 .dg-dot.inv{fill:none;stroke:var(--inv);stroke-width:1.5}
-.dg-wrap text.dg-tag{font-size:9px;fill:var(--inv);letter-spacing:.06em}
+.dg-wrap text.dg-tag{font-size:calc(9px * var(--k));fill:var(--inv);letter-spacing:.06em}
 .dg-fit{stroke:var(--txt);stroke-width:1.5}
 .dg-prev{stroke:var(--dim);stroke-width:1.5;stroke-dasharray:4 3}
 .dg-wrap text{font:500 var(--t-xs) var(--num);fill:var(--dim)}
 
 .rl{display:block;width:100%;height:auto;margin:4px 0 8px}
-.rl text{font:500 12px var(--num);fill:var(--dim)}
+.rl text{font:500 calc(12px * var(--k)) var(--num);fill:var(--dim)}
 
-.rl-key{display:flex;flex-wrap:wrap;gap:4px 16px;font:400 11px var(--sans);color:var(--dim);margin-bottom:8px}
+.rl-key{display:flex;flex-wrap:wrap;gap:4px 16px;font:400 calc(11px * var(--k)) var(--sans);color:var(--dim);margin-bottom:8px;min-height:calc(34px * var(--k));align-content:flex-start}
 .rl-key span{display:inline-flex;align-items:center;gap:6px}
-.rl-key b{font:600 11px var(--num);color:var(--txt)}
+.rl-key b{font:600 calc(11px * var(--k)) var(--num);color:var(--txt)}
 .rl-key i{display:inline-block;width:14px;height:8px;flex:none}
 .rl-key .sw-done{background:var(--dim)}
 .rl-key .sw-win{border:1.5px dashed var(--warn);height:10px;box-sizing:border-box}
 .rl-key .sw-box{width:2px;height:12px;background:var(--acc)}
-.rl-warn{display:flex;flex-direction:column;gap:2px;margin:0 var(--pad) 8px;padding:6px 8px;border:1px solid var(--warn);border-left-width:3px;color:var(--warn);font:400 11.5px var(--sans)}
+.rl-warn{display:flex;flex-direction:column;gap:2px;margin:0 var(--pad) 8px;padding:6px 8px;border:1px solid var(--warn);border-left-width:3px;color:var(--warn);font:400 calc(11.5px * var(--k)) var(--sans)}
 .rl-warn b{font-weight:600;letter-spacing:.04em}
 .rl-warn span{color:var(--dim)}
 .dg-path{fill:none;stroke:var(--dim);stroke-width:1;opacity:.6}
-.dg-wrap text.dg-hint{fill:var(--dim);opacity:.7;font-size:10px}
+.dg-wrap text.dg-hint{fill:var(--dim);opacity:.7;font-size:calc(10px * var(--k))}
