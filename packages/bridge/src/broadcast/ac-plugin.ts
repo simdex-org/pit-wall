@@ -1,5 +1,6 @@
 import { createServer, Server } from "node:http";
 import { importTrack } from "../ac-track.js";
+import { hostOk } from "../http/server.js";
 import { Rec } from "../util.js";
 import type { BroadcastState, FieldSource, Sink } from "./client.js";
 import { RACE } from "./models.js";
@@ -76,7 +77,7 @@ export class AcPlugin implements FieldSource {
       let size = 0;
       req.on("data", (c: Buffer) => { size += c.length; if (size < 1 << 20) chunks.push(c); });
       req.on("end", () => {
-        const ok = req.method === "POST" && req.url === "/state" && req.headers["x-pit-source"] === "ac" && size < 1 << 20;
+        const ok = req.method === "POST" && req.url === "/state" && req.headers["x-pit-source"] === "ac" && size < 1 << 20 && hostOk(req.headers.host);
         res.writeHead(ok ? 204 : 403).end();
         if (ok) this.packet(Buffer.concat(chunks).toString("utf-8"), seen, sink);
       });
@@ -96,7 +97,8 @@ export class AcPlugin implements FieldSource {
     Object.assign(PLUGIN, { cars: p.cars, flag: p.flag | 0, ses: p.ses | 0, left: Number(p.left) || 0, p });
     Object.assign(this.state, { state: "live", msg: "Pit Wall app in Assetto Corsa" });
     const key = `${p.root}|${p.track}|${p.config}`;
-    if (p.root && key !== this.aiKey) { this.aiKey = key; importTrack(p.root, p.track, p.config, [p.track, p.config].filter(Boolean).join(" ")); }
+    const plain = (s: unknown) => typeof s === "string" && /^[\w .-]*$/.test(s) && !s.includes("..");
+    if (p.root && plain(p.track) && plain(p.config) && key !== this.aiKey) { this.aiKey = key; importTrack(p.root, p.track, p.config, [p.track, p.config].filter(Boolean).join(" ")); }
     for (const [kind, d] of toMessages(p, this.hint(), seen)) sink(kind, d);
   }
 
