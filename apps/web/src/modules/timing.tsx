@@ -14,7 +14,7 @@ import { Delta } from "./delta";
 
 const R = ({ k, children, cls }: { k: ReactNode; children: ReactNode; cls?: string }) => <div className="r"><span>{k}</span><span className={cls}>{children}</span></div>;
 
-const SCOLS: [string, string][] = [["car", "Car"], ["cup", "Cup"], ["laps", "Laps"], ["gap", "Gap"], ["int", "Int"], ["last", "Last"], ["best", "Best"], ["sectors", "S1–S3 of the last lap"],
+const SCOLS: [string, string][] = [["car", "Car"], ["class", "Class"], ["cup", "Cup"], ["laps", "Laps"], ["gap", "Gap"], ["int", "Int"], ["last", "Last"], ["best", "Best"], ["sectors", "S1–S3 of the last lap"],
   ["pits", "Pits"], ["stint", "Stint"], ["net", "Net position"], ["deltaMe", "Δ to my best"]];
 const DROP_ORDER = ["car", "sectors", "deltaMe", "best", "stint", "pits", "net", "last", "int"];
 
@@ -39,7 +39,7 @@ function SectorCell({ x, k, bestS }: { x: Car; k: number; bestS: number[] }) {
 
 interface StdOpts { scope: string; cols: string[]; around: number; names: "short" | "full" | "last" }
 
-function StandingsTable({ c, o, rows, cup, mine, race, cursor }: { c: Ctx; o: StdOpts; rows: Car[]; cup: boolean; mine: Car | undefined; race: boolean; cursor: number | null }) {
+function StandingsTable({ c, o, rows, cup, byClass, mine, race, cursor }: { c: Ctx; o: StdOpts; rows: Car[]; cup: boolean; byClass: boolean; mine: Car | undefined; race: boolean; cursor: number | null }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [drop, setDrop] = useState<{ key: string; set: string[] }>({ key: "", set: [] });
   const sb = c.field?.best?.ms;
@@ -74,7 +74,7 @@ function StandingsTable({ c, o, rows, cup, mine, race, cursor }: { c: Ctx; o: St
   const gapF = (ms: number | null | undefined, laps: number) => (race ? fmtGap(ms, laps) : fmtDelta(ms));
   const ncol = 3 + cols.reduce((n, k) => n + (k === "sectors" ? 3 : 1), 0);
   const head: Record<string, ReactNode> = {
-    car: <th className="l">Car</th>, cup: <th className="l">Cup</th>, laps: <th>Laps</th>,
+    car: <th className="l">Car</th>, class: <th className="l">Class</th>, cup: <th className="l">Cup</th>, laps: <th>Laps</th>,
     gap: <th>{race ? "Gap" : "To P1"}</th>, int: <th>{race ? "Int" : "To next"}</th>,
     last: <th>Last</th>, best: <th>Best</th>,
     sectors: <><th>S1</th><th>S2</th><th>S3</th></>,
@@ -83,6 +83,7 @@ function StandingsTable({ c, o, rows, cup, mine, race, cursor }: { c: Ctx; o: St
   const body = (k: string, x: Car): ReactNode => {
     switch (k) {
       case "car": return <td className="l mu" title={x.model_name}>{x.model_name || NONE}</td>;
+      case "class": return <td className="l">{x.class && x.class !== "?" ? <span className="tag fx n" style={{ "--tw": "48px" } as React.CSSProperties}>{x.class}</span> : NONE}</td>;
       case "cup": return <td className="l">{x.cup_name ? <span className="tag fx n" style={{ "--tw": "48px" } as React.CSSProperties}>{x.cup_name.toUpperCase()}</span> : NONE}</td>;
       case "laps": return <td>{nf(x.laps, 0)}</td>;
       case "gap": return <td>{x.pos === 1 ? NONE : gapF(x.gap, x.gap_laps)}</td>;
@@ -110,7 +111,7 @@ function StandingsTable({ c, o, rows, cup, mine, race, cursor }: { c: Ctx; o: St
             <tr className="gaprow" key={"gap" + n}><td colSpan={ncol} className="di">⋯</td></tr>
           ) : (
             <CarTr key={x.i} car={x} c={c} cursor={cursor} p={mine && x !== mine && o.around > 0 ? (n === 0 && x.pos === 1 ? 2 : 3 + Math.abs(rows.indexOf(x) - rows.indexOf(mine))) : undefined}>
-              <td className="mu">{cup ? x.cpos : x.pos}</td>
+              <td className="mu">{cup ? x.cpos : byClass ? rows.indexOf(x) + 1 : x.pos}</td>
               <td>{x.num}</td>
               <td className="l" title={carTitle(x)}>{driver(x, o.names)}{x.i === c.me ? <> <b className="tag me">YOU</b></> : null}{x.loc !== "track" && x.loc !== "none" ? <> <b className="tag wn">PIT</b></> : x.out ? <> <b className="tag n">OUT</b></> : null}{x.class && mine && x.class !== mine.class ? <> <b className="tag n" title="Another class">{x.class}</b></> : null}</td>
               {cols.map((k) => <Fragment key={k}>{body(k, x)}</Fragment>)}
@@ -126,17 +127,18 @@ export const standings = defineModule({
   type: "standings", title: "Standings", group: "Timing", blurb: "The whole field: positions, gaps, laps and pit stops.",
   size: { w: 7, h: 16, minW: 4, minH: 6 }, needs: ["field", "entries", "focus"], requires: ["field"], rate: 4,
   options: [
-    { key: "scope", label: "Show", type: "select", choices: [["all", "All cars"], ["cup", "My cup category"]], def: "all" },
-    { key: "cols", label: "Columns", type: "multi", choices: SCOLS, def: ["cup", "gap", "int", "last", "best", "pits", "stint"] },
+    { key: "scope", label: "Show", type: "select", choices: [["all", "All cars"], ["class", "My class"], ["cup", "My cup category"]], def: "all" },
+    { key: "cols", label: "Columns", type: "multi", choices: SCOLS, def: ["class", "cup", "gap", "int", "last", "best", "pits", "stint"] },
     { key: "around", label: "Rows around me (0 = all)", type: "number", min: 0, max: 20, step: 1, def: 0 },
     { key: "names", label: "Names", type: "select", choices: [["short", "A. Mori"], ["full", "Aiko Mori"], ["last", "Mori"]], def: "short" },
   ],
   view({ ctx: c, opts, id, size }) {
     const o = opts as StdOpts;
     const mine = c.me != null ? c.cars.get(c.me) : undefined;
-    const cup = o.scope === "cup" && !!mine;
+    const cup = o.scope === "cup" && !!mine, cls = o.scope === "class" && !!mine;
     let rows = sortedCars(c);
     if (cup) rows = rows.filter((x) => x.cup === mine!.cup).sort((a, b) => a.cpos - b.cpos);
+    if (cls) rows = rows.filter((x) => x.class === mine!.class);
     const nav = useRowCursor(rows.map((x) => x.i));
     if (!rows.length) return { state: { kind: "empty", msg: "Waiting for the field." } };
     const ss = c.r?.session, lap = ss ? (ss.lap_number != null ? ss.lap_number : ss.completed_laps + 1) : null;
@@ -149,12 +151,13 @@ export const standings = defineModule({
       info: [lap != null ? `LAP ${lap}${tot}` : "", o.around > 0 && !wide ? `±${o.around} AROUND ME` : `${rows.length} CARS`, wide && flag && flag !== "none" ? flag.toUpperCase() : wide ? "GREEN" : ""],
       headExtra: wide && mine ? (
         <div className="seg">
-          <button type="button" aria-pressed={!cup} onClick={() => set("all")}>ALL</button>
+          <button type="button" aria-pressed={!cup && !cls} onClick={() => set("all")}>ALL</button>
+          <button type="button" aria-pressed={cls} onClick={() => set("class")}>CLASS</button>
           <button type="button" aria-pressed={cup} onClick={() => set("cup")}>CUP</button>
         </div>
       ) : null,
       onKey: nav.onKey,
-      body: <StandingsTable c={c} o={o} rows={rows} cup={cup} mine={mine} race={c.mode !== "best"} cursor={nav.cursor} />,
+      body: <StandingsTable c={c} o={o} rows={rows} cup={cup} byClass={cls} mine={mine} race={c.mode !== "best"} cursor={nav.cursor} />,
     };
   },
 });

@@ -10,6 +10,9 @@ const QUALI = 4;
 
 interface Seen { track: string; ids: string; names: Map<number, string> }
 
+// AC cars carry no class: read it from the folder name where it is in there (ks_ferrari_488_gt3)
+export const acClass = (car: string): string => /(?:^|_)(gt[234e]|lmp[123]?|dtm)(?:_|$)/i.exec(car)?.[1]?.toUpperCase() ?? "";
+
 const lap = (ms: number, car: number, valid = true): Rec => ({ ms: ms > 0 ? ms : null, car, drv: 0, s: [null, null, null], valid, out: false, in: false });
 
 // The Pit Wall app inside Assetto Corsa sends every car about four times a second; this turns one packet into the
@@ -30,7 +33,7 @@ export function toMessages(p: Rec, hint: Rec | null, seen: Seen): [number, Rec][
     seen.names.set(c.i, name);
     const [first = "", ...rest] = String(c.name).split(" ");
     const last = rest.join(" ");
-    out.push([6, { i: c.i, model: -1, team: String(c.car), num: c.i, cup: 0, cur_drv: 0, nat: 0,
+    out.push([6, { i: c.i, model: -1, label: String(c.label ?? c.car), cls: c.cls ?? acClass(String(c.car)), team: String(c.car), num: c.i, cup: 0, cur_drv: 0, nat: 0,
       drivers: [{ first, last, short: (last || first).slice(0, 3).toUpperCase(), dcat: 1, nat: 0 }] }]);
   }
   const type = hint?.session === 2 ? RACE : hint?.session === 1 ? QUALI : 0;

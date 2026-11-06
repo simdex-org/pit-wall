@@ -159,7 +159,7 @@ export class Telemetry {
           sector_count: r.sectors || 3, max_rpm: r.max_rpm, max_fuel: r.max_fuel,
           track_length_m: ext.track_m || r.track_len, is_timed_race: !!r.timed,
           has_extra_lap: !!r.extra_lap, pit_window_start_ms: win ? po : 0, pit_window_end_ms: win ? pc : 0,
-          is_online: !!r.online, fuel_rate: r.fuel_rate, tyre_rate: r.tyre_rate, car_class: r.game === "ac" ? "" : this.cls,
+          is_online: !!r.online, fuel_rate: r.fuel_rate, tyre_rate: r.tyre_rate, car_class: r.game ? "" : this.cls,
         },
         capabilities: { tyre_edge_temps: false, tyre_wear: false, sectors: true, field: !!ext.field, flags: true, traces: true },
       },

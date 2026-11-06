@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { request } from "node:http";
-import { AcPlugin, PLUGIN, toMessages, withPlugin } from "../src/broadcast/ac-plugin.js";
+import { acClass, AcPlugin, PLUGIN, toMessages, withPlugin } from "../src/broadcast/ac-plugin.js";
 import { Field } from "../src/broadcast/field.js";
 
 const car = (i: number, laps: number, spl: number, pos: number) =>
@@ -51,5 +51,16 @@ describe("Pit Wall app packets", () => {
     expect(src.state.state).toBe("live");
     expect(PLUGIN).toMatchObject({ flag: 2, ses: 2, left: 5 });
     src.close();
+  });
+
+  test("classes come from the car folder and show in the entry list", () => {
+    expect(acClass("ks_ferrari_488_gt3")).toBe("GT3");
+    expect(acClass("ks_mazda_miata")).toBe("");
+    const f = new Field();
+    const seen = { track: "", ids: "", names: new Map<number, string>() };
+    for (const [k, d] of toMessages({ v: 1, t: 1, track: "monza", config: "gp", cars: [car(1, 2, 0.5, 1)] }, null, seen)) f.on(k, d);
+    expect(f.ent.get(1)).toMatchObject({ class: "", model_name: "rss_gt" });
+    for (const [k, d] of toMessages({ v: 1, t: 1, track: "monza", config: "gp", cars: [{ ...car(2, 2, 0.5, 2), car: "ks_porsche_gt4" }] }, null, seen)) f.on(k, d);
+    expect(f.ent.get(2)).toMatchObject({ class: "GT4" });
   });
 });

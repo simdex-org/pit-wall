@@ -57,7 +57,7 @@ export class Field {
     } else if (kind === 6) {
       const [name, cls] = MODELS[d.model as number] ?? ["Unknown", "?"];
       this.ent.set(d.i, {
-        num: d.num, team: d.team, model: d.model, model_name: name, class: cls, cup: d.cup, cup_name: d.cup < CUPS.length ? CUPS[d.cup] : "?", nat: d.nat,
+        num: d.num, team: d.team, model: d.model, model_name: d.label ?? name, class: d.cls ?? cls, cup: d.cup, cup_name: d.cup < CUPS.length ? CUPS[d.cup] : "?", nat: d.nat,
         drivers: d.drivers.map((v: Rec) => ({ first: v.first, last: v.last, short: v.short, dcat: v.dcat })),
       });
     } else if (kind === 7) {
