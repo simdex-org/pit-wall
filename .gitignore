@@ -9,3 +9,4 @@ apps/launcher/src-tauri/gen/
 apps/launcher/src-tauri/resources.zip
 apps/launcher/dist-portable/
 release/
+.shots/

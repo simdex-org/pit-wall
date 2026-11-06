@@ -12,10 +12,12 @@
     "app:build": "pnpm --filter @pitwall/launcher package",
     "app:portable": "pnpm --filter @pitwall/launcher package:portable",
     "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "shots": "node scripts/shots.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "playwright": "^1.65.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
