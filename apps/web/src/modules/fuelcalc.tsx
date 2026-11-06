@@ -54,14 +54,20 @@ export const fuelCalc = defineModule({
   size: { w: 6, h: 20, minW: 4, minH: 10, maxH: 22 }, needs: ["summary", "reading", "config", "laps"], rate: 2,
   view({ ctx: c, size }) {
     const [state, setState] = useState(load);
-    const [sel, setSel] = useState<number | null>(null);
-    const [mine, setMine] = useState<number[] | null>(null);
-    const [safe, setSafe] = useState(false);
-    const [full, setFull] = useState(false);
+    const saved = () => lsGet<Record<string, unknown>>("pitwall.calc", {}) ?? {};
+    const keep = (patch: Record<string, unknown>) => lsSet("pitwall.calc", { ...saved(), ...patch });
+    const [sel, setSelState] = useState<number | null>(() => { const x = saved().sel; return typeof x === "number" ? x : null; });
+    const [mine, setMineState] = useState<number[] | null>(() => { const x = saved().mine; return Array.isArray(x) && x.every((n) => typeof n === "number") ? (x as number[]) : null; });
+    const [safe, setSafeState] = useState(() => saved().safe === true);
+    const [full, setFullState] = useState(() => saved().full === true);
+    const setSel = (x: number | null) => { setSelState(x); keep({ sel: x }); };
+    const setMine = (x: number[] | null) => { setMineState(x); keep({ mine: x }); };
+    const setSafe = (x: boolean) => { setSafeState(x); keep({ safe: x }); };
+    const setFull = (x: boolean) => { setFullState(x); keep({ full: x }); };
     const stopsRef = useRef<HTMLDivElement>(null);
     const shared = useRacePlan(), tm = useTeam();
     const { v, f } = state;
-    const update = (nv: Values, nf: Flags) => { setState({ v: nv, f: nf }); setSel(null); setMine(null); lsSet("pitwall.calc", { ...nv, tyres: nf.tyres, ...(nf.seq == null ? {} : { seq: nf.seq }) }); };
+    const update = (nv: Values, nf: Flags) => { setState({ v: nv, f: nf }); setSel(null); setMine(null); keep({ ...nv, tyres: nf.tyres, seq: nf.seq ?? undefined }); };
     const set = (k: string, val: string) => update({ ...v, [k]: val.replace(k === "lap" ? /[^0-9.,:]/g : /[^0-9.,]/g, "") }, f);
 
     const st = c.st, cfg = (c.cfg?.strategy ?? {}) as Record<string, number | string | null>, fx = c.r?.fixed;
