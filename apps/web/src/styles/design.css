@@ -604,6 +604,34 @@ dialog{background:var(--panel)}
 @supports (color:color-mix(in lab, red, red)){.mod .fs-seg.now{background:color-mix(in srgb,var(--ac) 10%,var(--p3))}}
 .mod .fs-seg b{font:600 12px/1 var(--mono);color:var(--tx)}
 .mod .fs-seg span{font:400 10.5px/1 var(--mono);color:var(--t3)}
+.mod .fs-seg.done{opacity:.45}
+.mod .fs-bar.dense{gap:1px}
+.mod .fs-bar.dense .fs-seg{height:18px;padding:0}
+.mod .stp{font:400 11px/1 var(--sans);color:var(--t3);align-items:center;gap:6px;display:inline-flex;text-transform:none;letter-spacing:0}
+.mod .stp b{font:600 12px/1 var(--mono);color:var(--tx);min-width:26px;text-align:center}
+.mod .stp .btn,.mod .stpc .btn{width:24px;height:24px;padding:0;justify-content:center;align-items:center;font:600 14px/1 var(--mono);display:inline-flex}
+.mod .stpc{white-space:nowrap;justify-content:center;align-items:center;gap:6px;display:inline-flex}
+.mod .stpc b{font:600 12px/1 var(--mono);min-width:28px;text-align:center}
+.mod .fs-main{flex-direction:column;flex:1;min-width:0;display:flex;overflow:hidden}
+.mod .fs-top{border-bottom:1px solid var(--ln);grid-template-columns:repeat(4,1fr);display:grid}
+.mod .fs-top>div{border-right:1px solid var(--ln);flex-direction:column;justify-content:space-between;gap:6px;min-width:0;padding:8px 12px;display:flex}
+.mod .fs-top>div:last-child{border:0}
+.mod .fs-top .lab{font:600 var(--lab)/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--t3)}
+.mod .fs-top>div>b{font:600 22px/1 var(--mono);color:var(--tx)}
+.mod .fs-top i{font:400 11px/1 var(--sans);font-style:normal;color:var(--t3);margin-left:4px}
+.mod .fs-top .stp{gap:8px}
+.mod .fs-top .stp b{font:600 22px/1 var(--mono);min-width:34px}
+.mod .fs-opts{flex-wrap:wrap;gap:6px;padding:8px 12px;display:flex}
+.mod .fs-note{font:400 11px/1.4 var(--sans);color:var(--t3);padding:0 12px 6px}
+.mod .fs-drv{font:400 11px/1.4 var(--mono);color:var(--t3);border-top:1px solid var(--ln);flex-wrap:wrap;gap:4px 14px;padding:6px 12px;display:flex}
+.mod .fs-drv b{color:var(--t2)}
+.mod .fs-act{border-top:1px solid var(--ln);flex-wrap:wrap;gap:8px;padding:8px 12px}
+.mod .fs-bar{margin:0 12px 8px}
+.mod .fs-scroll{container-type:inline-size;flex:1 1 160px;min-height:120px;overflow:auto}
+@container (max-width:440px){.fs-t{display:none}}
+@media (max-width:760px){.mod .fs-main{overflow:visible}.mod .fs-scroll{flex:none;max-height:55vh}.mod .fs-top{grid-template-columns:1fr 1fr}.mod .fs-top>div:nth-child(2){border-right:0}.mod .fs-top>div:nth-child(-n+2){border-bottom:1px solid var(--ln)}}
+.mod .fs-scroll thead th{background:var(--p2,var(--p3));position:sticky;top:0;z-index:1}
+.mod .fs-scroll tr.done td{color:var(--t3)}
 .mod .fs-add{height:22px;position:relative}
 .mod .fs-add span{font:600 11px/1 var(--mono);color:var(--ac);white-space:nowrap;position:absolute;top:4px;transform:translate(-50%)}
 .mod .fc .r .f.fi,.mod .r .f.fi{grid-template-columns:76px 84px;align-items:center;gap:8px;display:grid}
@@ -806,6 +834,7 @@ dialog{background:var(--panel)}
 .mod .t.fx th{width:auto}
 .mod .t.fx th.s{width:44px}
 .mod .t.fx th.d{width:150px}
+.mod .fs-scroll .t.fx th.s{width:56px}
 .mod .t.fx td{overflow:hidden;text-overflow:ellipsis}
 .mod .t.fx td:not(.l){position:relative}
 .mod .t.fx td:not(.l)>.tag{position:absolute;left:6px;top:50%;translate:0 -50%;margin:0}
@@ -1005,3 +1034,6 @@ dialog{background:var(--panel)}
 .mod .pwb-cfi b{color:var(--ac);font-weight:600}
 .mod .pwb-cfi small{color:var(--t2)}
 .mod .pwb-cfa{grid-area:1/2/span 2/3;align-self:center;gap:6px;display:flex}
+.mod .fs-opts .pwb-chip{height:28px;padding:0 12px;font-size:12px;color:var(--tx);background:var(--p3);border-color:var(--t3)}
+.mod .fs-opts .pwb-chip:hover{border-color:var(--tx)}
+.mod .fs-opts .pwb-chip[aria-pressed=true]{background:var(--ac);border-color:var(--ac);color:#06201e}

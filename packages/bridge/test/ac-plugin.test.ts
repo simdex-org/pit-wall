@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { request } from "node:http";
 import { AcPlugin, PLUGIN, toMessages, withPlugin } from "../src/broadcast/ac-plugin.js";
 import { Field } from "../src/broadcast/field.js";
 
@@ -38,6 +39,12 @@ describe("Pit Wall app packets", () => {
     const body = JSON.stringify({ v: 1, t: 1, track: "t", config: "", flag: 2, ses: 2, left: 5, cars: [car(0, 1, 0.1, 1)] });
     const post = (h: Record<string, string>) => fetch("http://127.0.0.1:19877/state", { method: "POST", headers: h, body }).then((r) => r.status);
     expect(await post({ "Content-Type": "text/plain" })).toBe(403);
+    expect(got).toEqual([]);
+    const rebound = await new Promise<number>((ok) => {
+      const q = request({ host: "127.0.0.1", port: 19877, path: "/state", method: "POST", headers: { "X-Pit-Source": "ac", Host: "evil.example:19877" } }, (r) => { r.resume(); ok(r.statusCode ?? 0); });
+      q.end(body);
+    });
+    expect(rebound).toBe(403);
     expect(got).toEqual([]);
     expect(await post({ "X-Pit-Source": "ac" })).toBe(204);
     expect(got).toContain(2);

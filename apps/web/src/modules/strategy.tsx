@@ -137,12 +137,20 @@ function RaceLine({ total, now, box, win, plan }: { total: number; now: number; 
         {labels.map((g, i) => (
           <text key={i} x={g.at} y="13" textAnchor={g.anchor} style={{ fill: g.col, fontSize: 13, fontWeight: 600 }}>{g.text}</text>
         ))}
-        {plan.filter((l) => l >= now && l < total).map((l, i) => (
-          <g key={"p" + i}>
-            <path d={`M${x(l)} 36L${x(l) - 5} 44H${x(l) + 5}Z`} fill="var(--me)" />
-            <text x={x(l)} y="58" textAnchor="middle" style={{ fill: "var(--me)", fontSize: 12, fontWeight: 600 }}>PLAN {l}</text>
-          </g>
-        ))}
+        {(() => {
+          let edge = -Infinity;
+          return plan.filter((l) => l >= now && l < total).map((l) => {
+            const say = x(l) - edge >= 30;
+            if (say) edge = x(l);
+            return (
+              <g key={"p" + l}>
+                <title>{`Stop after lap ${l}`}</title>
+                <path d={`M${x(l)} 36L${x(l) - 4} 43H${x(l) + 4}Z`} fill="var(--me)" />
+                {say ? <text x={x(l)} y="57" textAnchor="middle" style={{ fill: "var(--me)", fontSize: 11, fontWeight: 600 }}>{l}</text> : null}
+              </g>
+            );
+          });
+        })()}
         <text x="0" y="70" style={{ fontSize: 12 }}>0</text>
         <text x={W} y="70" textAnchor="end" style={{ fontSize: 12 }}>{total}</text>
       </svg>
@@ -150,7 +158,7 @@ function RaceLine({ total, now, box, win, plan }: { total: number; now: number; 
         <span><i className="sw-done" />Laps done</span>
         {win ? <span><i className="sw-win" />Pit window <b>{win.open_lap}–{win.close_lap}</b></span> : null}
         {box != null && box > now ? <span><i className="sw-box" />{plan.length ? "Fuel lasts to" : "Fuel says box"} <b>lap {box}</b></span> : null}
-        {plan.some((l) => l >= now && l < total) ? <span><i className="sw-plan" />Your race plan</span> : null}
+        {plan.some((l) => l >= now && l < total) ? <span><i className="sw-plan" />Your race plan: stops after the lap shown</span> : null}
       </div>
     </>
   );

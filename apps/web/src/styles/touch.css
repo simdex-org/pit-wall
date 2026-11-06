@@ -119,7 +119,7 @@
 /* fuel and stints: inputs above the result */
 @media (max-width:760px){
   .mod .fc-split{flex-direction:column;overflow:visible}
-  .mod .fc-split>.fc-in{width:auto!important;border-right:0!important;border-bottom:1px solid var(--ln);overflow:visible!important}
+  .mod .fc-split>.fc-in{order:2;width:auto!important;border-right:0!important;border-bottom:1px solid var(--ln);overflow:visible!important}
 }
 
 /* template manager: the buttons go under the name */

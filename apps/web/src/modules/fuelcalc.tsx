@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { defineModule } from "../engine/registry";
 import { FillLap, fromLaps } from "../lib/fuelfill";
 import { fuelPlan, PlanInputs } from "../lib/fuelplan";
@@ -11,7 +11,7 @@ import { expectedFuel, nextStop, racePlan, useRacePlan } from "../state/racePlan
 type Values = Record<string, string> & { unit?: "min" | "laps" };
 type Flags = { tyres: boolean; seq: boolean | null };
 
-const NUMS = ["race", "extra", "fpl", "cap", "reserve", "formL", "mand", "maxStint", "loss", "refuel", "tyreS", "minStat", "wt"];
+const NUMS = ["race", "extra", "fpl", "cap", "reserve", "formL", "mand", "maxStint", "loss", "refuel", "tyreS", "minStat", "wt", "drivers", "spd"];
 
 function load(): { v: Values; f: Flags } {
   const o = lsGet<Record<string, unknown>>("pitwall.calc", {});
@@ -39,13 +39,15 @@ const sgn = (v: number, d: number) => (v < 0 ? MINUS : "+") + nf(Math.abs(v), d)
 const FIELDS: [string, string, string][] = [
   ["fpl", "Fuel per lap", "L"], ["cap", "Tank", "L"], ["reserve", "Reserve", "laps"], ["extra", "Extra laps", "laps"], ["formL", "Formation", "L"],
   ["mand", "Mandatory stops", ""], ["maxStint", "Max driver stint", "min"], ["loss", "Pit loss", "s"], ["refuel", "Refuelling", "s/L"],
-  ["tyreS", "Tyres", "s"], ["minStat", "Min. stationary", "s"], ["wt", "Weight / 10 L", "s/lap"],
+  ["drivers", "Drivers", ""], ["spd", "Stints per driver", ""], ["tyreS", "Tyres", "s"], ["minStat", "Min. stationary", "s"], ["wt", "Weight / 10 L", "s/lap"],
 ];
 const TIPS: Record<string, string> = {
   extra: "Laps driven after the timer reaches zero, on top of finishing the lap in progress (already counted).",
   reserve: "Laps of fuel left in the tank at the flag, and when you arrive at each stop.",
   formL: "Fuel burnt before lap 1 (formation lap, grid).",
   maxStint: "Longest time one driver may drive in a row: forces stops. Empty = no limit.",
+  drivers: "Drivers sharing the race. Stints go to them in turn; the stops table shows who drives each stint and the plan shows each driver's total time.",
+  spd: "Stints a driver drives in a row before the next driver takes over. 2 = a double stint: the car stops for fuel in between with the same driver.",
   wt: "How much slower a lap is per 10 L of fuel carried (average over the lap). 0 = ignore; a stop then costs only its time.",
 };
 
@@ -57,6 +59,8 @@ export const fuelCalc = defineModule({
     const [sel, setSel] = useState<number | null>(null);
     const [mine, setMine] = useState<number[] | null>(null);
     const [safe, setSafe] = useState(false);
+    const [full, setFull] = useState(false);
+    const stopsRef = useRef<HTMLDivElement>(null);
     const shared = useRacePlan();
     const { v, f } = state;
     const update = (nv: Values, nf: Flags) => { setState({ v: nv, f: nf }); setSel(null); setMine(null); lsSet("pitwall.calc", { ...nv, tyres: nf.tyres, ...(nf.seq == null ? {} : { seq: nf.seq }) }); };
@@ -85,7 +89,9 @@ export const fuelCalc = defineModule({
       lossS: or("loss", 25)!, refuelSpl: or("refuel", 0.25)!, tyreS: or("tyreS", 30)!, tyres: f.tyres, seq, minStat: or("minStat", 0)!, wt: n("wt") || 0,
     };
     const p = fuelPlan(inp);
-    const even = p.total ? p.options.find((o) => o.n === sel) ?? p.best ?? p.options[0] : null;
+    const even = p.total ? (sel != null && sel >= 0 && sel <= p.maxStops ? (full ? p.full(sel) : p.even(sel)) : full && p.best ? p.full(p.best.n) : p.best ?? p.options[0]) : null;
+    const drivers = Math.max(1, Math.min(10, Math.round(n("drivers") ?? 1))), spd = Math.max(1, Math.min(10, Math.round(n("spd") ?? 1)));
+    const who = (stint: number) => Math.floor((stint - 1) / spd) % drivers;
     const handmade = even && p.total && mine && mine.length === even.n && mine.every((x, k) => x >= 1 && x < p.total! && (k === 0 || x > mine[k - 1]!)) ? p.build(mine) : null;
     const pick = handmade ?? even;
     const me = c.me != null ? c.cars.get(c.me) : undefined, ref = st?.lap_ref_ms ?? 0;
@@ -94,7 +100,6 @@ export const fuelCalc = defineModule({
       const mine = me.gap + me.gap_laps * ref + lossS * 1000;
       return 1 + [...c.cars.values()].filter((x) => x.i !== me.i && x.gap != null && x.loc === "track" && x.gap + x.gap_laps * ref < mine).length;
     };
-    const rejoins = (o: { stints: { stat: number }[] }) => o.stints.slice(1).map((t) => rejoinAt(inp.lossS + t.stat));
     const range = (k: number, stops: number[]) => {
       const prev = k ? stops[k - 1]! : 0, next = k < stops.length - 1 ? stops[k + 1]! : p.total!, mx = (j: number) => (j === 0 ? p.maxStint.first : p.maxStint.rest);
       return [Math.max(prev + 1, next - mx(k + 1)), Math.min(next - 1, prev + mx(k))] as const;
@@ -140,6 +145,7 @@ export const fuelCalc = defineModule({
     const toPlan = () => { if (start == null) return; const k = Math.ceil(start); planStore.patch({ fuel: k }); say(`Start fuel ${k} L put in the pit plan`); };
 
     const capKnown = inp.cap != null && inp.cap > 0;
+    const wide = size.w >= 9;
     const large = size.w >= 6 && size.h >= 14;
     const ok = !!(p.total && pick);
     const fld = (k: string, label: string, unit: string) => (
@@ -150,6 +156,9 @@ export const fuelCalc = defineModule({
       <div className={cls}><input className="inp sm" type="text" inputMode="decimal" aria-label="Race length" value={v.race ?? ""} onChange={(e) => set("race", e.target.value)} />
         <div className="seg">{(["laps", "min"] as const).map((u) => <button key={u} type="button" aria-pressed={v.unit === u} onClick={() => update({ ...v, unit: u }, f)}>{u}</button>)}</div></div>
     );
+    const dense = !!pick && pick.stints.length > 12;
+    const curStop = pick && lapNow != null ? pick.stints.findIndex((t) => lapNow <= t.to) : -1;
+    useEffect(() => { stopsRef.current?.querySelector("tr.cur")?.scrollIntoView({ block: "nearest" }); }, [curStop, pick?.n]);
     const longest = pick ? Math.max(...pick.stints.map((t) => t.laps)) : null;
     const cells = (
       <div className="cells h">
@@ -161,11 +170,6 @@ export const fuelCalc = defineModule({
     );
     const miss = !ok ? [!(((laps ? inp.raceLaps : inp.raceMin) ?? 0) > 0) && "the race length", !((inp.lapS ?? 0) > 0) && "a lap time", !((inp.fpl ?? 0) > 0) && "the fuel per lap"].filter(Boolean) : [];
 
-    const addsOf = (o: { stints: { add: number | null }[] }) => {
-      const runs: [string, number][] = [];
-      for (const t of o.stints.slice(1)) { const a = nf(t.add!, 0); if (runs.length && runs[runs.length - 1]![0] === a) runs[runs.length - 1]![1]++; else runs.push([a, 1]); }
-      return runs.map(([a, n]) => (n > 1 ? `${a} L ×${n}` : `${a} L`)).join(", ");
-    };
     const other = ok && p.best ? fuelPlan({ ...inp, reserve: inp.reserve + (safe ? -1 : 1) }).best : null;
     const safeCost = other && p.best ? Math.abs(other.timeS - p.best.timeS) : null;
     const stintTable = (cols: "small" | "large") => pick ? (
@@ -215,58 +219,66 @@ export const fuelCalc = defineModule({
             <div className="f" style={{ marginTop: 8 }}><button type="button" className="btn" title="Fuel per lap and lap time from the clean laps of practice, qualifying and this session; empty fields take the live figures." onClick={autoFill}>Auto-fill</button><button type="button" className="btn gh" onClick={clear}>Clear inputs</button></div>
             <span className="v di" style={{ marginTop: 8 }}>Auto-fill uses the clean laps of practice, qualifying and this session.</span>
           </div>
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "auto" }}>
+          <div className="fs-main">
             {!ok ? <div className="v mu" style={{ padding: 12 }}>Still needed: {miss.join(", ")}. Grey figures are live values; an empty field uses them.{liveRace && miss.includes("the race length") ? <div style={{ marginTop: 10 }}><button type="button" className="btn pr" onClick={useRace}>Use this race: {liveRace} laps</button></div> : null}</div> : (
               <>
-                {!p.best ? <div className="v up" style={{ padding: "8px 12px" }}>▲ No plan fits: the tank ({capKnown ? nf(inp.cap, 0) + " L" : NONE}) cannot carry a stint of {plural(Math.ceil((p.total ?? 0) / 10), "lap")} or more.</div> : null}
-                {cells}
+                {!p.best ? <div className="v up" style={{ padding: "8px 12px" }}>▲ No plan fits: the tank ({capKnown ? nf(inp.cap, 0) + " L" : NONE}) holds {plural(Math.max(0, p.maxStint.rest), "lap")} of fuel after the reserve, and the race needs {p.nMin > 0 ? `at least ${plural(p.nMin, "stop")} and ` : ""}stints of {plural(Math.ceil((p.total ?? 0) / (p.nMin + 1)), "lap")}.</div> : null}
+                <div className="fs-top">
+                  <div><span className="lab">Start with</span><b>{pick ? nf(Math.ceil(pick.start), 0) : NONE}<i>L</i></b></div>
+                  <div><span className="lab">Stops</span>{pick ? <span className="stp"><button type="button" className="btn" aria-label="One stop fewer" disabled={pick.n <= 0} onClick={() => { setSel(pick.n - 1); setMine(null); }}>−</button><b>{pick.n}</b><button type="button" className="btn" aria-label="One stop more" disabled={pick.n >= p.maxStops} onClick={() => { setSel(pick.n + 1); setMine(null); }}>+</button></span> : <b>{NONE}</b>}</div>
+                  <div><span className="lab">Longest stint</span><b>{longest ?? NONE}<i>laps</i></b></div>
+                  <div><span className="lab">Race time</span><b>{pick ? hms(pick.timeS) : NONE}</b></div>
+                </div>
+                <div className="fs-opts">
+                  {p.options.map((e) => {
+                    const o = full ? p.full(e.n) : e, bt = full && p.best ? p.full(p.best.n) : p.best;
+                    return (
+                      <button key={o.n} type="button" className="pwb-chip" aria-pressed={o.n === pick?.n} onClick={() => { setSel(o.n); setMine(null); }} title={`Start with ${nf(o.start, 1)} L`}>
+                        {o.n} stop{o.n === 1 ? "" : "s"} · {!o.ok ? (!o.tank ? "tank too small" : "too few") : o.n === bt?.n ? "fastest" : bt ? `${sgn(o.timeS - bt.timeS, 0)} s` : ""}
+                      </button>
+                    );
+                  })}
+                  <button type="button" className="pwb-chip" aria-pressed={safe} title="Keep one more lap of fuel at every stop and at the flag" onClick={() => { setSafe(!safe); setSel(null); setMine(null); }}>Extra lap of fuel{safeCost != null ? ` · ${safeCost < 1 ? "free" : (safe ? "+" : "") + nf(safeCost, 0) + " s"}` : ""}</button>
+                  <button type="button" className="pwb-chip" aria-pressed={full} title="Every stint as long as the tank and the max driver stint allow, the last one takes what is left. Off: stints of equal length." onClick={() => { setFull(!full); setMine(null); }}>Full stints</button>
+                  {handmade ? <button type="button" className="pwb-chip" onClick={() => setMine(null)}>Moved by hand · reset</button> : null}
+                </div>
+                {p.save ? <div className="fs-note" title={`Burn ${nf(p.save.fpl, 2)} L a lap instead of ${nf(inp.fpl ?? 0, 2)} and you need one stop fewer`}>Save a stop: {nf(p.save.fpl, 2)} L/lap ({nf(-p.save.pct, 1)} %), about {nf(Math.abs(p.save.gainS), 0)} s quicker</div> : null}
                 {live2}
                 {pick ? (
                   <>
-                    <div className="fs-h">The plan <span>start with {nf(Math.ceil(pick.start), 0)} L{pick.n === 0 ? ", no stop needed" : ""}{handmade ? " · stop laps moved by hand" : ""}</span>{handmade ? <button type="button" className="btn sm gh" style={{ marginLeft: 12 }} onClick={() => setMine(null)}>Back to even stints</button> : null}</div>
-                    <div className="fs">
-                      <div className="fs-bar">{pick.stints.map((t) => <div key={t.n} className={"fs-seg" + (lapNow != null && lapNow >= t.from && lapNow <= t.to ? " now" : "")} style={{ flex: t.laps }}><b>{t.laps} laps</b><span>{t.from}–{t.to}</span></div>)}</div>
-                      <div className="fs-add">{pick.stints.slice(1).map((t) => <span key={t.n} style={{ left: ((t.from - 1) / (p.total ?? 1)) * 100 + "%" }}>+{nf(t.add!, 0)} L</span>)}</div>
-                    </div>
-                    {pick.n > 0 ? (
-                      <table className="t">
-                        <thead><tr><th className="l">Stop</th><th>Box after lap</th><th>Can move</th><th>Arrive with</th><th>Add</th><th>Leave with</th><th>Rejoin</th></tr></thead>
-                        <tbody>
-                          {pick.stints.slice(1).map((t) => (
-                            <tr key={t.n} className={lapNow != null && lapNow <= t.from - 1 && (t.n === 2 || lapNow > pick.stints[t.n - 2]!.from - 1) ? "cur" : undefined}>
-                              <td className="l">{t.n - 1}</td>
-                              <td><span className="f" style={{ justifyContent: "flex-end", gap: 6 }}><button type="button" className="btn sm" aria-label={`Stop ${t.n - 1} one lap earlier`} onClick={() => move(t.n - 2, -1)}>−</button><b style={{ minWidth: 22, textAlign: "center" }}>{t.from - 1}</b><button type="button" className="btn sm" aria-label={`Stop ${t.n - 1} one lap later`} onClick={() => move(t.n - 2, 1)}>+</button></span></td>
-                              <td className="di">{(() => { const [lo, hi] = range(t.n - 2, pick.stints.slice(1).map((q) => q.from - 1)); return lo < hi ? `lap ${lo}–${hi}` : "fixed"; })()}</td><td>{nf(t.load - t.add!, 1)} L</td><td className="ac">+{nf(t.add!, 1)} L</td><td>{nf(t.load, 1)} L</td><td title="Where this stop would put you if nobody else stopped, from the gaps now">{(() => { const r = rejoinAt(inp.lossS + t.stat); return r == null ? NONE : "P" + r; })()}</td>
+                    <div className={"fs-bar" + (dense ? " dense" : "")}>{pick.stints.map((t) => <div key={t.n} title={`Stint ${t.n}: laps ${t.from}–${t.to}`} className={"fs-seg" + (lapNow != null && lapNow >= t.from && lapNow <= t.to ? " now" : lapNow != null && lapNow > t.to ? " done" : "")} style={{ flex: t.laps }}>{dense ? null : <><b>{t.laps} laps</b><span>{t.from}–{t.to}</span></>}</div>)}</div>
+                    <div className="fs-scroll" ref={stopsRef}><table className="t fx">
+                      <thead><tr><th className="l s">Stint</th>{drivers > 1 ? <th className="s">Driver</th> : null}<th>Laps</th><th className="fs-t">Time</th><th className="d">Pit at end of lap</th><th>Fuel</th>{wide && pick.n <= 12 ? <th className="fs-t">Rejoin</th> : null}</tr></thead>
+                      <tbody>
+                        {pick.stints.map((t, k) => {
+                          const last = k === pick.stints.length - 1;
+                          return (
+                            <tr key={t.n} className={lapNow != null && lapNow >= t.from && lapNow <= t.to ? "cur" : lapNow != null && lapNow > t.to ? "done" : undefined}>
+                              <td className="l">{t.n}</td>
+                              {drivers > 1 ? <td>D{who(t.n) + 1}</td> : null}
+                              <td>{t.from}–{t.to} <span className="di">({t.laps})</span></td>
+                              <td className="fs-t">{inp.lapS ? hms(t.laps * inp.lapS) : NONE}</td>
+                              <td>{last ? <span className="di">flag</span> : <span className="stpc"><button type="button" className="btn" aria-label={`Pit ${t.n} one lap earlier`} onClick={() => move(k, -1)}>−</button><b>{t.to}</b><button type="button" className="btn" aria-label={`Pit ${t.n} one lap later`} onClick={() => move(k, 1)}>+</button></span>}</td>
+                              <td className={t.add == null ? "" : "ac"} title={t.add == null ? "Fuel at the start" : `Arrive with ${nf(t.load - t.add, 1)} L, leave with ${nf(t.load, 1)} L`}>{t.add == null ? `start ${nf(Math.ceil(t.load), 0)} L` : `+${nf(t.add, 1)} L`}</td>
+                              {wide && pick.n <= 12 ? <td className="fs-t" title="Where this stop would put you if nobody else stopped, from the gaps now">{(() => { const r = t.n > 1 ? rejoinAt(inp.lossS + t.stat) : null; return r == null ? NONE : "P" + r; })()}</td> : null}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          );
+                        })}
+                      </tbody>
+                    </table></div>
+                    {drivers > 1 && inp.lapS ? (
+                      <div className="fs-drv">
+                        {Array.from({ length: drivers }, (_, d) => {
+                          const mine = pick.stints.filter((t) => who(t.n) === d);
+                          return <span key={d} title={`${mine.length} stints`}><b>D{d + 1}</b> {hms(mine.reduce((a, t) => a + t.laps, 0) * inp.lapS!)}</span>;
+                        })}
+                      </div>
                     ) : null}
                   </>
                 ) : null}
-                <div className="fs-h">Smart pit <span>every stop count with the fuel for each stop; click a row to plan with it</span></div>
-                <table className="t">
-                  <thead><tr><th className="l">Stops</th><th>Start with</th><th className="l">Adds at the stops</th><th>Rejoins</th><th>Race time</th><th className="l">Verdict</th></tr></thead>
-                  <tbody>
-                    {p.options.map((o) => (
-                      <tr key={o.n} className={o === pick ? "cur" : undefined} onClick={() => { setSel(o.n); setMine(null); }} style={{ cursor: "pointer" }}>
-                        <td className="l">{o.n}{o === pick ? " · shown" : ""}</td><td>{nf(o.start, 1)} L</td><td className="l">{o.n ? addsOf(o) : NONE}</td><td title="Where each stop would put you if nobody else stopped, from the gaps now">{o.n ? rejoins(o).map((r) => (r == null ? NONE : "P" + r)).join(", ") : NONE}</td>
-                        <td className={o.ok ? "" : "di"}>{o.ok ? hms(o.timeS) : NONE}</td>
-                        <td className={"l " + (!o.ok ? "up" : o === p.best ? "p" : "wn")}>{!o.ok ? (!o.tank ? "Tank too small" : "Fewer than the mandatory stops") : o === p.best ? "● Fastest" : o === p.options.find((q) => q.ok) ? `Fewest stops, ${sgn(o.timeS - p.best!.timeS, 0)} s slower` : p.best ? `${sgn(o.timeS - p.best.timeS, 0)} s slower` : ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <label className="f v xl" title="Keep one more lap of fuel at every stop and at the flag">
-                  <input type="checkbox" className="sw" checked={safe} onChange={(e) => { setSafe(e.target.checked); setSel(null); setMine(null); }} />
-                  <span>Extra lap of fuel</span><span className="sp" />
-                  {safeCost != null ? <span className="mu">{safeCost < 1 ? "no time lost" : (safe ? "+" : "would add ") + nf(safeCost, 0) + " s"}</span> : null}
-                </label>
-                {p.save ? <div className="v mu xl" title={`Burn ${nf(p.save.fpl, 2)} L a lap instead of ${nf(inp.fpl ?? 0, 2)} and you need one stop fewer`}>Save a stop: {nf(p.save.fpl, 2)} L/lap ({nf(-p.save.pct, 1)} %), about {nf(Math.abs(p.save.gainS), 0)} s quicker</div> : null}
               </>
             )}
-            <div className="sp" />
-            <div className="f" style={{ padding: 12, borderTop: "1px solid var(--ln)" }}><button type="button" className="btn" disabled={start == null} onClick={toPlan}>Put start fuel in pit plan</button><button type="button" className={"btn " + (same ? "gh" : "pr")} disabled={!pickPlan || same} title="Fuel to the flag shows it, and the pit plan can take each stop from it" onClick={setPlan}>{same ? "This is the race plan" : "Set as race plan"}</button>{shared ? <button type="button" className="btn gh" onClick={() => racePlan.clear()}>Clear race plan</button> : null}<span className="v mu">{start != null ? nf(Math.ceil(start), 0) + " L" : ""}</span></div>
+            <div className="f fs-act"><button type="button" className="btn" disabled={start == null} onClick={toPlan}>Put start fuel in pit plan</button><button type="button" className={"btn " + (same ? "gh" : "pr")} disabled={!pickPlan || same} title="Fuel to the flag shows it, and the pit plan can take each stop from it" onClick={setPlan}>{same ? "This is the race plan" : "Set as race plan"}</button>{shared ? <button type="button" className="btn gh" onClick={() => racePlan.clear()}>Clear race plan</button> : null}</div>
           </div>
         </div>
       ),
