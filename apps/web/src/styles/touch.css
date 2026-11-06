@@ -23,7 +23,7 @@
   input[type=checkbox]{width:40px;height:22px}
   input[type=checkbox]:before{width:16px;height:16px}
   input[type=checkbox]:checked:before{transform:translate(18px)}
-  input:not([type=checkbox]):not([type=range]),select{min-height:36px;font-size:calc(16px * var(--k))}
+  input:not([type=checkbox]):not([type=range]),select{min-height:40px;font-size:calc(16px * var(--k))}
   #tabs [role=tab]{min-height:36px}
   #top .btn,#top .btn.icon{height:36px}
   #top .btn.icon{width:36px}
@@ -285,9 +285,15 @@
 @media (min-width:720px) and (max-width:1099px){
   .ws.narrow>.mod:is([data-type=car-3d],[data-type=gg],[data-type=degradation],[data-type=track-map],[data-type=lap-map],[data-type=coach],[data-type=traces],[data-type=fuel-calc],[data-type=weather-center],[data-type=channels],[data-type=laps],[data-type=lap-picker],[data-type=event-log],[data-type=tyre-history]){flex-basis:100%}
 }
-.mod .step input{min-height:0!important}
 
 /* the lane/box bar of a stop never runs into the figures beside it, however narrow the module is */
 [data-type=stops] .pb{min-width:0;overflow:hidden}
 [data-type=stops] .pb>i{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ws.narrow>.mod.is-hidden{align-self:stretch}
+
+/* every button, segment and tab is at least 40 px each way on a touch screen, whatever its own height says */
+@media (pointer:coarse){
+  :is(button,.btn,.seg>button,[role=tab],a[href]):not(.tab-menu):not(.dlg-x){min-height:40px;min-width:40px}
+  #eng{height:auto;min-height:40px}
+  .mod .step button,.mod .step input,.mod .step.sm button,.mod .step.sm input{min-height:40px;min-width:40px}
+}
