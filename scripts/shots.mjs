@@ -17,7 +17,7 @@ const pages = all
 
 const bridge = spawn(
   'pnpm',
-  ['--filter', '@pitwall/bridge', 'start', '--simulate-acc', '--no-browser', '--key', 'shotshotshot1', '--http', `127.0.0.1:${port}`, '--sim-session', opt('session', 'race'), '--sim-track', opt('track', 'demo'), '--sim-speed', '4'],
+  ['--filter', '@pitwall/bridge', 'start', '--simulate-acc', '--no-browser', '--key', 'shotshotshot1', '--http', `127.0.0.1:${port}`, '--sim-session', opt('session', 'race'), '--sim-track', opt('track', 'demo'), '--sim-speed', opt('speed', '4')],
   { stdio: 'ignore', shell: true },
 )
 const stop = () => spawn('taskkill', ['/pid', String(bridge.pid), '/t', '/f'], { stdio: 'ignore' })
@@ -57,7 +57,7 @@ try {
       for (let i = 0; i < 30; i++) {
         try { await page.goto(`http://127.0.0.1:${port}/?key=shotshotshot1${h ? '#' + h : ''}`); break } catch { await new Promise((r) => setTimeout(r, 1000)) }
       }
-      await page.waitForTimeout(all ? 3500 : 6000)
+      await page.waitForTimeout(Number(opt('wait', all ? 3500 : 6000)))
       const a = await page.evaluate(audit)
       await page.screenshot({ path: `.shots/${tag}-${name}.png`, fullPage: true })
       const spill = [...new Set(a.spill)]

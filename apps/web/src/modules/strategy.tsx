@@ -9,6 +9,7 @@ import { GRIP, RAIN } from "../lib/enums";
 import { carName } from "../lib/cars";
 import { fuelState } from "../lib/states";
 import { fv, fvu, unit } from "../lib/units";
+import { paceLaps } from "../lib/pace";
 import { useSize } from "../lib/useSize";
 import { accessKey, post, say } from "../state/bridge";
 import { usePrefs } from "../state/prefs";
@@ -504,18 +505,18 @@ function fit(pts: Pt[]): [number, number] | null {
 
 interface PaceOpts { fuelCorr: number; compare: boolean }
 
-function PaceChart({ cur, prev, o, pts, f, pf, cc }: { cur: Json[]; prev: Json[]; o: PaceOpts; pts: Pt[]; f: [number, number] | null; pf: [number, number] | null; cc: (l: Json) => number }) {
+function PaceChart({ cur, used, pts, f, pf, cc }: { cur: Json[]; used: Set<number>; pts: Pt[]; f: [number, number] | null; pf: [number, number] | null; cc: (l: Json) => number }) {
   const ref = useRef<HTMLDivElement>(null);
   const { w: W, h: H } = useSize(ref);
-  const clean = (l: Json) => l.valid && !l.out && !l.in;
   let chart: ReactNode = null;
   if (W >= 60 && H >= 40 && cur.length) {
-    const vals = pts.length ? pts.map((p) => p[1]) : cur.map(cc);
+    const all = cur.map(cc), best = Math.min(...all);
+    const vals = pts.length ? pts.map((p) => p[1]) : all.filter((v) => v <= best * 1.07);
     let lo = Math.min(...vals) - 300, hi = Math.max(...vals) + 300;
     if (hi - lo < 1000) { const m = (hi + lo) / 2; lo = m - 500; hi = m + 500; }
-    const n0 = cur[0]!.n, n1 = Math.max(cur[cur.length - 1]!.n + 2, n0 + 4), gl = 62, top = 6, bot = H - 14, step0 = (W - gl - 6) / (n1 - n0 + 1);
+    const n0 = cur[0]!.n, n1 = Math.max(cur[cur.length - 1]!.n + 2, n0 + 4), gl = W < 300 ? 40 : 56, top = 6, bot = H - 14, step0 = (W - gl - 6) / (n1 - n0 + 1);
     const X = (n: number) => gl + (n - n0 + 0.5) * step0, Y = (v: number) => bot - (bot - top) * clamp((v - lo) / (hi - lo), 0, 1);
-    const gs = [100, 200, 500, 1000, 2000, 5000].find((k) => (hi - lo) / k <= 5) ?? 10000, ys: number[] = [];
+    const gs = [100, 200, 500, 1000, 2000, 5000].find((k) => (hi - lo) / k <= (H < 120 ? 3 : 5)) ?? 10000, ys: number[] = [];
     for (let v = Math.ceil(lo / gs) * gs; v <= hi; v += gs) ys.push(v);
     const line = (F: [number, number] | null, cls: string, a: number, b: number, dash?: boolean) => F && (
       <line className={cls} x1={X(a)} y1={Y(F[0] * a + F[1])} x2={X(b)} y2={Y(F[0] * b + F[1])} strokeDasharray={dash ? "4 3" : undefined} />
@@ -527,26 +528,25 @@ function PaceChart({ cur, prev, o, pts, f, pf, cc }: { cur: Json[]; prev: Json[]
     chart = (
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Lap times of the stint with a fitted line">
         {ys.map((v) => <line key={v} className="dg-grid" x1={gl} y1={Y(v)} x2={W} y2={Y(v)} />)}
-        <polyline className="dg-path" points={cur.filter(clean).map((l) => `${X(l.n)},${Y(cc(l))}`).join(" ")} />
-        <text className="dg-ax dg-hint" x={gl + 6} y={top + 10}>slower ↑</text><text className="dg-ax dg-hint" x={gl + 6} y={bot - 4}>faster ↓</text>
+        <polyline className="dg-path" points={cur.filter((l) => used.has(l.n)).map((l) => `${X(l.n)},${Y(cc(l))}`).join(" ")} />
+        <text className="dg-ax dg-hint" x={W - 6} y={top + 10} textAnchor="end">slower ↑</text><text className="dg-ax dg-hint" x={W - 6} y={bot - 4} textAnchor="end">faster ↓</text>
         {line(pf, "dg-prev", n0, n1)}{line(f, "dg-fit", p0, p1)}{p1 < n1 ? line(f, "dg-fit", p1, n1, true) : null}
         {cur.map((l) => {
-          const v = cc(l), ok = clean(l), over = v > hi, cx = X(l.n), cy = over ? top + 3 : Y(v);
-          const tagY = !f || cy < Y(f[0] * l.n + f[1]) ? cy - 7 : cy + 13;
+          const v = cc(l), ok = used.has(l.n), cx = X(l.n), tip = `L${l.n} ${fmtLap(l.ms)}${l.valid ? "" : " INV"}${l.out ? " OUT" : ""}${l.in ? " IN" : ""}`;
+          if (v > hi || v < lo) return <text key={l.n} className="dg-ax" x={cx} y={v > hi ? top + 8 : bot - 2} textAnchor="middle"><title>{tip}</title>{v > hi ? "▲" : "▼"}</text>;
+          const cy = Y(v), tagY = !f || cy < Y(f[0] * l.n + f[1]) ? cy - 7 : cy + 13;
           return (
             <g key={l.n}>
-              <circle className={"dg-dot" + (ok ? "" : " inv")} cx={cx} cy={cy} r="3.5"><title>{`L${l.n} ${fmtLap(l.ms)}${l.valid ? "" : " INV"}${l.out ? " OUT" : ""}${l.in ? " IN" : ""}`}</title></circle>
-              {over ? <text className="dg-ax" x={cx} y={top + 14} textAnchor="middle">▲</text> : null}
-              {!ok ? <text className="dg-tag" x={cx} y={tagY} textAnchor="middle">{l.valid ? (l.out ? "OUT" : "IN") : "INV"}</text> : null}
+              <circle className={"dg-dot" + (ok ? "" : " inv")} cx={cx} cy={cy} r="3.5"><title>{tip}</title></circle>
+              {!ok || !l.valid ? <text className="dg-tag" x={cx} y={tagY} textAnchor="middle">{l.out ? "OUT" : l.in ? "IN" : !l.valid ? "INV" : "SLOW"}</text> : null}
             </g>
           );
         })}
         {ticks.map((n) => <text key={n} className="dg-ax" x={X(n)} y={H - 2} textAnchor="middle">{n}</text>)}
-        {ys.map((v) => <text key={"y" + v} className="dg-ax" x={gl - 6} y={Y(v) + 3} textAnchor="end">{fmtLap(v)}</text>)}
+        {ys.map((v) => <text key={"y" + v} className="dg-ax" x={gl - 6} y={Y(v) + 3} textAnchor="end">{gs >= 1000 ? fmtLap(v).slice(0, -4) : fmtLap(v)}</text>)}
       </svg>
     );
   }
-  void prev; void o;
   return <div className="dg-wrap" ref={ref}>{chart}</div>;
 }
 
@@ -568,18 +568,18 @@ export const degradation = defineModule({
       const last = laps.length ? laps[laps.length - 1]!.fuel_end : null;
       return (l: Json) => (o.fuelCorr > 0 && l.fuel_end != null && last != null ? l.ms - ((o.fuelCorr * (l.fuel_end - last)) / 10) * 1000 : l.ms);
     };
-    const clean = (l: Json) => l.valid && !l.out && !l.in;
     const cc = corr(cur), pc = corr(prev);
-    const pts: Pt[] = cur.filter(clean).map((l) => [l.n, cc(l)]);
+    const usedLaps = paceLaps(cur, cc), used = new Set(usedLaps.map((l) => l.n));
+    const pts: Pt[] = usedLaps.map((l) => [l.n, cc(l)]);
     const f = fit(pts);
-    const pf = fit(prev.filter(clean).map((l): Pt => [l.n - prev[0]!.n + cur[0]!.n, pc(l)]));
-    const slope = f ? f[0] : null, few = pts.length < 5;
+    const pf = fit(paceLaps(prev, pc).map((l): Pt => [l.n - prev[0]!.n + cur[0]!.n, pc(l)]));
+    const slope = f ? f[0] : null, few = pts.length < 3;
     const cls = slope == null || few ? "mu" : slope > 150 ? "up" : slope > 60 ? "wn" : "dn";
     const sl = (v: number | null) => (v == null ? NONE : `${v >= 0 ? "+" : MINUS}${Math.abs(v / 1000).toFixed(3)} s /lap`);
     const large = size.w >= 5 && size.h >= 6;
-    const pfs = pf ? pf[0] : null, last = cur.filter(clean).slice(-1)[0];
+    const pfs = pf ? pf[0] : null, last = usedLaps.slice(-1)[0];
     const vsTrend = f && last ? cc(last) - (f[0] * last.n + f[1]) : null;
-    const [word, say] = slope == null || few ? ["Not enough laps yet", `${pts.length} of 5 clean laps needed: one out-lap or a traffic lap moves the trend a lot.`]
+    const [word, say] = slope == null || few ? ["Not enough laps yet", `${pts.length} of 3 laps needed. Out and in laps and laps far off the pace are left out.`]
       : slope > 150 ? ["Falling off fast", `Each lap is about ${nf(slope / 1000, 2)} s slower than the one before. In 10 laps that is ${nf((slope * 10) / 1000, 1)} s a lap.`]
       : slope > 60 ? ["Dropping off", `Each lap is about ${nf(slope / 1000, 2)} s slower than the one before: the tyres are wearing.`]
       : slope > -60 ? ["Stable", "Lap times are holding: no tyre wear to see yet."]
@@ -589,7 +589,7 @@ export const degradation = defineModule({
       info: large ? ["THIS STINT: LAP TIME PER LAP"] : [<span key="s" className={cls}>{sl(slope)}</span>],
       body: large ? (
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-          <div style={{ flex: 1, minWidth: 0, display: "flex" }}><PaceChart cur={cur} prev={prev} o={o} pts={pts} f={f} pf={pf} cc={cc} /></div>
+          <div style={{ flex: 1, minWidth: 0, display: "flex" }}><PaceChart cur={cur} used={used} pts={pts} f={f} pf={pf} cc={cc} /></div>
           <div className="fc" style={{ width: 260, flex: "none", borderLeft: "1px solid var(--ln)", padding: 12, gap: 10 }}>
             <span className="lab">Tyre trend</span>
             <span className={"big " + cls} style={{ fontSize: 18 }}>{word}</span>
@@ -598,14 +598,22 @@ export const degradation = defineModule({
               <div className="c"><span className="lab">Per lap</span><span className={"mid " + cls}>{slope != null ? (slope >= 0 ? "+" : MINUS) + nf(Math.abs(slope / 1000), 3) : NONE}<span className="u">s</span></span></div>
               <div className="c"><span className="lab">Lost so far</span><span className="mid">{slope != null && slope > 0 ? nf((slope * (pts.length - 1)) / 1000, 2) : NONE}<span className="u">s</span></span></div>
             </div>
-            <R k="Clean laps used" p={3}>{pts.length} of {cur.length}</R>
+            <R k="Laps in the trend" p={3}>{pts.length} of {cur.length}</R>
             <R k="Last lap against trend" p={2} cls={vsTrend == null ? "mu" : vsTrend > 150 ? "up" : vsTrend < -150 ? "dn" : ""}>{vsTrend == null ? NONE : (vsTrend >= 0 ? "+" : MINUS) + nf(Math.abs(vsTrend / 1000), 2) + " s"}</R>
             {prev.length ? <R k="Previous stint trend" cls="mu" p={4}>{sl(pfs)}</R> : null}
             {o.fuelCorr > 0 ? <R k="Fuel correction" p={4}>{nf(o.fuelCorr, 2)} s /10 L</R> : null}
-            <span className="v di" data-p="5" style={{ marginTop: "auto", lineHeight: 1.5, whiteSpace: "normal", fontSize: 10.5 }}>Each dot is a lap. The solid line is the trend of the clean laps; the dashed one carries it forward. Out, in and invalid laps are hollow and not counted.</span>
+            <span className="v di" data-p="5" style={{ marginTop: "auto", lineHeight: 1.5, whiteSpace: "normal", fontSize: 10.5 }}>Each dot is a lap. The solid line is the trend of the laps used; the dashed one carries it forward. Out, in and slow laps are hollow and not counted; invalid laps still count.</span>
           </div>
         </div>
-      ) : <PaceChart cur={cur} prev={prev} o={o} pts={pts} f={f} pf={pf} cc={cc} />,
+      ) : (
+        <div className="fc" style={{ flex: 1, minHeight: 0 }}>
+          <div style={{ padding: "8px 10px 4px", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <span className={"big " + cls} style={{ fontSize: 15 }}>{word}</span>
+            <span className="v mu" data-p="2">{few ? `${pts.length} of 3 laps` : `${nf(pts.length, 0)} laps used`}</span>
+          </div>
+          <PaceChart cur={cur} used={used} pts={pts} f={f} pf={pf} cc={cc} />
+        </div>
+      ),
     };
   },
 });
