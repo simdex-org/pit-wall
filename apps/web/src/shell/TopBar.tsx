@@ -62,7 +62,10 @@ function Tabs() {
   const nav_ = useRef<HTMLElement>(null);
   useEffect(() => {
     const el = nav_.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (el && nav_.current) nav_.current.scrollTo({ left: el.offsetLeft - nav_.current.clientWidth / 2 + el.offsetWidth / 2, behavior: "smooth" });
+    const box = nav_.current;
+    if (!el || !box) return;
+    const a = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+    box.scrollTo({ left: box.scrollLeft + a.left - b.left - b.width / 2 + a.width / 2, behavior: "smooth" });
   }, [wsId, tpl.id]);
 
   return (
