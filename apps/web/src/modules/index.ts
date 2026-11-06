@@ -2,6 +2,7 @@ import "./log";
 import "./timing";
 import "./strategy";
 import "./fuelcalc";
+import "./team";
 import "./pit";
 import "./car";
 import "./charts";

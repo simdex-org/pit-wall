@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { nextStop, useRacePlan } from "../state/racePlan";
+import { nameOf, swapAt, useTeam } from "../state/team";
 import { defineModule } from "../engine/registry";
 import type { Ctx } from "../feed/store";
 import type { Json } from "../feed/types";
@@ -151,7 +152,7 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
   const tankAfter = car ? Math.min(max || Infinity, nowL + plan.fuel) : null;
   const atFlag = st && st.spare_l != null ? st.spare_l + (plan.fuel - (st.add_at_box_l ?? 0)) : null;
   const pu = unit("press", units), pStep = pstep(units);
-  const rp = useRacePlan(), planned = nextStop(rp, ((c.s?.stops as unknown[] | undefined) ?? []).length);
+  const tm = useTeam(), rp = useRacePlan(), planned = nextStop(rp, ((c.s?.stops as unknown[] | undefined) ?? []).length);
   const gMax = max || Math.max(120, nowL + plan.fuel);
   const aNow = angleOf(nowL, 0, gMax), aEnd = angleOf(Math.min(gMax, nowL + plan.fuel), 0, gMax);
   const [lo, hi] = wet ? c.th.wet_psi : c.th.dry_psi, pmin = lo - 3, pmax = hi + 4;
@@ -228,7 +229,7 @@ function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean })
           </div>
           <div className="pwb-pick">
             <button type="button" className="pwb-chip" disabled={st?.add_at_box_l == null} aria-pressed={st?.add_at_box_l != null && plan.fuel === Math.ceil(st.add_at_box_l)} title="What the strategy says to add" onClick={() => planStore.patch({ fuel: Math.ceil(st!.add_at_box_l) })}>Strategy {st?.add_at_box_l != null ? nf(st.add_at_box_l, 1) : NONE}</button>
-            <button type="button" className="pwb-chip" disabled={!planned} aria-pressed={!!planned && plan.fuel === Math.ceil(planned.add)} title={planned ? `Your race plan, stop ${planned.n}: box after lap ${planned.lap}` : "No race plan"} onClick={() => planStore.patch({ fuel: Math.ceil(planned!.add) })}>Plan {planned ? nf(planned.add, 0) : NONE}</button>
+            <button type="button" className="pwb-chip" disabled={!planned} aria-pressed={!!planned && plan.fuel === Math.ceil(planned.add)} title={planned ? `Your race plan, stop ${planned.n}: box after lap ${planned.lap}${tm.drivers > 1 ? (swapAt(tm, planned.n) ? `, driver change ${nameOf(tm, swapAt(tm, planned.n)!.from)} → ${nameOf(tm, swapAt(tm, planned.n)!.to)}` : ", same driver") : ""}` : "No race plan"} onClick={() => planStore.patch({ fuel: Math.ceil(planned!.add) })}>Plan {planned ? nf(planned.add, 0) : NONE}</button>
           </div>
           <div className="pwb-figs">
             <div><span className="lab">Laps added</span><span className="v">{fpl > 0 ? "+" + nf(plan.fuel / fpl, 1) : NONE}</span></div>
