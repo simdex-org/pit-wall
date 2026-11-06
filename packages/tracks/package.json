@@ -8,6 +8,8 @@
   "scripts": {
     "test": "node --test",
     "record": "node scripts/build.mjs",
+    "bake": "node scripts/bake.mjs",
+    "bake:watch": "node scripts/bake.mjs --watch",
     "missing": "node scripts/missing.mjs",
     "sectors": "node scripts/sectors.mjs"
   }

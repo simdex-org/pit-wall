@@ -33,3 +33,19 @@ export function drawingFrom(fastLane, lay) {
     pit: [], labels: [], sec: Array.isArray(lay?.sec) ? lay.sec : [], acc: true,
   };
 }
+
+// A line the bridge saved (points of [x, z, lap fraction], the first at the start line) as a drawing
+export function drawingFromLayout(lay) {
+  const line = Array.isArray(lay?.line) ? [...lay.line].sort((a, b) => a[2] - b[2]) : [];
+  const loop = [];
+  for (const [x, z] of line) {
+    const last = loop[loop.length - 1];
+    if (Number.isFinite(x) && Number.isFinite(z) && (!last || Math.hypot(x - last[0], z - last[1]) >= STEP_M * 0.8)) loop.push([+x.toFixed(1), +z.toFixed(1)]);
+  }
+  if (loop.length < 100 || Math.hypot(loop[0][0] - loop[loop.length - 1][0], loop[0][1] - loop[loop.length - 1][1]) > 40) return null;
+  const xs = loop.map((p) => p[0]), zs = loop.map((p) => p[1]);
+  return {
+    box: [+(Math.max(...xs) - Math.min(...xs)).toFixed(1), +(Math.max(...zs) - Math.min(...zs)).toFixed(1)], loop,
+    pit: [], labels: [], sec: Array.isArray(lay.sec) ? lay.sec : [], acc: true,
+  };
+}

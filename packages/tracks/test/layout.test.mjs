@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { drawingFrom, lineFromFastLane } from "../scripts/layout.mjs";
+import { drawingFrom, drawingFromLayout, lineFromFastLane } from "../scripts/layout.mjs";
 
 function fastLane(r = 300, junk = 40) {
   const n = Math.round((2 * Math.PI * r) / 10), buf = Buffer.alloc(16 + (n + junk) * 72);
@@ -33,4 +33,14 @@ test("the drawing is smooth, starts on the line and carries sectors", () => {
   assert.ok(Math.max(...gaps) < 6);
   assert.deepEqual(d.sec, [0.3, 0.7]);
   assert.equal(d.acc, true);
+});
+
+test("a saved layout becomes a drawing that starts at the start line", () => {
+  const line = Array.from({ length: 900 }, (_, k) => [300 * Math.cos((k / 900) * 6.2832), 300 * Math.sin((k / 900) * 6.2832), k / 900]).reverse();
+  const d = drawingFromLayout({ line, sec: [0.3, 0.7] });
+  assert.equal(d.acc, true);
+  assert.deepEqual(d.sec, [0.3, 0.7]);
+  assert.deepEqual(d.loop[0], [300, 0]);
+  assert.ok(d.loop.length > 300 && d.loop.length <= 460);
+  assert.equal(drawingFromLayout({ line: line.slice(0, 200) }), null);
 });

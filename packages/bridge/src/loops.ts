@@ -6,6 +6,7 @@ import { FakeField } from "./broadcast/fake-field.js";
 import { Field } from "./broadcast/field.js";
 import { CTX, FAST, FIELD, fieldErr, log, STATE } from "./state.js";
 import { saveLayout } from "./tracks.js";
+import { bakeTrack } from "./tracks-bake.js";
 import { CLASSES } from "./config.js";
 import type { Pages } from "./telemetry/pages.js";
 import type { FakePages } from "./telemetry/fake-pages.js";
@@ -72,7 +73,7 @@ function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number,
   if (tel.lapsVer !== STATE.laps_ver) {
     STATE.laps = rnd(tel.laps); STATE.past = rnd(tel.past); STATE.laps_ver = tel.lapsVer;
     const lay = sim ? null : tel.bestLayout();
-    if (lay) saveLayout(raw.track, lay);
+    if (lay) { saveLayout(raw.track, lay); bakeTrack(raw.track, lay).then((done) => { if (done) log(0, "TRACK", `Saved ${raw.track} to tracks.json`); }, fieldErr); }
   }
   for (const [sev, cat, text] of tel.events) log(sev, cat, text, cat === "LAP" ? raw.laps : undefined);
   tel.events.length = 0;
