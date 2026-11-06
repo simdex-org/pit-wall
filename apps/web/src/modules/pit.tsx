@@ -1,3 +1,4 @@
+import { usePersisted } from "../lib/persisted";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { nextStop, useRacePlan } from "../state/racePlan";
 import { nameOf, swapAt, useTeam } from "../state/team";
@@ -51,7 +52,7 @@ const PADS: [string, string][] = [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]
 
 function PitPlanBody({ c, confirmDefault }: { c: Ctx; confirmDefault: boolean }) {
   const plan = usePlan(), flash = usePlanFlash(), prefs = usePrefs(), units = prefs.units;
-  const [confirm, setConfirm] = useState(confirmDefault);
+  const [confirm, setConfirm] = usePersisted("pit.confirm", confirmDefault);
   const [pending, setPending] = useState<{ only: Block[]; title: string; rows: ChangeRow[] } | null>(null);
   const [msg, setMsg] = useState("");
   const [sending, setSending] = useState(false);

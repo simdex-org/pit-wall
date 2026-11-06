@@ -1,3 +1,4 @@
+import { usePersisted } from "../lib/persisted";
 import { Fragment, ReactNode, useState } from "react";
 import { defineModule } from "../engine/registry";
 import type { Ctx } from "../feed/store";
@@ -295,7 +296,7 @@ export const brakes = defineModule({
   size: { w: 4, h: 6, minW: 2, minH: 3, maxW: 5, maxH: 7 }, needs: ["reading", "summary", "config", "units"], requires: ["reading"],
   view({ ctx: c, size }) {
     const p = usePrefs(), u = p.units, ctx = sc(c);
-    const [flip, setFlip] = useState(false);
+    const [flip, setFlip] = usePersisted("car.flip", false);
     const a = c.r!.car, stint = (c.s?.stint as Json[] | undefined) ?? [];
     const first = stint.length ? stint[0]!.pads : null, last = stint.length ? stint[stint.length - 1]!.pads : null, low = c.th.pad_low_mm;
     const wear = (i: number): number | null => (first && last && stint.length > 1 ? (first[i] - last[i]) / (stint.length - 1) : null);

@@ -1,3 +1,4 @@
+import { usePersisted } from "../lib/persisted";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { drawZone } from "../draw/coachplot";
 import { loadTracks } from "../draw/map";
@@ -81,7 +82,7 @@ export const coach = defineModule({
     const p = usePrefs();
     const [ov, setOv] = useState<CoachMode | null>(null);
     const [tab, setTab] = useState<Tab | null>(null);
-    const [all, setAll] = useState(false);
+    const [all, setAll] = usePersisted("coach.all", false);
     const [, bump] = useReducer((n: number) => n + 1, 0);
     const mem = useRef<{ cur: Snap | null; prev: Snap | null }>({ cur: null, prev: null });
     useEffect(() => { void loadTracks().then(bump); }, []);

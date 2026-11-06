@@ -1,3 +1,4 @@
+import { usePersisted } from "../lib/persisted";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { fitCanvas, tokens } from "../draw/canvas";
 import { car3dView, CarView, levelColour, VIEWS } from "../draw/car3d";
@@ -53,7 +54,7 @@ function Car3D({ m, onFail }: { m: Model; onFail: () => void }) {
   const view = useRef({ az: VIEWS.iso![0], el: VIEWS.iso![1], x: false, zoom: 1 });
   const model_ = useRef(m);
   model_.current = m;
-  const [xray, setXray] = useState(false);
+  const [xray, setXray] = usePersisted("car3d.xray", false);
 
   const draw = () => {
     const g3 = gl.current, cv = tagCv.current, mm = model_.current;

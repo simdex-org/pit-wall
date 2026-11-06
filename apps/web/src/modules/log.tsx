@@ -4,6 +4,7 @@ import { fmtLap, nf } from "../lib/format";
 import { sevOf, sortAdvice } from "../lib/advice";
 import { lsRaw, lsSet } from "../lib/storage";
 import { recorder } from "../state/recorder";
+import { usePersisted } from "../lib/persisted";
 
 const CATEGORIES = ["LAP", "PIT", "FLAG", "CAR", "ENG", "PLAN", "CFG", "RC", "FIELD"];
 const clock = (t: number) => new Date(t * 1000).toLocaleTimeString([], { hour12: false });
@@ -14,8 +15,10 @@ export const eventLog = defineModule({
   type: "event-log", title: "Events", group: "Log", blurb: "Everything logged: laps, pits, flags, race control, the field, plans sent.",
   size: { w: 8, h: 22, minW: 4, minH: 6 }, needs: ["log"],
   view({ ctx, size }) {
-    const [off, setOff] = useState(() => new Set(["FIELD"]));
-    const [group, setGroup] = useState(0);
+    const [offList, setOffList] = usePersisted<string[]>("log.off", ["FIELD"]);
+    const off = new Set(offList);
+    const setOff = (f: (s: Set<string>) => Set<string>) => setOffList([...f(off)]);
+    const [group, setGroup] = usePersisted("log.group", 0);
     const [q, setQ] = useState("");
     const all = ctx.log;
     const only = GROUPS[group]![1];
