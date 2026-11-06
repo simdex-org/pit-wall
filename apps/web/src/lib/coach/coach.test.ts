@@ -55,9 +55,9 @@ describe("the report", () => {
     const hit = r.corners.filter((c) => c.kind === "loss");
     expect(hit.map((c) => c.corner.n)).toEqual([3]);
     expect(hit[0]!.causes[0]!.id).toBe("brake-early");
-    expect(hit[0]!.causes[0]!.text).toMatch(/Braked 3\d m earlier/);
+    expect(hit[0]!.causes[0]!.text).toMatch(/on the brake a good bit earlier/);
     expect(r.focus[0]!.n).toBe(3);
-    expect(r.focus[0]!.short).toMatch(/brake \d+ m later/);
+    expect(r.focus[0]!.short).toMatch(/brake a touch later/);
   });
 
   it("the corner differences add up to the lap difference", () => {

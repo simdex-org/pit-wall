@@ -142,7 +142,7 @@ export function buildReport(inp: CoachIn): Report | { msg: string } {
     const mags = hit.map((x) => { const c = x.causes.find((q) => q.id === id)!; return /line$/.test(id) ? c.val : Math.abs(c.metric(x.s) - c.metric(x.b)); });
     const avg = mags.reduce((a, v) => a + v, 0) / mags.length, unit = hit[0]!.causes.find((c) => c.id === id)!.unit;
     const cls = (["slow", "medium", "fast"] as const).find((k) => hit.filter((x) => x.corner.cls === k).length >= 0.75 * hit.length && out.filter((x) => x.corner.cls === k).length >= 3);
-    patterns.push({ id, ms, corners: hit.map((x) => x.corner.n), text: `${PATTERN[id]} in ${hit.length} of ${out.length} corners${cls ? `, mostly the ${cls} ones` : ""}${unit && avg >= 1 ? `: about ${Math.round(avg)} ${unit} on average` : ""} (${sec(ms)} s).` });
+    patterns.push({ id, ms, corners: hit.map((x) => x.corner.n), text: `${PATTERN[id]} in ${hit.length} of ${out.length} corners${cls ? `, mostly the ${cls} ones` : ""}${unit && unit !== "m" && avg >= 1 ? `: about ${Math.round(avg)} ${unit} on average` : ""} (${sec(ms)} s).` });
   }
   patterns.sort((a, b) => b.ms - a.ms);
 
@@ -165,7 +165,7 @@ export function progress(snap: Snap | null, r: Report): string[] {
     const c = r.corners.find((x) => x.corner.n === it.n);
     if (!c) return [];
     const target = it.metric(c.b), toward = Math.abs(it.prev - target) - Math.abs(it.metric(c.s) - target), dt = it.delta - c.delta;
-    const moved = Math.abs(toward) < 0.5 ? "no change" : `${Math.round(Math.abs(toward))} ${it.unit} ${toward > 0 ? "closer" : "further away"}`;
+    const moved = Math.abs(toward) < 0.5 ? "no change" : `${it.unit === "m" ? "" : Math.round(Math.abs(toward)) + " " + it.unit + " "}${toward > 0 ? "closer" : "further away"}`;
     return [`${c.name}, ${it.short}: ${moved}, ${Math.abs(dt) < 10 ? "same time" : `${sec(dt)} s ${dt > 0 ? "better" : "worse"}`}.`];
   });
 }
