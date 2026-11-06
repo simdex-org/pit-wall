@@ -1,5 +1,6 @@
 import koffi from "koffi";
 import { openShared } from "../win/shm.js";
+import { accKeys, keyCode } from "./acc-keys.js";
 import { Key, Mfd, MfdSnapshot, sleep } from "./mfd.js";
 import { vjoyDevice, vjoyPress, VJoy, VJOY_BUTTONS } from "./vjoy.js";
 
@@ -19,27 +20,23 @@ const QueryFullProcessImageNameW = k32.func("int __stdcall QueryFullProcessImage
 const CloseHandle = k32.func("int __stdcall CloseHandle(void *h)");
 
 const KEYEVENTF_EXTENDEDKEY = 1, KEYEVENTF_KEYUP = 2, KEYEVENTF_SCANCODE = 8;
-const ARROWS = { up: 0x48, down: 0x50, left: 0x4b, right: 0x4d } as const;
-const CLOSE_SCAN = 0x52;
 const NOT_FOCUSED = "ACC is not the focused window on the driver's PC - stopped before pressing anything else";
-
-export function vkOf(name: string): number {
-  const n = name.toLowerCase();
-  const fn = /^f(\d+)$/.exec(n);
-  if (fn) return 0x70 + Number(fn[1]) - 1;
-  if (n.length === 1) return n.toUpperCase().charCodeAt(0);
-  throw new Error(`pit key must be one character or F1-F24, not '${n}'`);
-}
 
 export class AccMfd implements Mfd {
   private read_: () => Buffer;
-  private scan: Record<Key, number>;
+  private scan = {} as Record<Key, [number, number]>;
   private hold: number;
+  readonly keys: Record<Key, string>;
   private vj: VJoy | null = null;
 
-  constructor(pitKey = "p", keyMs = 40, private vjoy?: number) {
+  constructor(pitKey?: string, keyMs = 40, private vjoy?: number) {
     this.read_ = openShared("Local\\acpmf_graphics", GFX_SIZE);
-    this.scan = { ...ARROWS, pit: MapVirtualKeyW(vkOf(pitKey), 0), close: CLOSE_SCAN };
+    this.keys = accKeys();
+    if (pitKey) this.keys.pit = pitKey;
+    for (const [k, name] of Object.entries(this.keys) as [Key, string][]) {
+      const c = keyCode(name);
+      this.scan[k] = [MapVirtualKeyW(c.vk, 0), c.ext ? KEYEVENTF_EXTENDEDKEY : 0];
+    }
     this.hold = keyMs / 1000;
     if (vjoy) this.vj = vjoyDevice(vjoy);
   }
@@ -70,10 +67,10 @@ export class AccMfd implements Mfd {
       return;
     }
     for (let k = 0; k < n; k++) {
-      const ext = key in ARROWS || key === "close" ? KEYEVENTF_EXTENDEDKEY : 0;
+      const [sc, ext] = this.scan[key];
       for (const flags of [KEYEVENTF_SCANCODE | ext, KEYEVENTF_SCANCODE | ext | KEYEVENTF_KEYUP]) {
         if (!this.focused()) throw new Error(NOT_FOCUSED);
-        this.send([this.scan[key], flags]);
+        this.send([sc, flags]);
         await sleep(this.hold * 1000);
       }
       if (key === "pit") await sleep(200);

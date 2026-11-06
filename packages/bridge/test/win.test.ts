@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import koffi from "koffi";
-import { AccMfd, vkOf } from "../src/pit/acc-mfd.js";
+import { AccMfd } from "../src/pit/acc-mfd.js";
 import { AccPages } from "../src/telemetry/pages.js";
 
 describe.skipIf(process.platform !== "win32")("windows", () => {
@@ -19,11 +19,9 @@ describe.skipIf(process.platform !== "win32")("windows", () => {
     expect(() => (m as unknown as { send(...k: [number, number][]): void }).send([0x76, 8 | 2], [0x76, 8 | 2])).not.toThrow();
   });
 
-  test("INPUT is 40 bytes like the Win32 struct, and pit keys map", () => {
+  test("INPUT is 40 bytes like the Win32 struct", () => {
     const KB = koffi.struct("KB2", { wVk: "uint16", wScan: "uint16", dwFlags: "uint32", time: "uint32", dwExtraInfo: "uintptr_t" });
     const IN = koffi.struct("IN2", { type: "uint32", ki: KB, pad: koffi.array("uint8", 8) });
     expect(koffi.sizeof(IN)).toBe(40);
-    expect([vkOf("p"), vkOf("F1"), vkOf("f24")]).toEqual([0x50, 0x70, 0x87]);
-    expect(() => vkOf("pit")).toThrow();
   });
 });
