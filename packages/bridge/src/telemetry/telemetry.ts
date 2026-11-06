@@ -23,6 +23,8 @@ export function resample(smp: Rec[], ms: number): Record<string, number[]> {
   return d;
 }
 
+const AID_HOLD = 0.25;
+
 const ceil = (x: number): number => {
   const k = Math.round(x);
   return Math.abs(x - k) < 1e-6 ? k : Math.ceil(x);
@@ -67,6 +69,7 @@ export class Telemetry {
   sessLen = 0;
   raceT: number | null = null;
   tPrev: number | null = null;
+  private aidAt: Record<string, number> = {};
   lastSt: Rec = {};
 
   constructor(config?: Rec, clock: () => number = () => performance.now() / 1000) {
@@ -102,6 +105,10 @@ export class Telemetry {
     let p = this.prev;
     if (p && r.session_index !== p.session_index) { this.newSession(p); p = null; }
     const now = this.clock();
+    for (const k of ["tc_on", "abs_on"] as const) {
+      if (r[k] > 0) this.aidAt[k] = now;
+      r[k] = now - (this.aidAt[k] ?? -1e9) < AID_HOLD ? 1 : 0;
+    }
     this.cls = ext.car_class || carClass(r.car);
     this.sessLen = Math.max(this.sessLen, r.time_left);
     if (this.stintRoad === null) this.stintRoad = r.road;

@@ -175,4 +175,16 @@ describe("config", () => {
   test("car classes", () => {
     expect([carClass("bmw_m4_gt4"), carClass("porsche_992_gt3_cup"), carClass("ferrari_296_gt3")]).toEqual(["GT4", "GTC", "GT3"]);
   });
+
+  test("a short TC or ABS pulse stays on for a quarter second", () => {
+    let t = 0;
+    const tl = new Telemetry(undefined, () => t);
+    const base = new FakePages({ clock: () => t, seed: 3 });
+    const at = (on: number) => { const r = base.read(); r.tc_on = on; r.abs_on = on * 1065353216; return tl.update(r); };
+    at(0); t += 1 / 30;
+    expect(at(1).reading.car.tc_in_action).toBe(1); t += 1 / 30;
+    expect(at(0).reading.car.tc_in_action).toBe(1); t += 0.3;
+    const out = at(0).reading.car;
+    expect(out.tc_in_action).toBe(0); expect(out.abs_in_action).toBe(0);
+  });
 });
