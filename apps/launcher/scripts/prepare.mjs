@@ -21,6 +21,7 @@ await rcedit(join(out, "node", "node.exe"), {
 });
 cpSync(join(root, "packages/bridge/dist"), join(out, "bridge"), { recursive: true });
 cpSync(web, join(out, "web"), { recursive: true });
+cpSync(join(root, "packages/ac-app/PitWall"), join(out, "ac-app"), { recursive: true });
 const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const sha = process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"]).toString().trim();
 writeFileSync(join(out, "app.json"), JSON.stringify({ version, sha, time: new Date().toISOString() }) + "\n");

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CloseDialog } from "./components/CloseDialog";
 import { Help } from "./components/Help";
 import { Running } from "./components/Running";
+import type { Games } from "./lib/games";
+import { pickGame } from "./lib/games";
 import { Message, Setup } from "./components/Setup";
 import { TitleBar } from "./components/TitleBar";
 import { UpdateBar } from "./components/UpdateBar";
@@ -17,7 +19,7 @@ function Header({ stopped, onHelp }: { stopped: boolean; onHelp: () => void }) {
     <header className="flex items-end justify-between">
       <div>
         <div className="text-[32px] font-bold leading-none tracking-[.14em]">PIT WALL</div>
-        <div className="mt-1.5 text-[13px] text-muted">Race engineer bridge for Assetto Corsa Competizione</div>
+        <div className="mt-1.5 text-[13px] text-muted">Race engineer bridge for Assetto Corsa Competizione and Assetto Corsa</div>
       </div>
       <div className="flex items-center gap-3">
       {stopped ? (
@@ -48,6 +50,8 @@ export function App() {
   const [message, setMessage] = useState<Message | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [help, setHelp] = useState(false);
+  const [games, setGames] = useState<Games | null>(null);
+  const [installing, setInstalling] = useState(false);
   const served = useRef(false);
 
   useEffect(() => {
@@ -76,6 +80,27 @@ export function App() {
     return () => { subs.forEach((s) => s.then((off) => off())); };
   }, []);
 
+  const lookForGames = useCallback(() => bridge.games().then(setGames, () => {}), []);
+
+  useEffect(() => {
+    if (running) return;
+    void lookForGames();
+    const t = setInterval(lookForGames, 6000);
+    return () => clearInterval(t);
+  }, [running, lookForGames]);
+
+  const installApp = useCallback(async () => {
+    setInstalling(true);
+    try {
+      await bridge.installAcApp();
+      setMessage({ text: "The Pit Wall app is in Assetto Corsa. Switch it on in the in-game app bar.", tone: "ok" });
+    } catch (e) {
+      setMessage({ text: `Could not install the app: ${e}`, tone: "bad" });
+    }
+    setInstalling(false);
+    void lookForGames();
+  }, [lookForGames]);
+
   const recheck = useCallback(async () => {
     try {
       const i = await bridge.info();
@@ -94,13 +119,13 @@ export function App() {
     setLines([]);
     served.current = false;
     try {
-      await bridge.start(bridgeArgs(prefs));
+      await bridge.start(bridgeArgs(prefs, pickGame(games, prefs.game)));
       setSince(Date.now());
       setRunning(true);
     } catch (e) {
       setMessage({ text: String(e), tone: "bad" });
     }
-  }, [prefs]);
+  }, [prefs, games]);
 
   const stopBridge = () => { setStopping(true); bridge.stop(); };
   const failedStart = !running && message?.tone === "bad" && lines.length > 0;
@@ -125,7 +150,7 @@ export function App() {
                 <div className="rounded border border-line bg-bg p-3"><LogBox lines={lines.slice(-6)} /></div>
               </Card>
             )}
-            <Setup prefs={prefs} onChange={setPrefs} addresses={addresses} failed={failedStart}
+            <Setup prefs={prefs} onChange={setPrefs} games={games} installing={installing} onInstall={installApp} addresses={addresses} failed={failedStart}
               message={failedStart ? null : message} onStart={startBridge} onRecheck={recheck} />
           </>
         )}

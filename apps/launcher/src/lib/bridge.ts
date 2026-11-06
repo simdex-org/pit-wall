@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import type { Games } from "./games";
 
 export interface BridgeInfo {
   addresses: string[];
@@ -14,6 +15,12 @@ const tool = (args: string[]) => invoke<string>("bridge_tool", { args });
 export async function info(): Promise<BridgeInfo> {
   return JSON.parse(await tool(["--info"]));
 }
+
+export async function games(): Promise<Games> {
+  return JSON.parse(await tool(["--games"]));
+}
+
+export const installAcApp = () => tool(["--install-ac-app"]);
 
 export const enableFieldTiming = () => tool(["--enable-broadcast"]);
 

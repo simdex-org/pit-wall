@@ -1,4 +1,5 @@
 export interface Prefs {
+  game: "auto" | "acc" | "ac";
   ip: string;
   port: string;
   key: string;
@@ -27,8 +28,8 @@ export function validate(port: string, key: string, ip = "127.0.0.1"): string | 
   return null;
 }
 
-export function bridgeArgs(p: Prefs): string[] {
-  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.open ? ["--open"] : [])];
+export function bridgeArgs(p: Prefs, game: "acc" | "ac" = "acc"): string[] {
+  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.open ? ["--open"] : []), ...(game === "ac" ? ["--game", "ac"] : [])];
 }
 
 export const linkFor = (p: Prefs): string => `http://${p.ip.trim()}:${p.port.trim()}/${p.open ? "" : `?key=${p.key.trim()}`}`;
@@ -37,6 +38,7 @@ export function loadPrefs(addresses: string[]): Prefs {
   let saved: Partial<Prefs> = {};
   try { saved = JSON.parse(localStorage.getItem(STORE) ?? "{}"); } catch {  }
   return {
+    game: saved.game === "acc" || saved.game === "ac" ? saved.game : "auto",
     ip: saved.ip || pickIp(addresses),
     port: saved.port ?? "8765",
     key: saved.key && saved.key.length >= 12 ? saved.key : newKey(),

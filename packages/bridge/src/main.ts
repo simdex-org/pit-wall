@@ -43,6 +43,8 @@ const HELP = `Usage: pitwall-bridge [options]
 
   --enable-broadcast [PORT]  once, ACC closed: switch ACC's broadcasting port on in broadcasting.json, then exit
   --info                     print this PC's addresses and ACC's broadcasting port as JSON, then exit
+  --games                    print which games are installed and running as JSON, then exit
+  --install-ac-app           copy the Pit Wall app into Assetto Corsa's apps/lua folder, then exit
   --sectors                  while you drive, save where the sector lines are on each track to pitwall-sectors.json
   --probe                    print the not-yet-verified shared-memory fields once a second from a live session
   --bind-vjoy [N]            help bind ACC's MFD actions to vJoy buttons 1-6, then exit
@@ -73,7 +75,7 @@ async function main(): Promise<void> {
         "pit-key": { type: "string" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, game: { type: "string", default: "acc" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
         "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" },
-        "tls-cert": { type: "string" }, "tls-key": { type: "string" }, "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, probe: { type: "boolean" }, sectors: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
+        "tls-cert": { type: "string" }, "tls-key": { type: "string" }, "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, games: { type: "boolean" }, "install-ac-app": { type: "boolean" }, probe: { type: "boolean" }, sectors: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
     }).values;
@@ -81,6 +83,10 @@ async function main(): Promise<void> {
   if (v.help) return void console.log(HELP);
 
   if (v.info) return void console.log(JSON.stringify(await info()));
+  if (v.games || v["install-ac-app"]) {
+    const g = await import("./games.js");
+    try { return void console.log(v.games ? JSON.stringify(g.detect()) : JSON.stringify({ folder: g.installAcApp() })); } catch (e) { return fail((e as Error).message); }
+  }
   if (v["enable-broadcast"] !== undefined) return void console.log(enable(Number(v["enable-broadcast"])));
   if (v["update-check"] || v.update) {
     const u = await import("./update.js");

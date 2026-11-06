@@ -54,6 +54,7 @@ fn bridge_command(app: &AppHandle, args: &[String]) -> Result<Command, String> {
     cmd.arg(root.join("bridge").join("bridge.mjs"))
         .args(args)
         .env("PITWALL_WEB", root.join("web"))
+        .env("PITWALL_ACAPP", root.join("ac-app"))
         .env("PITWALL_TRACKS", data.join("tracks"))
         .env("PITWALL_UPDATE", data.join("update"));
     #[cfg(feature = "portable")]

@@ -18,7 +18,7 @@ describe("validate", () => {
 });
 
 describe("launch arguments", () => {
-  const prefs = { ip: "25.1.2.3", port: " 8765 ", key: "abcd1234efgh", open: false };
+  const prefs = { game: "auto" as const, ip: "25.1.2.3", port: " 8765 ", key: "abcd1234efgh", open: false };
   test("bridge args and link", () => {
     expect(bridgeArgs(prefs)).toEqual(["--http", "25.1.2.3:8765", "--key", "abcd1234efgh", "--no-browser"]);
     expect(linkFor(prefs)).toBe("http://25.1.2.3:8765/?key=abcd1234efgh");
@@ -33,4 +33,12 @@ describe("launch arguments", () => {
 describe("validate address", () => {
   test("accepts an IPv4 address", () => expect(validate("8765", "abcd1234efgh", "25.1.2.3")).toBeNull());
   test.each(["", "25.1.2", "25.1.2.300", "host.name"])("rejects %j", (ip) => expect(validate("8765", "abcd1234efgh", ip)).toMatch(/address/));
+});
+
+describe("game argument", () => {
+  const prefs = { game: "auto" as const, ip: "127.0.0.1", port: "8765", key: "abcd1234efgh", open: false };
+  test("is only added for Assetto Corsa", () => {
+    expect(bridgeArgs(prefs)).not.toContain("--game");
+    expect(bridgeArgs(prefs, "ac").slice(-2)).toEqual(["--game", "ac"]);
+  });
 });

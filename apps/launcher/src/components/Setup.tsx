@@ -1,3 +1,5 @@
+import { GameCard } from "./GameCard";
+import type { Games } from "../lib/games";
 import { isLoopback, linkFor, Prefs } from "../lib/settings";
 import { Button, Card, Label, TextInput, Toggle } from "./ui";
 
@@ -7,6 +9,9 @@ interface Props {
   prefs: Prefs;
   onChange: (p: Prefs) => void;
   addresses: string[];
+  games: Games | null;
+  installing: boolean;
+  onInstall: () => void;
   failed: boolean;
   message: Message | null;
   onStart: () => void;
@@ -15,7 +20,7 @@ interface Props {
 
 const tone = { bad: "text-bad", ok: "text-ok", muted: "text-muted" } as const;
 
-export function Setup({ prefs, onChange, addresses, failed, message, onStart, onRecheck }: Props) {
+export function Setup({ prefs, onChange, games, installing, onInstall, addresses, failed, message, onStart, onRecheck }: Props) {
   const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => onChange({ ...prefs, [k]: v });
   const usable = addresses.filter((ip) => !isLoopback(ip));
   const noAddress = usable.length === 0;
@@ -42,6 +47,7 @@ export function Setup({ prefs, onChange, addresses, failed, message, onStart, on
 
   return (
     <>
+      {games && <GameCard games={games} choice={prefs.game} onChoice={(g) => set("game", g)} installing={installing} onInstall={onInstall} />}
       {noAddress ? (
         <>
           <Card className="flex flex-col gap-3.5 border-warn p-[18px]">
