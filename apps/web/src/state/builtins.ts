@@ -26,16 +26,15 @@ const SHARED: Record<string, Ws> = {
     ["race-plan", 6, 0, 3, 8],
     ["rejoin", 9, 0, 3, 8],
     ["press-fix", 6, 8, 3, 6],
-    ["weather", 9, 8, 3, 6],
+    ["stint-drivers", 9, 8, 3, 6],
     ["stops", 6, 14, 6, 6],
   ]],
   strategy: ["w-strategy", "Strategy", [
     ["fuel-calc", 0, 0, 6, 20],
-    ["degradation", 6, 0, 6, 7],
-    ["weather", 6, 7, 3, 8],
-    ["rules", 9, 7, 3, 5],
-    ["race-plan", 9, 12, 3, 8],
-    ["session", 6, 15, 3, 5],
+    ["degradation", 6, 0, 6, 6],
+    ["stint-drivers", 6, 6, 3, 14],
+    ["rules", 9, 6, 3, 5],
+    ["race-plan", 9, 11, 3, 9],
   ]],
   weather: ["w-weather", "Weather", [
     ["weather-center", 0, 0, 8, 20],
@@ -99,6 +98,11 @@ const SHARED: Record<string, Ws> = {
     ["coach", 2, 10, 4, 10],
     ["traces", 6, 10, 6, 10],
   ]],
+  analysis: ["w-analysis", "Analysis", [
+    ["traces", 0, 0, 7, 20, { lanes: ["delta", "speed", "pedals", "steer", "gear", "rpm"] }],
+    ["lap-map", 7, 0, 5, 8],
+    ["laps", 7, 8, 5, 12],
+  ]],
   log: ["w-log", "Log", [
     ["event-log", 0, 0, 8, 20],
     ["notes", 8, 0, 4, 5],
@@ -109,8 +113,8 @@ const SHARED: Record<string, Ws> = {
 };
 
 const SOURCE: [id: string, name: string, workspaces: string[]][] = [
-  ["builtin-race", "Race engineer", ["race", "timing", "pit", "strategy", "weather", "car", "review", "log"]],
-  ["builtin-driver", "Driver", ["drive", "dpit", "dmap", "dcar", "dlaps"]],
+  ["builtin-race", "Race engineer", ["race", "timing", "pit", "strategy", "weather", "car", "review", "analysis", "log"]],
+  ["builtin-driver", "Driver", ["drive", "dpit", "dmap", "dcar", "dlaps", "analysis"]],
 ];
 
 export const BUILTIN_TEMPLATES: Template[] = SOURCE.map(([id, name, workspaces]) => {
