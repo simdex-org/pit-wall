@@ -20,6 +20,7 @@ export function Workspace({ workspace }: { workspace: WorkspaceData }) {
   const [geo, setGeo] = useState({ narrow: false, rowHeight: 28 });
   const ed = useEditor();
   const editing = ed.active && !geo.narrow;
+  const [editRh, setEditRh] = useState(28);
 
   useLayoutEffect(() => {
     const el = host.current;
@@ -36,10 +37,17 @@ export function Workspace({ workspace }: { workspace: WorkspaceData }) {
     return () => { ro.disconnect(); clearTimeout(timer); };
   }, []);
 
+  useLayoutEffect(() => {
+    const el = host.current;
+    if (!editing || !el) return;
+    const n = Math.max(1, ...workspace.modules.filter((m) => !m.hidden).map((m) => m.y + m.h));
+    setEditRh(Math.max(cssNumber("--row", 28), Math.floor((el.clientHeight - 16 - 8 * (n - 1)) / n)));
+  }, [editing]);
+
   const visible = workspace.modules.filter((m) => !m.hidden);
   const rows = Math.max(1, ...visible.map((m) => m.y + m.h));
   const rowPx = cssNumber("--row", 28);
-  const style = { "--rows": rows, "--rh": rowPx + "px" } as CSSProperties;
+  const style = { "--rows": rows, "--rh": (editing ? editRh : rowPx) + "px" } as CSSProperties;
 
   const ordered = workspace.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x);
   if (geo.narrow) ordered.sort((a, b) => (STACK_ORDER[a.type] ?? 10) - (STACK_ORDER[b.type] ?? 10) || a.y - b.y || a.x - b.x);
@@ -61,6 +69,7 @@ export function Workspace({ workspace }: { workspace: WorkspaceData }) {
 function placement(m: ModuleInstance, narrow: boolean, rowPx: number): CSSProperties {
   if (!narrow) return { gridColumn: `${m.x + 1} / span ${m.w}`, gridRow: `${m.y + 1} / span ${m.h}` };
   if (AUTO_HEIGHT.has(m.type)) return {};
+  if (m.hidden) return {};
   return { height: Math.max(Math.min(m.h, 16), MIN_ROWS[m.type] ?? 0) * (rowPx + 8) - 8 };
 }
 
@@ -90,7 +99,7 @@ function onEditPointer(e: React.PointerEvent): void {
   e.preventDefault();
   editor.select(m.id);
   const host = document.getElementById("ws")!, cs = getComputedStyle(host), gx = parseFloat(cs.columnGap) || 8, gy = parseFloat(cs.rowGap) || 8;
-  const mr = mod.getBoundingClientRect(), cw = (mr.width + gx) / m.w, rh = (mr.height + gy) / m.h;
+  const cw = (parseFloat(cs.gridTemplateColumns) || 0) + gx, rh = (parseFloat(cs.gridTemplateRows) || 0) + gy;
   const g = document.createElement("div");
   g.className = "ghost";
   g.setAttribute("aria-hidden", "true");
@@ -105,18 +114,28 @@ function onEditPointer(e: React.PointerEvent): void {
     g.style.gridRow = `${r.y + 1} / span ${r.h}`;
   };
   show();
-  const move = (ev: PointerEvent) => {
-    const dx = Math.round((ev.clientX - x0) / cw), dy = Math.round((ev.clientY - y0) / rh);
+  const sx0 = host.scrollLeft, sy0 = host.scrollTop;
+  let last = e as { clientX: number; clientY: number };
+  const move = (ev: { clientX: number; clientY: number }) => {
+    last = ev;
+    const dx = Math.round((ev.clientX - x0 + host.scrollLeft - sx0) / cw), dy = Math.round((ev.clientY - y0 + host.scrollTop - sy0) / rh);
     r = grip
       ? { x: m.x, y: m.y, w: clamp(m.w + dx, s.minW, Math.min(12 - m.x, (s as { maxW?: number }).maxW ?? 12)), h: clamp(m.h + dy, s.minH, (s as { maxH?: number }).maxH ?? 60) }
       : { x: clamp(m.x + dx, 0, 12 - m.w), y: clamp(m.y + dy, 0, 199), w: m.w, h: m.h };
     show();
   };
-  const up = () => {
+  const onScroll = () => move(last);
+  const end = (commit: boolean) => {
     window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    host.removeEventListener("scroll", onScroll);
+    unsub();
     g.remove();
-    if (!bad) editor.move(m.id, r.x, r.y, r.w, r.h);
+    if (commit && !bad) editor.move(m.id, r.x, r.y, r.w, r.h);
   };
+  const up = () => end(true);
+  const unsub = editor.subscribe(() => { if (!editor.get().active) end(false); });
   window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up, { once: true });
+  window.addEventListener("pointerup", up);
+  host.addEventListener("scroll", onScroll);
 }
