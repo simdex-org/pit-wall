@@ -5,6 +5,7 @@ import { slug } from "../lib/text";
 import {
   appearance, BUILTIN_THEMES, CONTRAST_KEYS, contrast, HEX, isBuiltinTheme, LAYOUT, LayoutKey, resolved, Theme, themeLayoutKeys, TOKENS, tokenLabel, unreadable, useAppearance,
 } from "../state/appearance";
+import { ColorPicker } from "./ColorPicker";
 import { ask } from "./confirm";
 
 const LAYOUT_LABELS: Record<LayoutKey, [string, string[]]> = {
@@ -24,7 +25,7 @@ function Token({ k, role, tok, bg, onChange }: { k: string; role: string; tok: s
   return (
     <div className="ap-tok" data-k={k}>
       <label htmlFor={`apc-${k}`}>{tokenLabel(k)}</label><span className="note">{role}</span>
-      <input type="color" id={`apc-${k}`} value={tok} aria-label={`${tokenLabel(k)} colour`} onChange={(e) => onChange(e.target.value.toLowerCase())} />
+      <ColorPicker value={tok} label={`${tokenLabel(k)} colour`} onChange={onChange} />
       <input type="text" className="ap-hex n" value={shown} maxLength={7} spellCheck={false} aria-label={`${tokenLabel(k)} hex`}
         onFocus={() => { setHex(tok); setFocus(true); }} onChange={(e) => { setHex(e.target.value); if (HEX.test(e.target.value.trim())) onChange(e.target.value.trim().toLowerCase()); }}
         onBlur={() => setFocus(false)} />
