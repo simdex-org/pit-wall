@@ -93,3 +93,13 @@ export function fuelPlan(i: PlanInputs): FuelPlan {
   }
   return out;
 }
+
+// Moves stop k by d laps. A stop that would leave a stint too long is pushed along with it, so a plan whose stints are all at the limit can still be edited.
+export function shiftStop(stops: number[], k: number, d: number, total: number, max: { first: number; rest: number }): number[] | null {
+  const mx = (j: number) => (j === 0 ? max.first : max.rest);
+  const s = [...stops];
+  s[k] = s[k]! + d;
+  for (let j = k + 1; j < s.length; j++) s[j] = d < 0 ? Math.min(s[j]!, s[j - 1]! + mx(j)) : Math.max(s[j]!, s[j - 1]! + 1);
+  const b = [0, ...s, total];
+  return b.slice(1).every((x, j) => x - b[j]! >= 1 && x - b[j]! <= mx(j)) ? s : null;
+}

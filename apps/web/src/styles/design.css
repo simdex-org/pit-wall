@@ -1037,3 +1037,7 @@ dialog{background:var(--panel)}
 .mod .fs-opts .pwb-chip{height:28px;padding:0 12px;font-size:12px;color:var(--tx);background:var(--p3);border-color:var(--t3)}
 .mod .fs-opts .pwb-chip:hover{border-color:var(--tx)}
 .mod .fs-opts .pwb-chip[aria-pressed=true]{background:var(--ac);border-color:var(--ac);color:#06201e}
+.mod .fs-opts{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));display:grid}
+.mod .fs-opts .pwb-chip{width:100%}
+.mod .lnk{font:600 12px/1 var(--sans);color:var(--ac);background:0 0;border:0;padding:4px 0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.mod .lnk:hover{color:var(--tx)}

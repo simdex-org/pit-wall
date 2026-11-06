@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fuelPlan, PlanInputs } from "./fuelplan";
+import { fuelPlan, PlanInputs, shiftStop } from "./fuelplan";
 
 const base: PlanInputs = {
   raceMin: 180, raceLaps: null, extra: 0, lapS: 108, fpl: 3, cap: 120, reserve: 1, formL: 3, mand: 0, maxStintMin: null, lossS: 25,
@@ -63,5 +63,16 @@ describe("fuelPlan", () => {
     const o = p.full(20);
     expect(o.stints.map((t) => t.laps)).toEqual([...Array(20).fill(8), 4]);
     expect(o.ok).toBe(true);
+  });
+});
+
+describe("shiftStop", () => {
+  const max = { first: 8, rest: 8 };
+  it("pushes later stops along when stints are at the limit", () => {
+    expect(shiftStop([8, 16, 24], 0, -1, 28, max)).toEqual([7, 15, 23]);
+  });
+  it("refuses a move that cannot be absorbed", () => {
+    expect(shiftStop([8, 16, 24], 2, 1, 32, max)).toBeNull();
+    expect(shiftStop([8, 16, 24], 0, -1, 32, max)).toBeNull();
   });
 });
