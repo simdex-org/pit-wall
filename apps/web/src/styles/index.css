@@ -5,8 +5,10 @@
 @import "./modules-a.css";
 @import "./modules-b.css";
 @import "./design.css";
+@import "./team.css";
 @import "./weather.css";
 @import "./touch.css";
+@import "./retro.css";
 
 @theme inline {
   --color-bg: var(--bg);

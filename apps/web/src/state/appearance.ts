@@ -30,7 +30,7 @@ export const BASE_TOKENS: Record<string, string> = {
 };
 
 export const LAYOUT = {
-  density: ["auto", "compact", "comfortable"], fontScale: [0.9, 1, 1.1, 1.25], radius: [0, 2, 4, 8], panel: ["ruled", "boxed", "flat"], numFont: ["mono", "sans"], labels: ["upper", "sentence"],
+  density: ["auto", "compact", "comfortable"], fontScale: [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25], radius: [0, 2, 4, 8], panel: ["ruled", "boxed", "flat"], numFont: ["mono", "sans"], labels: ["upper", "sentence"],
 } as const;
 export type LayoutKey = keyof typeof LAYOUT;
 const DEF_LAYOUT: Pick<Theme, "density" | "fontScale" | "radius" | "panel" | "numFont" | "labels"> = { density: "auto", fontScale: 1, radius: 4, panel: "flat", numFont: "sans", labels: "upper" };
@@ -43,6 +43,12 @@ export interface Theme {
 const BUILTIN_SRC: [string, string, Record<string, string>, Partial<typeof DEF_LAYOUT>][] = [
   ["pitwall", "Pit Wall", {}, {}],
   ["broadcast", "Broadcast", { bg: "#050608", panel: "#0e1014", line: "#23272e", accent: "#ffffff", me: "#ff8ad8" }, { radius: 4, panel: "boxed", labels: "sentence" }],
+  ["telemetry", "Telemetry", {
+    bg: "#000000", panel: "#000000", raise: "#181818", line: "#444444", line2: "#262626", text: "#e6e6e6", muted: "#a8a8a8", dim: "#808080",
+    accent: "#ff9a1a", me: "#ffffff", best: "#ff2bff", pb: "#2fd02f", slow: "#ffee00", invalid: "#7a7a70", ok: "#2fd02f", warn: "#ff9a1a", bad: "#ff2a2a", cold: "#3d8bff",
+    chSpeed: "#3d8bff", chThr: "#2fd02f", chBrk: "#ff2a2a", chSteer: "#e08a2a", chGear: "#a24bff", chRpm: "#19d3d3", chRef: "#ff2a2a", chCmp: "#3d8bff", chLap: "#ffee00",
+    chFL: "#3d8bff", chFR: "#2fd02f", chRL: "#ffee00", chRR: "#ff2bff",
+  }, { radius: 0, panel: "ruled", numFont: "mono", density: "compact", labels: "sentence" }],
   ["night", "Night stint", { bg: "#000000", panel: "#07080a", raise: "#101215", line: "#1a1d22", line2: "#121418", text: "#c9ccd1", muted: "#8a9099", dim: "#646a73", accent: "#6f9fe0", me: "#c9ccd1", ok: "#36b56e", warn: "#d9892a", bad: "#d9475a", best: "#a46ad8" }, {}],
   ["daylight", "Daylight", {
     bg: "#f3f4f6", panel: "#ffffff", raise: "#e9ebee", line: "#d3d7dd", line2: "#e6e8ec", text: "#111418", muted: "#4a515b", dim: "#6b727c", accent: "#1b5fc0", me: "#111418",
@@ -120,13 +126,12 @@ class AppearanceStore {
   apply(t: Theme): void {
     const root = document.documentElement, s = root.style, tok = resolved(t);
     for (const [k, v] of TOKENS) s.setProperty(v, tok[k]!);
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(tok.accent!.slice(i, i + 2), 16));
-    s.setProperty("--acc-ink", 0.2126 * r! + 0.7152 * g! + 0.0722 * b! > 140 ? "#08090b" : "#ffffff");
+    s.setProperty("--acc-ink", contrast(tok.accent!, "#08090b") >= contrast(tok.accent!, "#ffffff") ? "#08090b" : "#ffffff");
     const comf = t.density === "comfortable";
     s.setProperty("--row", comf ? "32px" : "28px"); s.setProperty("--trow", comf ? "28px" : "24px"); s.setProperty("--pad", comf ? "12px" : "8px"); s.setProperty("--hh", "32px");
-    s.setProperty("--fs", String(t.fontScale)); s.setProperty("--r", t.radius + "px");
+    s.setProperty("--k", String(t.fontScale)); s.setProperty("--r", t.radius + "px");
     s.setProperty("--num", t.numFont === "sans" ? '"Barlow Semi Condensed", system-ui, sans-serif' : "ui-monospace, Consolas, monospace");
-    root.dataset.density = t.density; root.dataset.panel = t.panel; root.dataset.labels = t.labels; root.dataset.num = t.numFont;
+    root.dataset.look = t.base; root.dataset.density = t.density; root.dataset.panel = t.panel; root.dataset.labels = t.labels; root.dataset.num = t.numFont;
     const set = document.getElementById("settings"), safe = unreadable(t);
     if (set) for (const [k, v] of TOKENS) { if (safe) set.style.setProperty(v, BASE_TOKENS[k]!); else set.style.removeProperty(v); }
     s.colorScheme = lum(tok.bg!) > 0.4 ? "light" : "dark";
