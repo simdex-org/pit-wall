@@ -55,16 +55,16 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@v7
         with:
           # this Node is the one shipped inside the app
           node-version: 24
           cache: pnpm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      # no Rust cache here: shipped files are built from scratch
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          workspaces: apps/launcher/src-tauri
+          toolchain: stable
       - run: pnpm install --frozen-lockfile
       - name: Build the installer
         run: pnpm --filter @pitwall/launcher package
