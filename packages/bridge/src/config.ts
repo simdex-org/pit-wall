@@ -19,6 +19,8 @@ export const defaultConfig = (): Rec => ({
     reserve_laps: 1.0, laps_override: null, pit_loss_s: 25.0, refuel_s_per_l: 0.25, tyre_s: 30.0, min_stationary_s: 0.0,
     fuel_and_tyres: "parallel", mandatory_stops: null, pit_window_open_min: null, pit_window_close_min: null,
   },
+  // who drives which stint: names in driving order, stints in a row each, who drove the first, longest stint allowed
+  team: { names: [""], spd: 1, first: 0, max_stint_min: null },
 });
 
 function num(v: unknown, lo: number, hi: number, name: string, integer = false, nullable = false): number | null {
@@ -71,5 +73,13 @@ export function cleanConfig(raw: unknown, base?: Rec): Rec {
   if ((o === null) !== (c === null) || (o !== null && !(o < (c as number)))) {
     throw new ValueError("pit window: set both minutes, open before close, or neither");
   }
+  const tm = out.team;
+  if (!Array.isArray(tm.names) || tm.names.length < 1 || tm.names.length > 10 || tm.names.some((n: unknown) => typeof n !== "string" || n.length > 20)) {
+    throw new ValueError("team names must be 1 to 10 names of up to 20 characters");
+  }
+  tm.names = tm.names.map((n: string) => n.replace(/[\u0000-\u001f<>]/g, ""));
+  tm.spd = num(tm.spd, 1, 10, "stints in a row", true);
+  tm.first = num(tm.first, 0, tm.names.length - 1, "first driver", true);
+  tm.max_stint_min = num(tm.max_stint_min, 1, 1440, "max stint minutes", true, true);
   return out;
 }

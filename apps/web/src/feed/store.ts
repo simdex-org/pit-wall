@@ -1,7 +1,7 @@
 import { DEFAULT_THRESHOLDS, Thresholds } from "../lib/states";
 import { get } from "../state/bridge";
 import { numbersOnly } from "./sanitize";
-import type { BroadcastState, Car, Field, Json, LogLine, Payload } from "./types";
+import type { BroadcastState, Car, Field, Json, LogLine, Payload, TeamLink } from "./types";
 
 export type Focus = "self" | number;
 
@@ -27,6 +27,7 @@ export interface Ctx {
   cfg: Json | null;
   th: Thresholds;
   bc: BroadcastState | null;
+  team: TeamLink | null;
   ages: { r: number | null; s: number | null; field: number | null };
   live: boolean;
   stale: boolean;
@@ -36,7 +37,7 @@ export interface Ctx {
 
 export const emptyCtx = (): Ctx => ({
   r: null, from: "", s: null, st: null, laps: [], past: [], view: null, field: null, entries: null, cars: new Map(), me: null, mode: null, focus: "self",
-  focusCar: null, pit: null, pitJob: null, pitLog: [], log: [], cfg: null, th: DEFAULT_THRESHOLDS, bc: null,
+  focusCar: null, pit: null, pitJob: null, pitLog: [], log: [], cfg: null, th: DEFAULT_THRESHOLDS, bc: null, team: null,
   ages: { r: null, s: null, field: null }, live: false, stale: false, wet: false, hz: 0,
 });
 
@@ -94,6 +95,7 @@ export function applyPayload(prev: Ctx, it: Internals, raw: Payload, now: number
   if (p.past) c.past = p.past;
   if (p.config) c.cfg = p.config;
   if (p.bc !== undefined) c.bc = p.bc;
+  if (p.team !== undefined) c.team = p.team;
   if (p.entries) { c.entries = p.entries; c.cars = mergeCars(c.entries, c.field, it.slow); }
 
   if (p.field) {

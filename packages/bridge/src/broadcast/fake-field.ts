@@ -40,8 +40,9 @@ export class FakeField extends Field implements FieldSource {
       out.push([4, { conn: 1, cars: w.cars.map((c) => c.id) }]);
       for (const c of w.cars) {
         const s = c.spec;
+        const names: [string, string][] = c.id === w.playerId ? w.crew.map((n) => [n, ""]) : [[s.first, s.last]];
         out.push([6, { i: c.id, model: s.model, team: s.team, num: s.num, cup: s.cup, cur_drv: 0, nat: 0,
-          drivers: [{ first: s.first, last: s.last, short: (s.last || s.first).slice(0, 3).toUpperCase(), dcat: 1, nat: 0 }] }]);
+          drivers: names.map(([first, last]) => ({ first, last, short: (last || first).slice(0, 3).toUpperCase(), dcat: 1, nat: 0 })) }]);
       }
     }
     const rank = w.rank();
@@ -59,7 +60,8 @@ export class FakeField extends Field implements FieldSource {
       const kmh = c.v * 3.6;
       const lap = (l: { ms: number | null; s: (number | null)[]; valid: boolean; out: boolean; in: boolean } | null) =>
         l ? this.lapd(l.ms, l.s, l.valid, l.out, l.in, c.id) : empty;
-      out.push([3, { i: c.id, drv: 0, drivers: 1, gear: c.v < 0.5 ? 0 : gearAt(kmh) + 1, x, y: z, yaw: 0, loc: this.loc(c), kmh: Math.trunc(kmh),
+      const drv = c.id === w.playerId ? w.driver : 0;
+      out.push([3, { i: c.id, drv, drivers: c.id === w.playerId ? w.crew.length : 1, gear: c.v < 0.5 ? 0 : gearAt(kmh) + 1, x, y: z, yaw: 0, loc: this.loc(c), kmh: Math.trunc(kmh),
         pos: k + 1, cpos: cupN.get(cup), tpos: k + 1, spl: c.spl, laps: c.laps, delta: 0, best: lap(c.best), last: lap(c.last),
         cur: this.lapd(c.lapStart === null ? null : Math.trunc(Math.max(0, t - c.lapStart)), undefined, c.valid, c.out, false, c.id) }]);
     });

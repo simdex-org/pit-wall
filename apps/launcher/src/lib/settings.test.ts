@@ -18,12 +18,18 @@ describe("validate", () => {
 });
 
 describe("launch arguments", () => {
-  const prefs = { game: "auto" as const, ip: "25.1.2.3", port: " 8765 ", key: "abcd1234efgh", open: false };
+  const prefs = { game: "auto" as const, ip: "25.1.2.3", port: " 8765 ", key: "abcd1234efgh", open: false, team: "" };
   test("bridge args and link", () => {
     expect(bridgeArgs(prefs)).toEqual(["--http", "25.1.2.3:8765", "--key", "abcd1234efgh", "--no-browser"]);
     expect(linkFor(prefs)).toBe("http://25.1.2.3:8765/?key=abcd1234efgh");
     expect(bridgeArgs({ ...prefs, open: true })).toContain("--open");
     expect(linkFor({ ...prefs, open: true })).toBe("http://25.1.2.3:8765/");
+  });
+  test("a teammate's link joins their bridge", () => {
+    const team = " http://25.4.5.6:8765/?key=zyxw9876vuts ";
+    expect(bridgeArgs({ ...prefs, team }).slice(-2)).toEqual(["--team", "http://25.4.5.6:8765/?key=zyxw9876vuts"]);
+    expect(validate("8765", "abcd1234efgh", "25.1.2.3", team)).toBeNull();
+    expect(validate("8765", "abcd1234efgh", "25.1.2.3", "teammate-pc:8765")).toMatch(/teammate/);
   });
   test("generated keys pass validation", () => {
     for (let i = 0; i < 50; i++) expect(validate("8765", newKey())).toBeNull();
@@ -36,7 +42,7 @@ describe("validate address", () => {
 });
 
 describe("game argument", () => {
-  const prefs = { game: "auto" as const, ip: "127.0.0.1", port: "8765", key: "abcd1234efgh", open: false };
+  const prefs = { game: "auto" as const, ip: "127.0.0.1", port: "8765", key: "abcd1234efgh", open: false, team: "" };
   test("is only added for Assetto Corsa", () => {
     expect(bridgeArgs(prefs)).not.toContain("--game");
     expect(bridgeArgs(prefs, "ac").slice(-2)).toEqual(["--game", "ac"]);

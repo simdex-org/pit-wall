@@ -4,6 +4,8 @@ export interface Prefs {
   port: string;
   key: string;
   open: boolean;
+  // a teammate's link, to share the race with their bridge; empty when driving alone
+  team: string;
 }
 
 const STORE = "pitwall.launcher";
@@ -20,16 +22,24 @@ export function newKey(): string {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 }
 
-export function validate(port: string, key: string, ip = "127.0.0.1"): string | null {
+const teamOk = (s: string): boolean => {
+  try {
+    const u = new URL(s.trim());
+    return (u.protocol === "http:" || u.protocol === "https:") && /^(\d{1,3}\.){3}\d{1,3}$/.test(u.hostname);
+  } catch { return false; }
+};
+
+export function validate(port: string, key: string, ip = "127.0.0.1", team = ""): string | null {
   if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip.trim()) || ip.trim().split(".").some((n) => Number(n) > 255)) return "The address is four numbers from 0 to 255, like 192.168.1.24.";
   const n = Number(port.trim());
   if (!/^\d{1,5}$/.test(port.trim()) || n < 1 || n > 65535) return "The port is a number from 1 to 65535 (8765 if unsure).";
   if (!/^[A-Za-z0-9_-]{12,64}$/.test(key.trim())) return "The key needs 12 to 64 letters, digits, dashes or underscores.";
+  if (team.trim() && !teamOk(team)) return "The teammate's link is the one their Pit Wall window shows, like http://25.1.2.3:8765/?key=...";
   return null;
 }
 
 export function bridgeArgs(p: Prefs, game: "acc" | "ac" = "acc"): string[] {
-  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.open ? ["--open"] : []), ...(game === "ac" ? ["--game", "ac"] : [])];
+  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.open ? ["--open"] : []), ...(game === "ac" ? ["--game", "ac"] : []), ...(p.team.trim() ? ["--team", p.team.trim()] : [])];
 }
 
 export const linkFor = (p: Prefs): string => `http://${p.ip.trim()}:${p.port.trim()}/${p.open ? "" : `?key=${p.key.trim()}`}`;
@@ -43,6 +53,7 @@ export function loadPrefs(addresses: string[]): Prefs {
     port: saved.port ?? "8765",
     key: saved.key && saved.key.length >= 12 ? saved.key : newKey(),
     open: !!saved.open,
+    team: typeof saved.team === "string" ? saved.team : "",
   };
 }
 

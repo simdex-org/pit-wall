@@ -101,7 +101,7 @@ export function service(w: World, c: SimCar): Box {
       box.tyres = wet !== c.wetTyres || c.spec.tyreMgmt < 0.6;
     }
   }
-  if (c.id === w.playerId) w.customize?.(box, c);
+  if (c.id === w.playerId) { w.customize?.(box, c); w.driver = (w.driver + 1) % w.crew.length; }
   seal(w, c, box);
   return box;
 }
