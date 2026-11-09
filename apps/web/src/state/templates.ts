@@ -2,6 +2,7 @@ import { registry } from "../engine/registry";
 import type { ModuleDef, OptionDef } from "../engine/types";
 import { clamp } from "../lib/format";
 import { lsGet, lsSet } from "../lib/storage";
+import { cleanSource } from "../lib/sandbox";
 import { BAD_KEYS, cleanText, deep, isObj, newId, slug } from "../lib/text";
 import { BUILTIN_TEMPLATES } from "./builtins";
 
@@ -76,6 +77,10 @@ export function sanitizeOptions(def: ModuleDef, raw: unknown, fix: () => void): 
       }
     } else if (op.type === "text") {
       if (typeof v === "string") { const t = cleanText(v, op.max ?? 40); if (t !== v.trim()) fix(); r = t; }
+    } else if (op.type === "code") {
+      const t = cleanSource(v);
+      if (t !== null && t !== v) fix();
+      r = t ?? undefined;
     }
     if (r === undefined) { fix(); r = deep(op.def); }
     o[op.key] = r;

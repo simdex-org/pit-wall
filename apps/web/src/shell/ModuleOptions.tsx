@@ -6,6 +6,7 @@ import { cleanText } from "../lib/text";
 import { editor, useEditor } from "../state/editor";
 import { isBuiltin, sanitizeOptions } from "../state/templates";
 import { useNav } from "../state/nav";
+import { CodeField } from "./CodeField";
 
 const pairs = (op: OptionDef): [string, string][] => (op.choices ?? []).map((c) => (Array.isArray(c) ? c : [c, String(c)]));
 
@@ -21,6 +22,7 @@ export function Field({ op, value, mid }: { op: OptionDef; value: unknown; mid?:
   if (op.type === "toggle") {
     return <label className="fld check" title={op.hint}><span>{op.label}</span><input type="checkbox" id={id} checked={!!value} onChange={(e) => set(e.target.checked)} /></label>;
   }
+  if (op.type === "code") return <CodeField op={op} value={String(value ?? "")} set={set} />;
   if (op.type === "text") {
     return <label className="fld" title={op.hint}><span>{op.label}</span><input type="text" id={id} maxLength={op.max ?? 40} defaultValue={String(value ?? "")} onBlur={(e) => set(e.target.value)} /></label>;
   }

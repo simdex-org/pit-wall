@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; color: var(--txt); font-family: var(--font, system-ui, sans-serif); }
+  body { display: grid; grid-template: 1fr 1fr / 1fr 1fr; gap: 6px; padding: 6px; box-sizing: border-box; }
+  .t { border-radius: var(--r, 4px); background: var(--raise); display: grid; place-content: center; text-align: center; border-left: 4px solid var(--line); }
+  .temp { font-size: 22px; font-weight: 600; }
+  .press { font-size: 12px; color: var(--mut); }
+</style>
+</head>
+<body>
+  <div class="t" id="fl"><span class="temp">-</span><span class="press"></span></div>
+  <div class="t" id="fr"><span class="temp">-</span><span class="press"></span></div>
+  <div class="t" id="rl"><span class="temp">-</span><span class="press"></span></div>
+  <div class="t" id="rr"><span class="temp">-</span><span class="press"></span></div>
+<script>
+  const corners = ["fl", "fr", "rl", "rr"];
+  const temp = (c, u) => u && u.temp === "f" ? [c * 1.8 + 32, "°F"] : [c, "°C"];
+  const press = (p, u) => u && u.press === "bar" ? [p * 0.0689476, "bar", 2] : u && u.press === "kpa" ? [p * 6.89476, "kPa", 0] : [p, "psi", 1];
+  const colour = (c) => c < 70 ? "var(--cold)" : c > 105 ? "var(--bad)" : c > 95 ? "var(--warn)" : "var(--ok)";
+
+  pitwall.on("update", (d) => {
+    const car = d.reading && d.reading.car;
+    if (!car) return;
+    corners.forEach((k, i) => {
+      const box = document.getElementById(k), c = car.tyre_core_temp_c[i], p = car.tyre_pressure_psi[i];
+      const [t, tu] = temp(c, d.units), [pv, pu, pd] = press(p, d.units);
+      box.style.borderLeftColor = colour(c);
+      box.children[0].textContent = Math.round(t) + tu;
+      box.children[1].textContent = pv.toFixed(pd) + " " + pu;
+    });
+  });
+</script>
+</body>
+</html>

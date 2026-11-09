@@ -1,6 +1,6 @@
 import { createReadStream, statSync } from "node:fs";
 import { IncomingMessage, ServerResponse } from "node:http";
-import { secure } from "./headers.js";
+import { FRAME_PATH, secure } from "./headers.js";
 import { extname, join, normalize, sep } from "node:path";
 
 const TYPES: Record<string, string> = {
@@ -23,13 +23,14 @@ export function serveStatic(req: IncomingMessage, res: ServerResponse, root: str
   let st;
   try { st = statSync(file); } catch { return send(res, 404, "not found"); }
   if (!st.isFile()) return send(res, 404, "not found");
+  const frame = rel === FRAME_PATH;
   const since = req.headers["if-modified-since"];
   if (since && Math.floor(st.mtimeMs / 1000) <= Math.floor(Date.parse(since) / 1000)) {
-    res.writeHead(304, secure({ "Cache-Control": "no-cache" }));
+    res.writeHead(304, secure({ "Cache-Control": "no-cache" }, frame));
     return void res.end();
   }
   res.writeHead(200, secure({ "Content-Type": TYPES[extname(file).toLowerCase()] ?? "application/octet-stream", "Content-Length": st.size,
-    "Last-Modified": st.mtime.toUTCString(), "Cache-Control": "no-cache" }));
+    "Last-Modified": st.mtime.toUTCString(), "Cache-Control": "no-cache" }, frame));
   if (req.method === "HEAD") return void res.end();
   createReadStream(file).pipe(res);
 }
