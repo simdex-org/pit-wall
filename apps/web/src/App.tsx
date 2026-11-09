@@ -8,7 +8,6 @@ import { FocusPopup } from "./shell/FocusPopup";
 import { EngineerBar, useDrawer } from "./shell/EngineerBar";
 import { KeysDialog } from "./shell/KeysDialog";
 import { KpiStrip } from "./shell/KpiStrip";
-import { PitCall } from "./shell/PitCall";
 import { ModuleOptions } from "./shell/ModuleOptions";
 import { Settings } from "./shell/Settings";
 import { Templates } from "./shell/Templates";
@@ -44,7 +43,6 @@ export function App() {
       <ConfirmHost />
       <Toast />
       <FocusPopup />
-      <PitCall />
     </>
   );
 }

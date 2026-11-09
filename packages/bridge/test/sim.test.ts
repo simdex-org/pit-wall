@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { Box, CAR_LEN, TANK } from "../src/sim/car.js";
+import { spin } from "../src/sim/drive.js";
 import { World } from "../src/sim/world.js";
 import { mod } from "../src/util.js";
 
@@ -217,6 +218,20 @@ describe("weather, flags and penalties", { timeout: 120000 }, () => {
     const slow = fcySpeeds.filter((v) => v < 90).length / fcySpeeds.length;
     expect(slow).toBeGreaterThan(0.9);
     expect(fcy.fcyOn).toBe(false);
+  });
+
+  test("the driver's own wrecked car limps to the pits and is repaired, never retired like the others", () => {
+    const w = new World("race", { seed: 2, minutes: 30 });
+    const me = w.player;
+    run(w, () => me.st === "race" && me.laps >= 1 && !me.inLane && !w.fcyOn);
+    me.v = 80;
+    spin(w, me);
+    expect(me.wrecked).toBe(true);
+    const pits = me.pits;
+    run(w, () => me.pits > pits || me.st === "retired" || w.t > 3.6e6);
+    expect(me.st).not.toBe("retired");
+    expect(me.pits).toBe(pits + 1);
+    expect(me.damageSum).toBe(0);
   });
 
   test("penalties are given, served in the lane or turned into time, and change the result", () => {

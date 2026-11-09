@@ -59,8 +59,8 @@ function Connection() {
       <p>{accessKey.value ? <b className="tag">SET</b> : <b className="tag low">MISSING</b>} The key printed by the bridge on the driver's PC. Needed to send pit plans and change shared thresholds.</p>
       <div className="split">
         <input type="password" autoComplete="off" spellCheck={false} placeholder="Paste the key" aria-label="Access key" value={key} onChange={(e) => setKey(e.target.value)} />
-        <button type="button" className="btn" onClick={() => { const v = key.trim(); if (!v) return; accessKey.value = v; lsSet("pitwall.pitkey", v); setKey(""); setMsg("Access key saved in this browser."); bump((n) => n + 1); }}>Save</button>
-        {accessKey.value ? <button type="button" className="btn" onClick={() => { accessKey.value = ""; lsDel("pitwall.pitkey"); lsDel("engineer.pitkey"); setMsg("Access key removed from this browser."); bump((n) => n + 1); }}>Forget</button> : null}
+        <button type="button" className="btn" onClick={() => { const v = key.trim(); if (!v) return; accessKey.value = v; lsSet("pitwall.pitkey", v); setKey(""); setMsg("Access key saved in this browser."); bump((n) => n + 1); link.connect(p.hz); }}>Save</button>
+        {accessKey.value ? <button type="button" className="btn" onClick={() => { accessKey.value = ""; lsDel("pitwall.pitkey"); lsDel("engineer.pitkey"); setMsg("Access key removed from this browser."); bump((n) => n + 1); link.connect(p.hz); }}>Forget</button> : null}
       </div>
       <h3 className="mt">Field timing</h3>
       <p>{bc ? <><b className="tag">{String(bc.state || "off").toUpperCase()}</b> {bc.msg}{bc.port ? ` · port ${bc.port}` : ""}</> : "This bridge does not report field timing."}</p>

@@ -21,6 +21,8 @@ export function stepCar(w: World, c: SimCar, dt: number): void {
     c.st = "race"; c.lapStart = 0; lapStarted(w, c); c.newLap();
   }
   if (c.st === "stopped" && t >= c.until) {
+    // ACC never takes the player's car out of a race: it limps back and is repaired at the stop
+    if (c.wrecked && c.id === w.playerId) { c.wrecked = false; c.st = "limp"; c.wantPit = c.wantStop = true; w.say(3, c, `#${c.spec.num} limping back to the pits`); return; }
     if (c.wrecked) { tow(w, c); return; }
     c.st = "race";
   }
@@ -167,7 +169,7 @@ function servicing(w: World, c: SimCar, dt: number): void {
 
 function arrive(w: World, c: SimCar): void {
   c.v = 0; c.a = 0;
-  if (c.st === "limp" && c.fuel > 0) { c.st = "retired"; c.stopHere = false; w.say(3, c, `#${c.spec.num} retired`); return; }
+  if (c.st === "limp" && c.fuel > 0 && c.id !== w.playerId) { c.st = "retired"; c.stopHere = false; w.say(3, c, `#${c.spec.num} retired`); return; }
   if (c.st === "limp") c.st = "race";
   if (c.st === "finished") { c.st = "garage"; c.stopHere = false; c.releaseAt = Infinity; return; }
   c.box = service(w, c);

@@ -171,7 +171,8 @@ function get(req: IncomingMessage, res: Res): void {
   if (u.pathname === "/track") {
     const name = STATE.reading?.reading?.fixed?.track;
     const lay = (name && loadLayout(name)) || partialLayout();
-    return lay ? replyJson(res, 200, lay) : replyJson(res, 404, {});
+    // no layout until the first lap: an answer, not an error, since the page asks every few seconds
+    return lay ? replyJson(res, 200, lay) : reply(res, 204, "");
   }
   serveStatic(req, res, WEB_DIR, u.pathname);
 }

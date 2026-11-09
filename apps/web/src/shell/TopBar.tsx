@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useLink } from "../feed/connection";
+import { useAuth, useLink } from "../feed/connection";
+import { PitCall } from "./PitCall";
 import { feed, sessionLabel } from "../feed/store";
 import { useFeed } from "../feed/useFeed";
 import { fmtClock, NONE, plural } from "../lib/format";
@@ -13,9 +14,10 @@ import { registry } from "../engine/registry";
 
 function LinkChip() {
   const up = useLink();
+  const auth = useAuth();
   const c = useFeed();
   const age = c.ages.r;
-  const [state, text] = !up ? ["off", "Offline"] : c.live ? ["live", "Live"] : age != null && age < 600000 ? ["stale", `Stale ${Math.round(age / 1000)} s`] : ["off", "Offline"];
+  const [state, text] = !up && auth === "wrong" ? ["off", "Wrong key"] : !up && auth === "blocked" ? ["off", "Wait a minute"] : !up ? ["off", "Offline"] : c.live ? ["live", "Live"] : age != null && age < 600000 ? ["stale", `Stale ${Math.round(age / 1000)} s`] : ["off", "Offline"];
   return <span id="link" role="status" data-state={state} title={text}>{text}</span>;
 }
 
@@ -169,6 +171,7 @@ export function TopBar({ onKeys }: { onKeys: () => void }) {
       <TemplateMenu />
       <Tabs />
       <span className="top-gap" style={{ flex: 1 }} />
+      <PitCall />
       <SessionPicker />
       <Clock />
       <LinkChip />

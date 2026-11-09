@@ -26,7 +26,7 @@ afterAll(() => { server.close(); });
 describe("http security", () => {
   test("data endpoints need the key or the session cookie", async () => {
     for (const p of ["/events", "/lap?n=1", "/session?id=1", "/field/laps?car=0", "/track"]) expect((await call("GET", p)).status).toBe(401);
-    expect((await call("GET", "/track", { "X-Pit-Key": KEY })).status).toBe(404);
+    expect((await call("GET", "/track", { "X-Pit-Key": KEY })).status).toBe(204);
   });
 
   test("POST /auth sets an HttpOnly strict cookie that opens the reads", async () => {
@@ -36,7 +36,7 @@ describe("http security", () => {
     expect(c).toMatch(/HttpOnly/);
     expect(c).toMatch(/SameSite=Strict/);
     expect(c).not.toContain(KEY);
-    expect((await call("GET", "/track", { Cookie: c.split(";")[0]! })).status).toBe(404);
+    expect((await call("GET", "/track", { Cookie: c.split(";")[0]! })).status).toBe(204);
     expect((await call("GET", "/track", { Cookie: "pitwall_session=nope" })).status).toBe(401);
   });
 
