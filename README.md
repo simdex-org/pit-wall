@@ -26,7 +26,7 @@
 - **Strategy done for you:** when to box, how much fuel, stops left, where you rejoin.
 - **Remote pit stop:** set fuel, tyres, pressures, pads and repairs. Pit Wall enters them in the driver's game and checks they went in.
 - **Lap coach:** shows corner by corner where a lap loses time.
-- **Your layout:** drag-and-drop modules, five templates, works on a phone.
+- **Your layout:** drag-and-drop modules, five templates, works on a phone. Write your own modules in HTML ([how](docs/custom-modules.md)).
 - **Private:** runs on the driver's PC over your own VPN. No account, no cloud.
 
 <table>

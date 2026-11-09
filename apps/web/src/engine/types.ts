@@ -6,9 +6,9 @@ export type Channel = "reading" | "summary" | "field" | "entries" | "laps" | "co
 export interface OptionDef {
   key: string;
   label: string;
-  type: "select" | "number" | "toggle" | "multi" | "text";
+  type: "select" | "number" | "toggle" | "multi" | "text" | "code";
   def: unknown;
-  choices?: (string | [string, string])[];
+  choices?: (string | [string, string])[]; // for code, examples as [source, name]
   min?: number;
   max?: number; // for text, the longest it can be (default 40)
   step?: number;

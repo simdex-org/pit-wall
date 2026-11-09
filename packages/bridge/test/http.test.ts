@@ -2,6 +2,7 @@ import { request } from "node:http";
 import { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { bindWarning, blocked, keyProblem, miss } from "../src/http/auth.js";
+import { secure } from "../src/http/headers.js";
 import { createBridgeServer, hostOk } from "../src/http/server.js";
 import { PIT } from "../src/state.js";
 
@@ -50,6 +51,15 @@ describe("http security", () => {
     expect(String(h["content-security-policy"])).toContain("default-src 'self'");
     expect(h["x-content-type-options"]).toBe("nosniff");
     expect(h["x-frame-options"]).toBe("DENY");
+  });
+
+  test("the module frame gets its own locked-down policy", () => {
+    const page = String(secure({})["Content-Security-Policy"]), frame = String(secure({}, true)["Content-Security-Policy"]);
+    expect(page).toContain("frame-src 'self'");
+    expect(page).toContain("script-src 'self';");
+    expect(frame).toContain("default-src 'none'");
+    expect(frame).toContain("sandbox allow-scripts");
+    expect(frame).not.toMatch(/connect-src|allow-same-origin/);
   });
 
   test("repeated wrong keys lock an address out", () => {

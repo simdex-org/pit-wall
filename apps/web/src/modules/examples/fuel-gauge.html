@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; color: var(--txt); font-family: var(--font, system-ui, sans-serif); }
+  body { display: grid; place-items: center; }
+  svg { width: 100%; height: 100%; max-height: 100vh; }
+  .track { stroke: var(--line2); }
+  .fill { transition: stroke-dashoffset .3s, stroke .3s; }
+  .big { font-size: 26px; font-weight: 600; fill: var(--txt); }
+  .small { font-size: 9px; fill: var(--mut); letter-spacing: .08em; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 120 100" role="img" aria-label="Fuel">
+  <path id="track" class="track" d="M 22 84 A 46 46 0 1 1 98 84" fill="none" stroke-width="10" stroke-linecap="round"/>
+  <path id="fill" class="fill" d="M 22 84 A 46 46 0 1 1 98 84" fill="none" stroke-width="10" stroke-linecap="round"/>
+  <text id="litres" class="big" x="60" y="58" text-anchor="middle">-</text>
+  <text id="laps" class="small" x="60" y="74" text-anchor="middle">WAITING FOR THE DRIVER</text>
+</svg>
+<script>
+  const fill = document.getElementById("fill");
+  const len = fill.getTotalLength();
+  fill.style.strokeDasharray = len;
+
+  pitwall.on("update", (d) => {
+    const car = d.reading && d.reading.car, fixed = d.reading && d.reading.fixed;
+    if (!car) return;
+    const litres = car.fuel_litres, max = (fixed && fixed.max_fuel) || 120;
+    const perLap = (d.summary && d.summary.fuel_per_lap) || (d.reading.session && d.reading.session.fuel_per_lap);
+    const laps = perLap > 0 ? litres / perLap : null;
+    const share = Math.max(0, Math.min(1, litres / max));
+    fill.style.strokeDashoffset = len * (1 - share);
+    fill.style.stroke = laps == null ? "var(--acc)" : laps < 2 ? "var(--bad)" : laps < 4 ? "var(--warn)" : "var(--ok)";
+    document.getElementById("litres").textContent = litres.toFixed(1) + " L";
+    document.getElementById("laps").textContent = laps == null ? "NO FUEL RATE YET" : laps.toFixed(1) + " LAPS LEFT";
+  });
+</script>
+</body>
+</html>
