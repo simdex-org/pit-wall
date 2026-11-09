@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  unit:
+    name: Tests (web, launcher, tracks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @pitwall/web test
+      - run: pnpm --filter @pitwall/launcher test
+      - run: pnpm --filter @pitwall/tracks test
+
+  bridge:
+    name: Bridge tests (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # the game side only runs on Windows; Linux on the oldest supported Node checks the rest
+          - os: windows-latest
+            node: 24
+          - os: ubuntu-latest
+            node: 22
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @pitwall/bridge test
+
+  build:
+    name: Build (web, bridge bundle)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: app
+          path: |
+            apps/web/dist
+            packages/bridge/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    name: Smoke test (simulator and browser)
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: app
+      - run: pnpm exec playwright install chromium
+      - run: pnpm smoke
+
+  launcher:
+    name: Launcher compiles (Tauri, Rust)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: apps/launcher/src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare the bundled Node, bridge and page
+        run: pnpm --filter @pitwall/launcher prepare:resources
+      - name: Build the launcher window
+        run: pnpm --filter @pitwall/launcher build:ui
+      - name: Check the installer build
+        working-directory: apps/launcher/src-tauri
+        run: cargo check --locked --release
+      - name: Pack the resources for the portable build
+        working-directory: apps/launcher/src-tauri
+        run: '& "$env:SystemRoot\System32\tar.exe" -a -c -f resources.zip -C resources node bridge web ac-app app.json'
+      - name: Check the portable build
+        working-directory: apps/launcher/src-tauri
+        run: cargo check --locked --release --features portable
+
+  hygiene:
+    name: Audit and commit hygiene
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Audit shipped dependencies
+        run: pnpm audit --prod --audit-level=high
+      - name: Audit dev dependencies (report only)
+        continue-on-error: true
+        run: pnpm audit --audit-level=high
+      - name: No AI co-author trailers or footers
+        env:
+          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          pattern='Co-Authored-By:.*(Claude|anthropic\.com)|Generated with \[?Claude Code'
+          # a new branch or a rewritten one has no usable "before": check the last commit only
+          git cat-file -e "${RANGE%%..*}^{commit}" 2>/dev/null || RANGE="${RANGE#*..}~1..${RANGE#*..}"
+          bad=$(git log --format='%h %s%n%b' "$RANGE" | grep -iE "$pattern" || true)
+          if [ -n "$bad" ]; then echo "::error::A commit carries an AI co-author trailer or footer:"; echo "$bad"; exit 1; fi
+          if printf '%s' "$PR_BODY" | grep -qiE "$pattern"; then echo "::error::The PR description carries an AI footer"; exit 1; fi
+          echo "clean: $RANGE"

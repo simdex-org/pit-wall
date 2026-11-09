@@ -1,10 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { decodeAc, ThirdSectors } from "../src/telemetry/ac-pages.js";
 import { Telemetry } from "../src/telemetry/telemetry.js";
+
+const win = process.platform === "win32";
+// ac-pages loads kernel32 as soon as it is imported
+const { decodeAc, ThirdSectors } = win ? await import("../src/telemetry/ac-pages.js") : ({} as typeof import("../src/telemetry/ac-pages.js"));
 
 const utf16 = (b: Buffer, o: number, s: string) => b.write(s, o, "utf16le");
 
-describe("Assetto Corsa pages", () => {
+describe.skipIf(!win)("Assetto Corsa pages", () => {
   const p = Buffer.alloc(580), g = Buffer.alloc(1260), s = Buffer.alloc(590);
   p.writeFloatLE(0.8, 4); p.writeInt32LE(3, 16); p.writeFloatLE(180, 28); p.writeFloatLE(41.5, 12);
   g.writeInt32LE(2, 4); g.writeInt32LE(2, 8); g.writeInt32LE(3, 132); g.writeInt32LE(1, 136); g.writeInt32LE(91234, 144);

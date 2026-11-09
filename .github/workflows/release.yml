@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, the one already in package.json (for example 1.0.7)
+        required: true
+        type: string
+      draft:
+        description: Save as a draft, to read over and publish from the Releases page
+        type: boolean
+        default: true
+      prerelease:
+        description: Mark as a pre-release (the app does not offer pre-releases as updates)
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Check the version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::Run the release from main, not $GITHUB_REF"; exit 1; }
+          echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || { echo "::error::'$VERSION' is not a version like 1.0.7"; exit 1; }
+          pkg=$(node -p 'require("./package.json").version')
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' apps/launcher/src-tauri/Cargo.toml | head -1)
+          [ "$pkg" = "$VERSION" ] && [ "$crate" = "$VERSION" ] || { echo "::error::main is at $pkg (package.json) and $crate (Cargo.toml). Bump both to $VERSION and merge that first."; exit 1; }
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::v$VERSION already exists"; exit 1
+          fi
+
+  test:
+    name: CI
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build the Windows app
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          # this Node is the one shipped inside the app
+          node-version: 24
+          cache: pnpm
+      # no Rust cache here: shipped files are built from scratch
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - run: pnpm install --frozen-lockfile
+      - name: Build the installer
+        run: pnpm --filter @pitwall/launcher package
+      - name: Build the portable PitWall.exe
+        run: pnpm --filter @pitwall/launcher package:portable
+      - name: Collect the files
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          $setup = @(Get-ChildItem "apps/launcher/src-tauri/target/release/bundle/nsis/*_${env:VERSION}_x64-setup.exe")
+          if ($setup.Count -ne 1) { throw "expected one installer for $env:VERSION, found $($setup.Count)" }
+          New-Item -ItemType Directory release | Out-Null
+          Copy-Item $setup[0].FullName "release/PitWall_${env:VERSION}_x64-setup.exe"
+          Copy-Item apps/launcher/dist-portable/PitWall.exe release/PitWall.exe
+          Get-ChildItem release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: release
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Create the GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: release
+      - name: Checksums
+        working-directory: release
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          DRAFT: ${{ inputs.draft }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          flags=()
+          [ "$DRAFT" = true ] && flags+=(--draft)
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          gh release create "v$VERSION" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Pitwall v$VERSION" --generate-notes "${flags[@]}"
+          echo "### Pitwall v$VERSION $([ "$DRAFT" = true ] && echo '(draft)')" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json url -q .url >> "$GITHUB_STEP_SUMMARY"

@@ -1,9 +1,12 @@
 import { describe, expect, test } from "vitest";
 import koffi from "koffi";
-import { AccMfd } from "../src/pit/acc-mfd.js";
-import { AccPages } from "../src/telemetry/pages.js";
 
-describe.skipIf(process.platform !== "win32")("windows", () => {
+const win = process.platform === "win32";
+// both load kernel32 as soon as they are imported
+const { AccMfd } = win ? await import("../src/pit/acc-mfd.js") : ({} as typeof import("../src/pit/acc-mfd.js"));
+const { AccPages } = win ? await import("../src/telemetry/pages.js") : ({} as typeof import("../src/telemetry/pages.js"));
+
+describe.skipIf(!win)("windows", () => {
   test("ACC's pages open (created if the game is not running) and read as zeros", () => {
     const r = new AccPages().read();
     expect(r.status).toBeTypeOf("number");

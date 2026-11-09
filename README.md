@@ -87,6 +87,30 @@ A full session with a 20-car field and a working pit page. Add `--sim-session qu
 
 - ACC must be the focused window while a plan goes in, which takes 15 to 30 seconds. Try it once in practice before a race.
 
+## CI and releases
+
+<details>
+<summary>What CI checks, and how to cut a release</summary>
+
+Every pull request and every push to `main` runs [CI](.github/workflows/ci.yml):
+
+- **Typecheck** of every package.
+- **Tests** of the page, the launcher and the tracks, and the **bridge tests** on Windows (Node 24) and Linux (Node 22, the Windows-only tests skip).
+- **Build** of the page and the bridge bundle, then a **smoke test** (`pnpm smoke`): the built bridge runs the simulator, and a headless Chromium checks the page loads, a wrong key gets 403, `/events` streams, a lap completes, and every built-in workspace shows its modules with no errors in the page.
+- **Launcher**: the Tauri app compiles, installer and portable builds (`cargo check`).
+- **Audit and commit hygiene**: `pnpm audit` of the shipped dependencies at high severity (the dev dependencies are reported but do not fail the run), and no AI co-author trailers in the commits or the PR description.
+
+To release:
+
+1. Bump the version in `package.json` and `apps/launcher/src-tauri/Cargo.toml`, run `cargo check` in `apps/launcher/src-tauri` so `Cargo.lock` follows, and merge that to `main`.
+2. On GitHub, open **Actions**, then **Release**, then **Run workflow** on `main`. Type the same version (for example `1.0.7`). Leave **draft** ticked to read the notes over before anyone sees them; tick **pre-release** for a test build.
+3. The workflow checks the version, runs all of CI, builds the installer (`PitWall_<version>_x64-setup.exe`) and the portable `PitWall.exe`, and creates the release `v<version>` with both files, `SHA256SUMS.txt` and notes generated from the merged pull requests.
+4. For a draft, edit the notes on the Releases page and press **Publish**. The app only offers the latest published, non-pre-release version as an update, and it picks the file by name, so keep the names.
+
+No secrets are needed. The files are not code-signed, so Windows SmartScreen may warn on first run, as it does today.
+
+</details>
+
 ## Credits
 
 By [Simdex](https://github.com/simdex-org): William19D and Simplezes. [MIT License](LICENSE).
