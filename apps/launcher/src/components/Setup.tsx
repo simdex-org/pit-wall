@@ -41,7 +41,7 @@ export function Setup({ prefs, onChange, games, installing, onInstall, addresses
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="team">JOIN TEAMMATE</Label>
         <TextInput id="team" value={prefs.team} onChange={(e) => set("team", e.target.value)} placeholder="Their link, if you share the car" spellCheck={false} autoComplete="off" className="h-11 px-3 font-mono text-[13px]" />
-        <p className="m-0 text-[12px] leading-[1.4] text-muted">Paste the link from your teammate's Pit Wall window. Both PCs then share laps, stints and stops, and the dashboard follows whoever drives.</p>
+        <p className="m-0 text-[12px] leading-[1.4] text-muted">Paste the link from your teammate's Pit Wall window, one per teammate. The PCs then share laps, stints and stops, and the dashboard follows whoever drives.</p>
       </div>
       <div className="flex items-center gap-3.5">
         <Toggle id="open" checked={prefs.open} onChange={(v) => set("open", v)} />

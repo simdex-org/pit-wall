@@ -84,11 +84,8 @@ export class Peer {
         await sleep(60_000);
         continue;
       }
-      if (r.status === 200) {
+      if (r.status === 204) {
         said = "";
-        let peers: unknown = [];
-        try { peers = JSON.parse(r.text).peers; } catch { }
-        for (const p of Array.isArray(peers) ? peers : []) if (isObj(p) && typeof p.url === "string" && typeof p.key === "string") addPeer(p.url, p.key);
         await this.stream();
         if (this.up) log(1, "TEAM", `Lost the link to ${this.name || "a teammate"}'s bridge`);
       } else if (said !== "down") { said = "down"; console.log(`Team: waiting for ${this.url}`); }
@@ -116,14 +113,14 @@ export function addPeer(url: string, key: string): void {
   void p.run(() => ({ port: TEAM.self!.port, tls: TEAM.self!.tls, key: TEAM.self!.key }));
 }
 
-// A teammate's bridge asked to link: link back to it and tell it who else is on the team
-export function join(from: string, b: unknown): Rec | null {
-  if (!isObj(b) || !Number.isInteger(b.port) || b.port < 1 || b.port > 65535 || typeof b.tls !== "boolean" || typeof b.key !== "string" || b.key.length > 200) return null;
+// A teammate's bridge asked to link: link back to its own address. Keys of other teammates are never passed on
+export function join(from: string, b: unknown): boolean {
+  if (!isObj(b) || !Number.isInteger(b.port) || b.port < 1 || b.port > 65535 || typeof b.tls !== "boolean" || typeof b.key !== "string" || b.key.length > 200) return false;
   const ip = from.replace(/^::ffff:/, "");
-  if (!isIP(ip)) return null;
+  if (!isIP(ip)) return false;
   const url = `${b.tls ? "https" : "http"}://${isIP(ip) === 6 ? `[${ip}]` : ip}:${b.port}`;
   addPeer(url, b.key);
-  return { peers: TEAM.peers.filter((p) => p.url !== url).map((p) => ({ url: p.url, key: p.key })) };
+  return true;
 }
 
 // The teammate whose driver is in the car, while this PC's driver is not

@@ -4,7 +4,7 @@ export interface Prefs {
   port: string;
   key: string;
   open: boolean;
-  // a teammate's link, to share the race with their bridge; empty when driving alone
+  // teammates' links, to share the race with their bridges; empty when driving alone
   team: string;
 }
 
@@ -34,12 +34,12 @@ export function validate(port: string, key: string, ip = "127.0.0.1", team = "")
   const n = Number(port.trim());
   if (!/^\d{1,5}$/.test(port.trim()) || n < 1 || n > 65535) return "The port is a number from 1 to 65535 (8765 if unsure).";
   if (!/^[A-Za-z0-9_-]{12,64}$/.test(key.trim())) return "The key needs 12 to 64 letters, digits, dashes or underscores.";
-  if (team.trim() && !teamOk(team)) return "The teammate's link is the one their Pit Wall window shows, like http://25.1.2.3:8765/?key=...";
+  if (team.split(/[\s,]+/).some((s) => s && !teamOk(s))) return "The teammate's link is the one their Pit Wall window shows, like http://25.1.2.3:8765/?key=...";
   return null;
 }
 
 export function bridgeArgs(p: Prefs, game: "acc" | "ac" = "acc"): string[] {
-  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.open ? ["--open"] : []), ...(game === "ac" ? ["--game", "ac"] : []), ...(p.team.trim() ? ["--team", p.team.trim()] : [])];
+  return ["--http", `${p.ip.trim()}:${p.port.trim()}`, "--key", p.key.trim(), "--no-browser", ...(p.open ? ["--open"] : []), ...(game === "ac" ? ["--game", "ac"] : []), ...p.team.split(/[\s,]+/).filter(Boolean).flatMap((s) => ["--team", s])];
 }
 
 export const linkFor = (p: Prefs): string => `http://${p.ip.trim()}:${p.port.trim()}/${p.open ? "" : `?key=${p.key.trim()}`}`;

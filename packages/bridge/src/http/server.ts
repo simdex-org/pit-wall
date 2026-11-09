@@ -93,9 +93,9 @@ async function post(req: IncomingMessage, res: Res, path: string): Promise<void>
     return reply(res, 204, "");
   }
   if (path === "/team/join") {
-    let out: Rec | null = null;
-    try { out = join(from, await readBody(req)); } catch (e) { if (!(e instanceof ValueError)) throw e; }
-    return out ? replyJson(res, 200, out) : reply(res, 400, "bad request");
+    let ok = false;
+    try { ok = join(from, await readBody(req)); } catch (e) { if (!(e instanceof ValueError)) throw e; }
+    return ok ? reply(res, 204, "") : reply(res, 400, "bad request");
   }
   // only the game of the driver in the car can work its pit page
   const via = following();

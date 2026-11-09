@@ -30,6 +30,7 @@ describe("launch arguments", () => {
     expect(bridgeArgs({ ...prefs, team }).slice(-2)).toEqual(["--team", "http://25.4.5.6:8765/?key=zyxw9876vuts"]);
     expect(validate("8765", "abcd1234efgh", "25.1.2.3", team)).toBeNull();
     expect(validate("8765", "abcd1234efgh", "25.1.2.3", "teammate-pc:8765")).toMatch(/teammate/);
+    expect(bridgeArgs({ ...prefs, team: "http://25.4.5.6:8765/?key=a, http://25.7.8.9:8765/?key=b" }).slice(-4)).toEqual(["--team", "http://25.4.5.6:8765/?key=a", "--team", "http://25.7.8.9:8765/?key=b"]);
   });
   test("generated keys pass validation", () => {
     for (let i = 0; i < 50; i++) expect(validate("8765", newKey())).toBeNull();

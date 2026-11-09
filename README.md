@@ -73,7 +73,7 @@ Set-NetConnectionProfile -InterfaceAlias "Hamachi" -NetworkCategory Private
 
 ## Share the car with a teammate
 
-In an endurance race each driver runs Pit Wall on their own PC. One of them pastes the other's link into **Join teammate** in the Pit Wall window (or starts the bridge with `--team http://25.1.2.3:8765/?key=...`). The two bridges then share laps, stints, stops, the pit log, settings and the stint plan. The dashboard on either PC shows the car from the PC of whoever is driving, so strategy and fuel use carry on after a swap, and pit plans go to the game of the driver in the car. Field timing (ACC's broadcasting) must be on, since that is how the bridges tell who is in the car. More than two drivers: each one joins any teammate already linked.
+In an endurance race each driver runs Pit Wall on their own PC. One of them pastes the other's link into **Join teammate** in the Pit Wall window (or starts the bridge with `--team http://25.1.2.3:8765/?key=...`). The two bridges then share laps, stints, stops, the pit log, settings and the stint plan. The dashboard on either PC shows the car from the PC of whoever is driving, so strategy and fuel use carry on after a swap, and pit plans go to the game of the driver in the car. Field timing (ACC's broadcasting) must be on, since that is how the bridges tell who is in the car. More than two drivers: link every pair, each link once (paste several links separated by spaces). A bridge never passes a teammate's key on to another.
 
 ## Try it without ACC
 

@@ -4,6 +4,7 @@ import { STATE } from "../src/state.js";
 import { drivingHere, inCar } from "../src/team/driver.js";
 import { following, join, parseLink, Peer, TEAM } from "../src/team/link.js";
 import { receive } from "../src/team/mirror.js";
+import { DEFAULT_FIELD, MIN_FIELD } from "../src/sim/roster.js";
 import { FakePages } from "../src/telemetry/fake-pages.js";
 import { Telemetry } from "../src/telemetry/telemetry.js";
 import { Rec, ValueError } from "../src/util.js";
@@ -30,7 +31,7 @@ describe("one race history across a driver swap", { timeout: 60000 }, () => {
   test("the next driver's bridge carries on from the stop, laps and fuel of the first", () => {
     const now = [0];
     const clock = () => now[0]!;
-    const pages = new FakePages({ clock, minutes: 12, driver: 1 });
+    const pages = new FakePages({ clock, minutes: 12, driver: 1, field: { ...DEFAULT_FIELD, cars: MIN_FIELD } });
     const w = pages.world;
     const tels = [new Telemetry(undefined, clock), new Telemetry(undefined, clock)];
     const wire = (h: Rec) => JSON.parse(JSON.stringify(h)) as Rec;
@@ -91,12 +92,12 @@ describe("linked bridges", () => {
     expect(parseLink("ftp://25.1.2.3/")).toBeNull();
   });
 
-  test("a join needs a port, tls flag and key, and links back to the caller", () => {
-    expect(join("25.1.2.3", { port: "8765", tls: false, key: "k" })).toBeNull();
-    expect(join("25.1.2.3", { port: 8765, key: "k" })).toBeNull();
-    expect(join("::ffff:127.0.0.1", { port: 1, tls: false, key: "k" })).toEqual({ peers: [] });
-    expect(TEAM.peers.map((p) => p.url)).toEqual(["http://127.0.0.1:1"]);
-    expect(join("127.0.0.2", { port: 2, tls: true, key: "j" })).toEqual({ peers: [{ url: "http://127.0.0.1:1", key: "k" }] });
+  test("a join needs a port, tls flag and key, and links back to the caller's own address", () => {
+    expect(join("25.1.2.3", { port: "8765", tls: false, key: "k" })).toBe(false);
+    expect(join("25.1.2.3", { port: 8765, key: "k" })).toBe(false);
+    expect(join("::ffff:127.0.0.1", { port: 1, tls: false, key: "k" })).toBe(true);
+    expect(join("::ffff:127.0.0.1", { port: 1, tls: false, key: "k2" })).toBe(true);
+    expect(TEAM.peers.map((p) => [p.url, p.key])).toEqual([["http://127.0.0.1:1", "k2"]]);
   });
 
   test("while the teammate drives their car data and settings become ours, field lines are not copied", () => {
