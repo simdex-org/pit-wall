@@ -75,7 +75,7 @@ export function sanitizeOptions(def: ModuleDef, raw: unknown, fix: () => void): 
         r = list;
       }
     } else if (op.type === "text") {
-      if (typeof v === "string") { const t = cleanText(v, 40); if (t !== v.trim()) fix(); r = t; }
+      if (typeof v === "string") { const t = cleanText(v, op.max ?? 40); if (t !== v.trim()) fix(); r = t; }
     }
     if (r === undefined) { fix(); r = deep(op.def); }
     o[op.key] = r;
@@ -89,7 +89,7 @@ function looseOptions(raw: unknown): Record<string, any> { // eslint-disable-lin
     for (const [k, v] of Object.entries(raw).slice(0, 30)) {
       if (BAD_KEYS.has(k) || !/^[a-zA-Z][a-zA-Z0-9]{0,23}$/.test(k)) continue;
       if (typeof v === "number" || typeof v === "boolean") o[k] = v;
-      else if (typeof v === "string") o[k] = cleanText(v, 40);
+      else if (typeof v === "string") o[k] = cleanText(v, 200);
       else if (Array.isArray(v)) o[k] = v.filter((x) => typeof x === "string").slice(0, 30).map((x) => cleanText(x, 24));
     }
   }

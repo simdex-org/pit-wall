@@ -13,16 +13,16 @@ export function Field({ op, value, mid }: { op: OptionDef; value: unknown; mid?:
   const set = (v: unknown) => editor.setOpt((m, def) => { m.options = sanitizeOptions(def!, { ...m.options, [op.key]: v }, () => {}); }, mid);
   const id = `mo-${op.key}`;
   if (op.type === "select") {
-    return <label className="fld"><span>{op.label}</span><select id={id} value={String(value)} onChange={(e) => set(e.target.value)}>{pairs(op).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>;
+    return <label className="fld" title={op.hint}><span>{op.label}</span><select id={id} value={String(value)} onChange={(e) => set(e.target.value)}>{pairs(op).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>;
   }
   if (op.type === "number") {
-    return <label className="fld"><span>{op.label}</span><input type="number" id={id} defaultValue={value as number} key={String(value)} min={op.min} max={op.max} step={op.step ?? 1} onChange={(e) => { const v = parseFloat(e.target.value); if (isFinite(v)) set(v); }} /></label>;
+    return <label className="fld" title={op.hint}><span>{op.label}</span><input type="number" id={id} defaultValue={value as number} key={String(value)} min={op.min} max={op.max} step={op.step ?? 1} onChange={(e) => { const v = parseFloat(e.target.value); if (isFinite(v)) set(v); }} /></label>;
   }
   if (op.type === "toggle") {
-    return <label className="fld check"><span>{op.label}</span><input type="checkbox" id={id} checked={!!value} onChange={(e) => set(e.target.checked)} /></label>;
+    return <label className="fld check" title={op.hint}><span>{op.label}</span><input type="checkbox" id={id} checked={!!value} onChange={(e) => set(e.target.checked)} /></label>;
   }
   if (op.type === "text") {
-    return <label className="fld"><span>{op.label}</span><input type="text" id={id} maxLength={40} defaultValue={String(value ?? "")} onBlur={(e) => set(e.target.value)} /></label>;
+    return <label className="fld" title={op.hint}><span>{op.label}</span><input type="text" id={id} maxLength={op.max ?? 40} defaultValue={String(value ?? "")} onBlur={(e) => set(e.target.value)} /></label>;
   }
   const ch = pairs(op), on = Array.isArray(value) ? (value as string[]) : [];
   const rows = [...on.filter((x) => ch.some((c) => c[0] === x)), ...ch.map((c) => c[0]).filter((x) => !on.includes(x))];

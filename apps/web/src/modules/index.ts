@@ -11,3 +11,4 @@ import "./lapmap";
 import "./coach";
 import "./car3d";
 import "./weather";
+import "./custom";

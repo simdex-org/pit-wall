@@ -10,7 +10,7 @@ export interface OptionDef {
   def: unknown;
   choices?: (string | [string, string])[];
   min?: number;
-  max?: number;
+  max?: number; // for text, the longest it can be (default 40)
   step?: number;
   hint?: string;
   hidden?: boolean;
