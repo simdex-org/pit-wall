@@ -13,6 +13,8 @@ import { PIT, STATE, TEL } from "./state.js";
 import { FakePages } from "./telemetry/fake-pages.js";
 import { CLASSES, DEFAULT_FIELD, Field, MAX_FIELD, MIN_FIELD } from "./sim/roster.js";
 import { SIM_TRACKS } from "./telemetry/sim-tracks.js";
+import { addPeer, parseLink, TEAM } from "./team/link.js";
+import { receive } from "./team/mirror.js";
 import { Telemetry } from "./telemetry/telemetry.js";
 
 const HELP = `Usage: pitwall-bridge [options]
@@ -22,6 +24,9 @@ const HELP = `Usage: pitwall-bridge [options]
   --tls-cert FILE --tls-key FILE   serve https with this certificate and private key (PEM)
   --key KEY                  access key for sending pit plans and changing thresholds (default: a new one each start)
   --open                     no access key: anyone who can reach the address may send pit plans
+  --team LINK                share the race with a teammate's bridge, from their engineer link (http://25.1.2.3:8765/?key=...):
+                             laps, stints, stops, settings and the stint plan are shared, and the page follows whoever drives.
+                             Repeat it, or separate links with spaces, for each teammate
   --pit-key KEY             ACC's key for the pitstop MFD page (default: read from ACC's controls)
   --key-ms MS                how long each key is held and released, ms (default 40)
   --vjoy [N]                 press the MFD through vJoy device N (default 1) instead of the keyboard
@@ -39,6 +44,7 @@ const HELP = `Usage: pitwall-bridge [options]
   --sim-pace N               with --simulate-acc: how fast your driver is, 1 (back of the field) to 5 (front); default: random like the rest
   --sim-grid N|random        with --simulate-acc: your grid slot in a race (1 is pole); default: where your pace puts you. Not used in a weekend race
   --sim-speed N              with --simulate-acc: run the pretend session N times faster (e.g. 8)
+  --sim-driver 1|2           with --simulate-acc: the car has two drivers who swap at each stop, and this PC is driver 1 or 2
   --control-stdin            exit cleanly when a line "quit" arrives on stdin (the launcher stops the bridge this way)
 
   --enable-broadcast [PORT]  once, ACC closed: switch ACC's broadcasting port on in broadcasting.json, then exit
@@ -74,7 +80,7 @@ async function main(): Promise<void> {
         http: { type: "string", default: "127.0.0.1:8765" }, "no-browser": { type: "boolean" }, key: { type: "string" }, open: { type: "boolean" },
         "pit-key": { type: "string" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, game: { type: "string", default: "acc" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
-        "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" },
+        "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" }, "sim-driver": { type: "string" }, team: { type: "string", multiple: true },
         "tls-cert": { type: "string" }, "tls-key": { type: "string" }, "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, games: { type: "boolean" }, "install-ac-app": { type: "boolean" }, probe: { type: "boolean" }, sectors: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
@@ -126,6 +132,10 @@ async function main(): Promise<void> {
   const grid = gridArg === undefined ? undefined : gridArg === "random" ? "random" : Number(gridArg);
   if (grid !== undefined && grid !== "random" && !(Number.isInteger(grid) && grid >= 1 && grid <= cars)) return fail(`--sim-grid must be random or 1 to ${cars}`);
   const field: Field = { cars, mix: Object.keys(mix).length ? mix : DEFAULT_FIELD.mix, pace, grid };
+  const simDriver = v["sim-driver"] === undefined ? undefined : Number(v["sim-driver"]);
+  if (simDriver !== undefined && simDriver !== 1 && simDriver !== 2) return fail("--sim-driver must be 1 or 2");
+  const mates = (v.team ?? []).flatMap((s) => s.split(/[\s,]+/)).filter(Boolean).map(parseLink);
+  if (mates.some((m) => !m)) return fail("--team must be your teammate's link, e.g. --team http://25.1.2.3:8765/?key=...");
   const simTrack = v["sim-track"]!;
   if (simTrack !== "demo" && !(simTrack in SIM_TRACKS)) return fail(`--sim-track must be demo or one of ${Object.keys(SIM_TRACKS).join(", ")}`);
   const key = v.key ?? randomBytes(16).toString("base64url");
@@ -149,9 +159,11 @@ async function main(): Promise<void> {
   let pages: FakePages | null = null;
   try {
     const t0 = performance.now() / 1000, k = Math.max(0.1, Number(v["sim-speed"]));
-    const clock = simulate ? () => t0 + (performance.now() / 1000 - t0) * k : () => performance.now() / 1000;
+    // two drivers' bridges simulate the same car: their sessions start together, on the last 20 s mark of the wall clock
+    const mark = Math.floor(Date.now() / 20000) * 20;
+    const clock = simDriver ? () => (Date.now() / 1000 - mark) * k : simulate ? () => t0 + (performance.now() / 1000 - t0) * k : () => performance.now() / 1000;
     let src;
-    if (simulate) src = pages = new FakePages({ session: simSession === "quali" ? 1 : simSession === "practice" ? 0 : 2, minutes: simMinutes, weekend: simSession === "weekend", clock, track: simTrack === "demo" ? undefined : simTrack, mfd: fakeMfd, field });
+    if (simulate) src = pages = new FakePages({ session: simSession === "quali" ? 1 : simSession === "practice" ? 0 : 2, minutes: simMinutes, weekend: simSession === "weekend", clock, track: simTrack === "demo" ? undefined : simTrack, mfd: fakeMfd, field, driver: simDriver, origin: simDriver ? 0 : undefined });
     else if (game === "ac") { const { AcPages } = await import("./telemetry/ac-pages.js"); src = new AcPages(); }
     else { const { AccPages } = await import("./telemetry/pages.js"); src = new AccPages(); }
     TEL.t = new Telemetry(STATE.config, clock);
@@ -160,6 +172,8 @@ async function main(): Promise<void> {
   startField({ game, simulateAcc: simulate, simSession, broadcastPort: v["broadcast-port"] === undefined ? undefined : Number(v["broadcast-port"]),
     broadcastPassword: v["broadcast-password"] }, pages);
 
+  TEAM.self = { host: hh, port: Number(hp), tls: !!tlsFiles, key: PIT.open ? "" : key };
+  TEAM.onData = receive;
   const server = createBridgeServer(tlsFiles);
   server.on("error", (e: NodeJS.ErrnoException) => {
     console.log(`Cannot serve on ${v.http}: ${e.message}`);
@@ -193,6 +207,7 @@ async function main(): Promise<void> {
       console.log("Only this PC can open it. For the engineer, start it on your VPN address (Hamachi's is 25.x.x.x):");
       for (const ip of myAddresses()) console.log(`    pitwall-bridge --http ${ip}:${hp}`);
     } else console.log(`Engineer, open:   ${scheme}://${hh}:${hp}/${PIT.open ? "" : `?key=${key}`}`);
+    for (const m of mates) { console.log(`Team: joining ${m!.url}`); addPeer(m!.url, m!.key); }
     if (!v["no-browser"]) {
       const url = `${scheme}://${hh === "0.0.0.0" ? "127.0.0.1" : hh}:${hp}/?key=${key}`;
       spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();

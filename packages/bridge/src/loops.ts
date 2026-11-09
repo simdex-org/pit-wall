@@ -5,6 +5,8 @@ import { enable, readConfig } from "./broadcast/config.js";
 import { FakeField } from "./broadcast/fake-field.js";
 import { Field } from "./broadcast/field.js";
 import { CTX, FAST, FIELD, fieldErr, log, STATE } from "./state.js";
+import { drivingHere, inCar } from "./team/driver.js";
+import { following, TEAM } from "./team/link.js";
 import { saveLayout } from "./tracks.js";
 import { bakeTrack } from "./tracks-bake.js";
 import { CLASSES } from "./config.js";
@@ -25,6 +27,11 @@ function fieldExt(): [Rec, Rec | null, Rec | null] {
 }
 
 const filing = { past: 0, waiting: 0, used: 0 };
+const seen = { laps: -1 };
+
+function setDriving(on: boolean): void {
+  if (on !== TEAM.driving) { TEAM.driving = on; STATE.ver++; }
+}
 function fileField(tel: Telemetry): void {
   const id = tel.past[tel.past.length - 1]?.id ?? 0;
   if (id !== filing.past) filing.past = filing.waiting = id;
@@ -37,9 +44,15 @@ function fileField(tel: Telemetry): void {
 
 function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number, rate: number, fromField: boolean): Rec | false | null {
   let raw: Rec;
-  try { raw = pages.read(); } catch { return null; }
+  try { raw = pages.read(); } catch { setDriving(false); return null; }
   const live = raw.status === 2 || raw.status === 3;
-  if (!live) return false;
+  if (!live) { setDriving(false); return false; }
+  CTX.hint = { id: raw.me, sidx: raw.session_index, session: raw.session, len: raw.track_len, laps: raw.laps, spl: raw.track_pos, name: raw.name, xyz: raw.xyz, kmh: raw.speed, coords: raw.coords };
+  TEAM.name = raw.name;
+  setDriving(drivingHere(true, raw.name, STATE.bc.state === "live" ? inCar(STATE.field, STATE.entries) : null));
+  // a teammate's driver has the car: their bridge reads it, this game only spectates
+  if (following()) return raw;
+  STATE.pit_remote = null;
   let ext: Rec = {}, race: Rec | null = null, me: Rec | null = null;
   try { [ext, race, me] = fieldExt(); } catch (e) { fieldErr(e); }
   tel.config = STATE.config;
@@ -65,13 +78,12 @@ function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number,
     const cfgM = STATE.config.strategy.mandatory_stops;
     CTX.mandatory = cfgM !== null ? cfgM : ml !== null ? ml + tel.stops.length : null;
   }
-  CTX.hint = { id: raw.me, sidx: raw.session_index, session: raw.session, len: raw.track_len, laps: raw.laps, spl: raw.track_pos, name: raw.name, xyz: raw.xyz, kmh: raw.speed, coords: raw.coords };
   reading.reading.xz = Object.entries(raw.coords ?? {}).flatMap(([i, q]) => [Number(i), (q as number[])[0], (q as number[])[1]]);
   STATE.reading = rnd(reading); STATE.t_reading = Date.now() / 1000; STATE.lap = raw.laps + 1;
   if (summary) { STATE.summary = rnd(summary); STATE.t_summary = Date.now() / 1000; }
   fileField(tel);
-  if (tel.lapsVer !== STATE.laps_ver) {
-    STATE.laps = rnd(tel.laps); STATE.past = rnd(tel.past); STATE.laps_ver = tel.lapsVer;
+  if (tel.lapsVer !== seen.laps) {
+    STATE.laps = rnd(tel.laps); STATE.past = rnd(tel.past); STATE.laps_ver++; seen.laps = tel.lapsVer;
     const lay = sim ? null : tel.bestLayout();
     if (lay) { saveLayout(raw.track, lay); bakeTrack(raw.track, lay).then((done) => { if (done) log(0, "TRACK", `Saved ${raw.track} to tracks.json`); }, fieldErr); }
   }

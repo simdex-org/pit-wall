@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { lsGet, lsSet } from "../lib/storage";
+import { feed } from "../feed/store";
+import { post, say } from "./bridge";
 
 export interface Team {
   names: string[];
@@ -9,7 +10,6 @@ export interface Team {
   maxStintMin: number | null;
 }
 
-const KEY = "pitwall.team";
 const int = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : d);
 
 export function clean(o: unknown): Team {
@@ -21,28 +21,44 @@ export function clean(o: unknown): Team {
   return { names, drivers, spd: int(r.spd, 1, 10, 1), first: int(r.first, 0, drivers - 1, 0), maxStintMin: typeof m === "number" && m > 0 && m <= 1440 ? Math.round(m) : null };
 }
 
-// Before this module existed Fuel & stints kept drivers and stints per driver in pitwall.calc.
-function load(): Team {
-  const t = lsGet<unknown>(KEY, null);
-  if (t) return clean(t);
-  const o = lsGet<Record<string, unknown>>("pitwall.calc", {});
-  const n = (k: string) => parseFloat(String(o?.[k] ?? "").replace(",", "."));
-  return clean({ drivers: n("drivers"), spd: n("spd"), maxStintMin: n("maxStint") });
+// The plan lives on the bridge, shared by every page and by the teammates' linked bridges
+let fromCfg: { cfg: unknown; team: Team } = { cfg: undefined, team: clean({}) };
+function onBridge(): Team {
+  const cfg = feed.get().cfg;
+  if (cfg !== fromCfg.cfg) {
+    const t = (cfg?.team ?? {}) as Record<string, unknown>;
+    fromCfg = { cfg, team: clean({ names: t.names, spd: t.spd, first: t.first, maxStintMin: t.max_stint_min }) };
+  }
+  return fromCfg.team;
 }
 
-let cur = load();
+// Edits show at once and go to the bridge after a short pause, so typing a name is one request
+let draft: { team: Team; cfg: unknown } | null = null;
+let timer: ReturnType<typeof setTimeout> | undefined;
 const subs = new Set<() => void>();
 
+async function send(): Promise<void> {
+  const t = draft!.team;
+  const r = await post("/config", { team: { names: t.names, spd: t.spd, first: t.first, max_stint_min: t.maxStintMin } });
+  if (!r.ok) say(r.status === 403 ? "Changing the stint plan needs the access key: Settings › Connection" : `The bridge refused the stint plan: ${r.text.slice(0, 80)}`, 1);
+  if (draft?.team === t) draft = r.ok ? { team: t, cfg: feed.get().cfg } : null;
+  subs.forEach((fn) => fn());
+}
+
 export const team = {
-  get: (): Team => cur,
+  get: (): Team => {
+    if (draft && draft.cfg !== undefined && draft.cfg !== feed.get().cfg) draft = null;
+    return draft ? draft.team : onBridge();
+  },
   set(p: Partial<Team>): void {
-    cur = clean({ ...cur, ...p });
-    lsSet(KEY, cur);
+    draft = { team: clean({ ...team.get(), ...p }), cfg: undefined };
     subs.forEach((fn) => fn());
+    clearTimeout(timer);
+    timer = setTimeout(() => void send(), 400);
   },
 };
 
-export const useTeam = (): Team => useSyncExternalStore((fn) => { subs.add(fn); return () => { subs.delete(fn); }; }, team.get);
+export const useTeam = (): Team => useSyncExternalStore((fn) => { subs.add(fn); const off = feed.subscribe(fn); return () => { subs.delete(fn); off(); }; }, team.get);
 
 export const nameOf = (t: Team, i: number): string => t.names[i] || `D${i + 1}`;
 

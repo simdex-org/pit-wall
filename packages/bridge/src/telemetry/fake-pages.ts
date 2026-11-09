@@ -10,10 +10,14 @@ export class FakePages {
   readonly world: World;
   readonly clock: () => number;
 
-  constructor({ clock = () => performance.now() / 1000, session = 2, track, mfd, minutes, weekend, seed, field }: { clock?: () => number; session?: number; track?: string; mfd?: FakeMfd; minutes?: number; weekend?: boolean; seed?: number; field?: Field } = {}) {
+  // driver: with a two-driver car, which of them sits at this PC (1 or 2)
+  private readonly seat: number;
+
+  constructor({ clock = () => performance.now() / 1000, session = 2, track, mfd, minutes, weekend, seed, field, driver, origin }: { clock?: () => number; session?: number; track?: string; mfd?: FakeMfd; minutes?: number; weekend?: boolean; seed?: number; field?: Field; driver?: number; origin?: number } = {}) {
     this.clock = clock;
-    this.world = new World(weekend || session === 0 ? "practice" : session === 1 ? "quali" : "race", { track, minutes, seed, field, sequence: weekend ? ["practice", "quali", "race"] : undefined });
-    this.world.sync(clock());
+    this.seat = driver ? driver - 1 : 0;
+    this.world = new World(weekend || session === 0 ? "practice" : session === 1 ? "quali" : "race", { track, minutes, seed, field, sequence: weekend ? ["practice", "quali", "race"] : undefined, crew: driver ? 2 : 1 });
+    this.world.sync(origin ?? clock());
     if (mfd) this.mfd = mfd;
   }
 
@@ -78,7 +82,7 @@ export class FakePages {
       missing_pits: w.kind === "race" ? +!c.mandatoryDone : 255, clock: 14 * 3600 + t / 1000,
       g_flags: [+yellow.some(Boolean), yellow[0], yellow[1], yellow[2], 0, +green, +chequered, 0], grip: w.wet < 0.05 ? 2 : w.wet < 0.2 ? 4 : w.wet < 0.55 ? 5 : 6, rain: [rainLevel(w.rain), rainLevel(w.rainAt(t + 600000)), rainLevel(w.rainAt(t + 1800000))], tyre_set: c.tyreSet,
       gap_ahead: ahead, gap_behind: behind,
-      car: "ferrari_296_gt3", track: w.trackId, name: c.spec.first, sectors: 3, max_rpm: MAX_RPM, max_fuel: TANK,
+      car: "ferrari_296_gt3", track: w.trackId, name: w.crew[this.seat], sectors: 3, max_rpm: MAX_RPM, max_fuel: TANK,
       fuel_rate: 1.0, tyre_rate: 1.0, track_len: circ.len, timed: 1, extra_lap: 0,
       pit_open: Math.trunc(w.pitOpen), pit_close: Math.trunc(w.pitClose), online: 0,
     };

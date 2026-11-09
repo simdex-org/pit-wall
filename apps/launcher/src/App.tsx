@@ -112,7 +112,7 @@ export function App() {
   }, []);
 
   const startBridge = useCallback(async () => {
-    const problem = validate(prefs.port, prefs.key, prefs.ip);
+    const problem = validate(prefs.port, prefs.key, prefs.ip, prefs.team);
     if (problem) return setMessage({ text: problem, tone: "bad" });
     savePrefs(prefs);
     setMessage(null);

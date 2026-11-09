@@ -6,6 +6,7 @@ import { WEB_DIR } from "../paths.js";
 import { applyPlan } from "../pit/apply.js";
 import { cleanPlan } from "../pit/plan.js";
 import { FAST, FIELD, log, PIT, setJob, STATE, TEL } from "../state.js";
+import { following, join, TEAM } from "../team/link.js";
 import { loadLayout } from "../tracks.js";
 import { Rec, rnd, ValueError } from "../util.js";
 import { blocked, forgive, keyOk, miss, presented, sessionCookie, sessionOk } from "./auth.js";
@@ -82,7 +83,7 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 
 async function post(req: IncomingMessage, res: Res, path: string): Promise<void> {
   if (!hostOk(req.headers.host)) return reply(res, 403, "use the PC's IP address");
-  if (!["/auth", "/pit", "/config", "/mfd/close"].includes(path)) return reply(res, 404, "not found");
+  if (!["/auth", "/pit", "/config", "/mfd/close", "/team/join"].includes(path)) return reply(res, 404, "not found");
   const from = req.socket.remoteAddress ?? "?";
   if (blocked(from)) return reply(res, 429, "too many wrong keys; wait a minute");
   if (!keyOk(req)) { miss(from); return reply(res, 403, "wrong or missing access key"); }
@@ -90,6 +91,22 @@ async function post(req: IncomingMessage, res: Res, path: string): Promise<void>
   if (path === "/auth") {
     res.setHeader("Set-Cookie", sessionCookie(tls));
     return reply(res, 204, "");
+  }
+  if (path === "/team/join") {
+    let ok = false;
+    try { ok = join(from, await readBody(req)); } catch (e) { if (!(e instanceof ValueError)) throw e; }
+    return ok ? reply(res, 204, "") : reply(res, 400, "bad request");
+  }
+  // only the game of the driver in the car can work its pit page
+  const via = following();
+  if (via && (path === "/pit" || path === "/mfd/close")) {
+    let body: unknown;
+    try { body = await readBody(req); } catch (e) {
+      if (e instanceof ValueError) return reply(res, 400, e.message);
+      throw e;
+    }
+    const r = await via.call("POST", path, body);
+    return r.status ? reply(res, r.status, r.text) : reply(res, 502, `${via.name || "The driver"}'s bridge is not answering`);
   }
   if (path === "/mfd/close") {
     if (!PIT.mfd) return reply(res, 503, "pit control is not available on this PC");
@@ -105,8 +122,9 @@ async function post(req: IncomingMessage, res: Res, path: string): Promise<void>
     try {
       const raw = await readBody(req);
       const cfg = cleanConfig(raw, STATE.config);
-      STATE.config = cfg; STATE.config_ver++;
-      log(0, "CFG", `Thresholds changed by ${from}: ${Object.keys(raw as object).join(", ")}`);
+      STATE.config = cfg; STATE.config_ver++; STATE.config_t = Date.now();
+      const keys = Object.keys(raw as object).filter((k) => k !== "team");
+      if (keys.length) log(0, "CFG", `Thresholds changed by ${from}: ${keys.join(", ")}`);
       return replyJson(res, 200, cfg);
     } catch (e) {
       if (e instanceof ValueError || e instanceof TypeError) return reply(res, 400, e.message);
@@ -140,7 +158,21 @@ function partialLayout(): Rec | null {
 
 const DATA = new Set(["/events", "/lap", "/field/laps", "/session", "/track"]);
 
-function get(req: IncomingMessage, res: Res): void {
+// Lap traces stay on the PC that drove the lap; past sessions are numbered by the bridge that shows them
+async function fromTeam(req: IncomingMessage, res: Res, path: string, scoped: boolean): Promise<boolean> {
+  // a teammate's bridge asking: it already looked everywhere else
+  if (req.headers["x-pit-team"]) return false;
+  const f = following();
+  const order = scoped ? (f ? [f] : []) : [f, ...TEAM.peers.filter((p) => p !== f)];
+  for (const p of order) {
+    if (!p?.up) continue;
+    const r = await p.call("GET", path);
+    if (r.status === 200) { reply(res, 200, r.text, "application/json"); return true; }
+  }
+  return false;
+}
+
+async function get(req: IncomingMessage, res: Res): Promise<void> {
   if (!hostOk(req.headers.host)) return reply(res, 403, "use the PC's IP address");
   const u = new URL(req.url ?? "/", "http://x");
   if (DATA.has(u.pathname)) {
@@ -157,22 +189,28 @@ function get(req: IncomingMessage, res: Res): void {
     if (lap) {
       const s = u.searchParams.has("s") ? intParam(u.searchParams, "s", 1, 99999) : undefined;
       if (s === null) return reply(res, 400, "s must be a whole number");
+      const path = `/lap?n=${v}${s === undefined ? "" : `&s=${s}`}`;
+      if (s !== undefined && following()) return void ((await fromTeam(req, res, path, true)) || replyJson(res, 404, {}));
       const t = TEL.t?.lapTrace(v, s);
-      return t ? replyJson(res, 200, t) : replyJson(res, 404, {});
+      return t ? replyJson(res, 200, t) : void ((await fromTeam(req, res, path, s !== undefined)) || replyJson(res, 404, {}));
     }
     return replyJson(res, 200, { car: v, laps: FIELD.f ? FIELD.f.carLaps(v) : [] });
   }
   if (u.pathname === "/session") {
     const id = intParam(u.searchParams, "id", 1, 99999);
     if (id === null) return reply(res, 400, "id must be a whole number");
+    if (following()) return void ((await fromTeam(req, res, `/session?id=${id}`, true)) || replyJson(res, 404, {}));
     const f = TEL.t?.vault.get(id)?.field;
     return f ? replyJson(res, 200, f) : replyJson(res, 404, {});
   }
   if (u.pathname === "/track") {
     const name = STATE.reading?.reading?.fixed?.track;
-    const lay = (name && loadLayout(name)) || partialLayout();
+    const lay = name && loadLayout(name);
+    if (lay) return replyJson(res, 200, lay);
+    if (await fromTeam(req, res, "/track", false)) return;
+    const part = partialLayout();
     // no layout until the first lap: an answer, not an error, since the page asks every few seconds
-    return lay ? replyJson(res, 200, lay) : reply(res, 204, "");
+    return part ? replyJson(res, 200, part) : reply(res, 204, "");
   }
   serveStatic(req, res, WEB_DIR, u.pathname);
 }
@@ -183,7 +221,8 @@ function events(req: IncomingMessage, res: Res, q: URLSearchParams): void {
   const fast = hz === "60";
   if (fast) FAST.n++;
   res.writeHead(200, secure({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" }));
-  const sent = { ver: -1, summary: null as number | null, laps: -1, field: -1, slow: -1, entries: -1, log: 0, pit_log: -1, config: -1 };
+  const sent = { ver: -1, summary: null as number | null, laps: -1, field: -1, slow: -1, entries: -1, log: 0, pit_log: -1, config: -1, hist: "", hist_t: 0 };
+  const peer = q.get("peer") === "1";
   let lastBeat = 0, due = 0;
   const timer = setInterval(() => {
     if (res.writableNeedDrain) return;
@@ -212,8 +251,9 @@ function events(req: IncomingMessage, res: Res, q: URLSearchParams): void {
       summary_age_ms: s.t_summary ? Math.trunc(now - s.t_summary * 1000) : null,
       field_age_ms: s.t_field ? Math.trunc(now - s.t_field * 1000) : null,
       bc: { ...s.bc },
-      pit: rnd(pitSnapshot()),
+      pit: rnd(s.pit_remote ?? pitSnapshot()),
       pit_job: rnd(s.pit_job),
+      team: teamBlock(peer, now, sent),
     };
     res.write("data: " + JSON.stringify(payload) + "\n\n");
     Object.assign(sent, { ver: s.ver, summary: s.t_summary, laps: s.laps_ver, entries: s.entries_ver, pit_log: s.pit_log_ver, config: s.config_ver, slow: slowSeq });
@@ -224,10 +264,25 @@ function events(req: IncomingMessage, res: Res, q: URLSearchParams): void {
   req.on("close", () => { clearInterval(timer); if (fast) FAST.n--; });
 }
 
+// The driver in the car sends the race so far to its teammates' bridges, so the next driver's carries on from it
+function teamBlock(peer: boolean, now: number, sent: { hist: string; hist_t: number }): Rec {
+  const f = following();
+  const out: Rec = { name: TEAM.name, driving: TEAM.driving, following: f ? f.name : null,
+    peers: TEAM.peers.map((p) => ({ name: p.name, up: p.up, driving: p.driving })) };
+  const t = TEL.t;
+  if (!peer) return out;
+  out.config_t = STATE.config_t;
+  if (TEAM.driving && t) {
+    const key = `${t.lapsVer}|${t.stops.length}|${t.stop ? Math.floor(t.stop.box * 2) : -1}|${t.pending ? 1 : 0}`;
+    if ((key !== sent.hist && now - sent.hist_t >= 250) || now - sent.hist_t >= 2000) { out.hist = rnd(t.exportHist()); sent.hist = key; sent.hist_t = now; }
+  }
+  return out;
+}
+
 export function createBridgeServer(tlsFiles?: { cert: Buffer; key: Buffer }): Server {
   setTls(!!tlsFiles);
   const handler = (req: IncomingMessage, res: ServerResponse) => {
-    const run = req.method === "POST" ? post(req, res, new URL(req.url ?? "/", "http://x").pathname) : Promise.resolve(get(req, res));
+    const run = req.method === "POST" ? post(req, res, new URL(req.url ?? "/", "http://x").pathname) : get(req, res);
     run.catch((e) => { console.error(e); if (!res.headersSent) reply(res, 500, "server error"); else res.end(); });
   };
   return tlsFiles ? createHttpsServer(tlsFiles, handler) : createServer(handler);

@@ -36,6 +36,8 @@ export class Telemetry {
   seq = 0;
   cls = "GT3";
   prev: Rec | null = null;
+  last: Rec | null = null;
+  handed: Rec | null = null;
   splits: number[] = [];
   debrief: Rec[] = [];
   secPos: number[] = [];
@@ -103,7 +105,8 @@ export class Telemetry {
   update(r: Rec, ext: Rec = {}): Rec {
     this.seq++;
     let p = this.prev;
-    if (p && r.session_index !== p.session_index) { this.newSession(p); p = null; }
+    const old = p ?? this.last;
+    if (old && r.session_index !== old.session_index) { this.newSession(old); p = null; }
     const now = this.clock();
     for (const k of ["tc_on", "abs_on"] as const) {
       if (r[k] > 0) this.aidAt[k] = now;
@@ -126,9 +129,14 @@ export class Telemetry {
     this.lapBrakeMax = Math.max(this.lapBrakeMax, ...r.brake_temp);
     this.lapSawPit = this.lapSawPit || !!r.pit_lane;
     if (p) { this.edges(r, p); this.pits(r, p, now); }
+    // took the car over in the pits without the teammate's pit entry: the stop starts here
+    else if (this.handed && r.pit_lane && !this.stop) {
+      this.stop = { lap: r.laps + 1, t: now, t_ms: this.elapsed(r), fuel: this.handed.fuel ?? r.fuel, set: this.handed.set ?? r.tyre_set, box: 0.0, ref: this.lastSt.lap_ref_ms ?? null };
+    }
+    this.handed = null;
     if (p && r.laps > p.laps) this.lapDone(r, p, ext);
     this.sample(r, now);
-    this.prev = r; this.tPrev = now;
+    this.prev = this.last = r; this.tPrev = now;
     const mp = r.missing_pits, po = r.pit_open, pc = r.pit_close;
     const win = 0 < po && po < pc;
     return {
@@ -300,8 +308,40 @@ export class Telemetry {
     const ok = this.laps.filter((l) => l.trace && l.valid);
     const keep = new Set([...this.traces.keys()].sort((a, b) => a - b).slice(-40));
     if (ok.length) keep.add(ok.reduce((m, l) => (l.ms < m.ms ? l : m)).n);
-    for (const n of [...this.traces.keys()]) if (!keep.has(n)) this.traces.delete(n);
-    this.laps = this.laps.map((l) => (l.trace && !this.traces.has(l.n) ? { ...l, trace: false } : l));
+    const gone = new Set([...this.traces.keys()].filter((n) => !keep.has(n)));
+    for (const n of gone) this.traces.delete(n);
+    // laps a teammate's bridge drove keep their trace flag: the trace is on that PC
+    this.laps = this.laps.map((l) => (l.trace && gone.has(l.n) ? { ...l, trace: false } : l));
+  }
+
+  // The race so far, for a teammate's bridge to carry on from when its driver takes the car
+  exportHist(): Rec {
+    const l = this.last, now = this.clock();
+    return {
+      sess: l && { session: l.session, track: l.track, session_index: l.session_index }, fuel: l?.fuel, set: l?.tyre_set,
+      laps: this.laps, stops: this.stops, stintNo: this.stintNo, stintStart: this.stintStart, stintRoad: this.stintRoad, lapFuel: this.lapFuel,
+      best: this.best, stint: this.stint, debrief: this.debrief, fuelAtLine: this.fuelAtLine, lapStartPit: this.lapStartPit, lapSawPit: this.lapSawPit,
+      secKept: this.secKept, sessLen: this.sessLen, pen: this.pen,
+      stop: this.stop && { ...this.stop, t: undefined, age: now - this.stop.t },
+      pending: this.pending && { ...this.pending, rec: this.stops.indexOf(this.pending.rec) },
+    };
+  }
+
+  adopt(h: Rec): void {
+    if (this.last && h.sess && h.sess.session_index !== this.last.session_index) this.newSession(this.last);
+    const now = this.clock();
+    Object.assign(this, {
+      laps: h.laps, stops: h.stops, stintNo: h.stintNo, stintStart: h.stintStart, stintRoad: h.stintRoad, lapFuel: h.lapFuel, best: h.best,
+      stint: h.stint, debrief: h.debrief, fuelAtLine: h.fuelAtLine, lapStartPit: h.lapStartPit, lapSawPit: h.lapSawPit, secKept: h.secKept,
+      sessLen: h.sessLen, pen: h.pen,
+    });
+    this.stop = h.stop ? { ...h.stop, t: now - h.stop.age } : null;
+    this.pending = h.pending && this.stops[h.pending.rec] ? { ...h.pending, rec: this.stops[h.pending.rec] } : null;
+    if (h.sess) this.last = { ...this.last, ...h.sess };
+    this.handed = { fuel: h.fuel, set: h.set };
+    this.prev = this.tPrev = null;
+    this.splits = []; this.secPos = []; this.cur = []; this.line = [];
+    this.lapsVer++;
   }
 
   bestLayout(): Rec | null {

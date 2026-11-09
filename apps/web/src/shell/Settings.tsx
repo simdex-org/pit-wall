@@ -48,6 +48,7 @@ function Connection() {
       <dl className="kv">
         <dt>Bridge</dt><dd className="n">{location.host}</dd>
         <dt>Link</dt><dd>{c.live ? "live" : c.stale ? "stale" : "offline"} · {c.hz} Hz</dd>
+        {c.team?.peers.length ? <><dt>Team</dt><dd>{c.team.peers.map((t) => `${t.name || "teammate"} ${t.up ? (t.driving ? "driving" : "linked") : "not answering"}`).join(", ")}{c.team.following ? ` · car data from ${c.team.following}'s bridge` : ""}</dd></> : null}
       </dl>
       <label className="fld"><span>Live rate</span>
         <select value={p.hz} onChange={(e) => { prefs.update({ hz: +e.target.value as (typeof HZ)[number] }); link.connect(+e.target.value); setMsg(`Live rate ${e.target.value} Hz.`); }}>

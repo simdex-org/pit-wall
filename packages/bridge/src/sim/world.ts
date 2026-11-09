@@ -55,13 +55,17 @@ export class World {
   doneAt: number | null = null;
   events: WorldEvent[] = [];
   customize: ((box: Box, c: SimCar) => void) | null = null;
+  // the player car's drivers; they swap at each of its stops
+  readonly crew: string[];
+  driver = 0;
   private origin: number | null = null;
   private done = 0;
   private ranked: SimCar[] = [];
   private rankedAt = -1;
   stepN = 0;
 
-  constructor(kind: SessionKind, { track, seed = 7, player = "Daniel", minutes, sequence, field }: { track?: string; seed?: number; player?: string; minutes?: number; sequence?: SessionKind[]; field?: Field } = {}) {
+  constructor(kind: SessionKind, { track, seed = 7, player = "Daniel", minutes, sequence, field, crew = 1 }: { track?: string; seed?: number; player?: string; minutes?: number; sequence?: SessionKind[]; field?: Field; crew?: number } = {}) {
+    this.crew = [player, "Sam"].slice(0, crew);
     this.kind = kind; this.sequence = sequence ?? [kind];
     this.seed = seed; this.minutes = minutes; this.field = field;
     const st = track ? SIM_TRACKS[track] : undefined;

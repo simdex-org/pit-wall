@@ -77,4 +77,8 @@ export interface Payload {
   bc?: BroadcastState;
   pit?: Json | null;
   pit_job?: Json | null;
+  team?: TeamLink;
 }
+
+// Linked bridges of teammates sharing the car; following names the one whose driver has it
+export interface TeamLink { name: string; driving: boolean; following: string | null; peers: { name: string; up: boolean; driving: boolean }[] }
