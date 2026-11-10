@@ -49,12 +49,15 @@ function tick(pages: Pages | FakePages, tel: Telemetry, sim: boolean, n: number,
   if (!live) { setDriving(false); return false; }
   CTX.hint = { id: raw.me, sidx: raw.session_index, session: raw.session, len: raw.track_len, laps: raw.laps, spl: raw.track_pos, name: raw.name, xyz: raw.xyz, kmh: raw.speed, coords: raw.coords };
   TEAM.name = raw.name;
-  setDriving(drivingHere(true, raw.name, STATE.bc.state === "live" ? inCar(STATE.field, STATE.entries) : null));
+  const seated = STATE.bc.state === "live" ? inCar(STATE.field, STATE.entries) : null;
+  setDriving(drivingHere(true, raw.name, seated));
   // a teammate's driver has the car: their bridge reads it, this game only spectates
   if (following()) return raw;
   STATE.pit_remote = null;
   let ext: Rec = {}, race: Rec | null = null, me: Rec | null = null;
   try { [ext, race, me] = fieldExt(); } catch (e) { fieldErr(e); }
+  // who drove each lap: the driver broadcasting puts in the car, else this PC's driver; written as the game writes it when they are the same
+  ext.driver = seated && seated.trim().toLowerCase() !== String(raw.name).trim().toLowerCase() ? seated : raw.name;
   tel.config = STATE.config;
   if (fromField && me) {
     const behind = STATE.field.cars.find((c: Rec) => c.pos === me!.pos + 1);

@@ -9,6 +9,7 @@ import "./charts";
 import "./laps";
 import "./lapmap";
 import "./coach";
+import "./teammates";
 import "./car3d";
 import "./weather";
 import "./custom";

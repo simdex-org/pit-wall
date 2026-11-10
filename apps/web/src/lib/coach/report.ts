@@ -5,7 +5,7 @@ import { Cause, causesOf, Phase } from "./rules";
 export interface CoachLap {
   id: string; n: number; ms: number; valid: boolean; src: "live" | "bridge" | "import"; label: string; data: LapData;
   line?: ArrayLike<number[]> | null;
-  out?: boolean; in?: boolean; wet?: boolean; set?: number; stint?: number;
+  out?: boolean; in?: boolean; wet?: boolean; set?: number; stint?: number; driver?: string;
 }
 
 export interface CoachIn {
@@ -17,6 +17,7 @@ export interface CoachIn {
 }
 
 export const PHASES: Phase[] = ["entry", "mid", "exit", "straight"];
+export const PHASE_NAME: Record<Phase, string> = { entry: "Braking", mid: "Middle", exit: "Exit", straight: "Straight" };
 export interface Fact { label: string; s: string; b: string }
 export interface Found extends Cause { ms: number }
 export interface CornerReport {
@@ -87,7 +88,9 @@ export function buildReport(inp: CoachIn): Report | { msg: string } {
   if (bench && subj.src !== "import" && bench.src !== "import") {
     if (subj.wet != null && bench.wet != null && subj.wet !== bench.wet) notes.push("The two laps are on different tyres (wet and dry): the times are not comparable.");
     else if (subj.set != null && bench.set != null && subj.set !== bench.set) notes.push(`Different tyre sets (${subj.set} and ${bench.set}): part of the gap may be the tyres.`);
-    if (subj.stint != null && bench.stint != null && subj.stint !== bench.stint) notes.push("The laps are from different stints: fuel load and tyre age differ.");
+    const stints = subj.stint != null && bench.stint != null && subj.stint !== bench.stint;
+    if (subj.driver && bench.driver && subj.driver.toLowerCase() !== bench.driver.toLowerCase()) notes.push(`${subj.driver} against ${bench.driver}${stints ? ": different stints, so fuel load and tyre age differ too." : "."}`);
+    else if (stints) notes.push("The laps are from different stints: fuel load and tyre age differ.");
   }
   if (!subj.data.glat || (bench && !bench.data.glat)) notes.push("This lap has no cornering force, TC or ABS data (an older bridge or file): the findings that need them are skipped.");
 

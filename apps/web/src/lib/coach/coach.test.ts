@@ -44,6 +44,13 @@ describe("corners", () => {
 });
 
 describe("the report", () => {
+  it("says when the two laps are from different drivers instead of only different stints", () => {
+    const s = { ...lap("s", 9, { 3: { onset: 3 } }), stint: 2, driver: "Sam" }, b = { ...lap("b", 5), stint: 1, driver: "Ana" };
+    expect(run(s, b, pool).notes).toContain("Sam against Ana: different stints, so fuel load and tyre age differ too.");
+    expect(run({ ...s, stint: undefined }, b, pool).notes).toContain("Sam against Ana.");
+    expect(run({ ...s, driver: "ana" }, b, pool).notes).toContain("The laps are from different stints: fuel load and tyre age differ.");
+  });
+
   it("finds nothing between two identical laps", () => {
     const r = run(lap("s", 9), lap("b", 5), pool);
     expect(r.corners.every((c) => c.kind === "even")).toBe(true);

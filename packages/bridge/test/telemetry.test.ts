@@ -70,6 +70,8 @@ describe("telemetry pipeline", { timeout: 60000 }, () => {
     const traced = tel.laps.filter((l) => l.trace);
     expect(traced.length).toBeGreaterThan(0);
     expect(tel.laps[0]!.trace).toBe(false);
+    // who drove each lap, so teammates' laps can be told apart after a swap
+    expect(new Set(tel.laps.map((l) => l.driver))).toEqual(new Set(["Daniel"]));
     const lt = tel.lapTrace(traced[traced.length - 1]!.n)!;
     expect(lt.ch.t).toHaveLength(NB);
     for (const k of LCH) expect(lt.ch[k]).toHaveLength(NB);

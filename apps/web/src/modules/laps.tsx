@@ -118,8 +118,9 @@ export const laps = defineModule({
         lb = Math.min(lb, l.ms);
         for (const k of [0, 1, 2]) if ((l.s ?? [])[k] > 0) sb[k] = Math.min(sb[k]!, l.s[k]);
       } }
-    const own = !other, ncol = own ? 9 : 8;
     const large = size.w >= 7 && size.h >= 12;
+    // teammates share the car: say who drove each lap
+    const own = !other, drv = own && large && new Set(L.map((l) => l.driver).filter(Boolean)).size > 1, ncol = (own ? 9 : 8) + (drv ? 1 : 0);
     const cls = (v: number | null | undefined, sbest: boolean, pbest: boolean) => (!okMs(v) ? "" : sbest ? "b" : pbest ? "p" : "");
     const markOf = (l: Json, p: boolean[] | undefined, isB: boolean) => [l.out && "OUT", l.in && "IN", !l.valid && "INV", isB && !l.out && !l.in && l.valid ? "● PB" : p && p[0] && l.valid ? "● PB" : ""].filter(Boolean).join(" ");
     const row = (l: Json, old?: string) => {
@@ -130,7 +131,7 @@ export const laps = defineModule({
           <td className={isB ? "p" : ""}>{l.n}</td>
           <td className={inv ? "iv" : cls(l.ms, !old && l.ms === fb, isB || !!p?.[0], )}>{okMs(l.ms) ? fmtLap(l.ms).replace(/^0:(\d\d\.)/, "0:$1") : NONE}</td>
           {[0, 1, 2].map((k) => { const v = (l.s ?? [])[k]; return <td key={k} className={inv ? "mu" : cls(v, !old && v <= fS[k]!, (!old && v === sBest[k]) || !!p?.[k + 1])}>{okMs(v) ? fmtSector(v) : NONE}</td>; })}
-          {large ? <><td>{l.fuel > 0 ? nf(l.fuel, 2) : NONE}</td><td>{l.pos ? l.pos : NONE}</td><td className="l">{markOf(l, p, isB)}</td></> : <td>{l.fuel > 0 ? nf(l.fuel, 2) : NONE}</td>}
+          {large ? <><td>{l.fuel > 0 ? nf(l.fuel, 2) : NONE}</td><td>{l.pos ? l.pos : NONE}</td>{drv ? <td className="l">{l.driver || NONE}</td> : null}<td className="l">{markOf(l, p, isB)}</td></> : <td>{l.fuel > 0 ? nf(l.fuel, 2) : NONE}</td>}
           {large && own ? <td>{old || !hasTrace(c, l.n) ? "" : <SelButtons sel={sel} id={id} />}</td> : null}
         </tr>
       );
@@ -140,7 +141,7 @@ export const laps = defineModule({
     if (own) {
       const live = c.r?.session;
       body = [
-        large && live && okMs(live.current_lap_ms) ? <tr key="live" className="own"><td>{live.lap_number}</td><td>{fmtLap(live.current_lap_ms)}</td><td /><td /><td /><td>{NONE}</td><td>{live.position || NONE}</td><td className="l">LIVE</td><td /></tr> : null,
+        large && live && okMs(live.current_lap_ms) ? <tr key="live" className="own"><td>{live.lap_number}</td><td>{fmtLap(live.current_lap_ms)}</td><td /><td /><td /><td>{NONE}</td><td>{live.position || NONE}</td>{drv ? <td className="l">{c.from || NONE}</td> : null}<td className="l">LIVE</td><td /></tr> : null,
         ...[...new Set(L.map((l) => (l.stint || 1) as number))].sort((a, b) => b - a).map((n) => {
           const ls = L.filter((l) => (l.stint || 1) === n), info = stints.find((t) => t.n === n) ?? {}, folded = fold.has(n);
           return (
@@ -180,7 +181,7 @@ export const laps = defineModule({
       body: (
         <table className="t">
           <thead>
-            <tr><th>Lap</th><th>Time</th><th>S1</th><th>S2</th><th>S3</th>{large ? <><th>Fuel used</th><th>Pos</th><th className="l">Marks</th>{own ? <th>Compare</th> : null}</> : <th>Fuel</th>}</tr>
+            <tr><th>Lap</th><th>Time</th><th>S1</th><th>S2</th><th>S3</th>{large ? <><th>Fuel used</th><th>Pos</th>{drv ? <th className="l">Driver</th> : null}<th className="l">Marks</th>{own ? <th>Compare</th> : null}</> : <th>Fuel</th>}</tr>
           </thead>
           <tbody>{body}</tbody>
         </table>
@@ -245,7 +246,8 @@ export const lapPicker = defineModule({
       </div>
     ) : <input ref={file} type="file" accept=".json,application/json" hidden />;
     if (!rows.length) return { state: { kind: "empty", msg: "Laps with traces appear here after the first whole lap. You can also import a laps file.", action: { label: "Import laps…", fn: () => file.current?.click() } }, body: foot };
-    const from = (l: RecLap) => (l.src === "import" ? "imported" : l.src === "live" ? "this page" : "bridge");
+    const who = new Map(c.laps.map((l) => [l.n as number, l.driver as string | undefined])), shared = new Set([...who.values()].filter(Boolean)).size > 1;
+    const from = (l: RecLap) => (l.src === "import" ? "imported" : (shared && who.get(l.n)) || (l.src === "live" ? "this page" : "bridge"));
     return {
       flush: true,
       info: large ? [sel.ref ? `REF ${lapName(have.get(sel.ref) ?? rows[0]!)}` : "", sel.cmp && have.get(sel.cmp) ? `CMP ${lapName(have.get(sel.cmp)!)}` : ""] : [],

@@ -4,7 +4,7 @@ import { drawZone } from "../draw/coachplot";
 import { loadTracks } from "../draw/map";
 import { defineModule } from "../engine/registry";
 import { fmtLap } from "../lib/format";
-import { CornerReport, PHASES, progress, Report, snapshot, Snap } from "../lib/coach/report";
+import { CornerReport, PHASE_NAME, PHASES, progress, Report, snapshot, Snap } from "../lib/coach/report";
 import { unit } from "../lib/units";
 import { CoachMode, coachReport, isReport } from "../state/coach";
 import { usePrefs } from "../state/prefs";
@@ -14,7 +14,6 @@ import { lapName } from "./lapsel";
 
 type Tab = "work" | "corners" | "habits";
 const s2 = (ms: number) => (Math.abs(ms) / 1000).toFixed(2);
-const PHASE_NAME: Record<(typeof PHASES)[number], string> = { entry: "Braking", mid: "Middle", exit: "Exit", straight: "Straight" };
 const Delta = ({ ms, cls = "co-dv" }: { ms: number; cls?: string }) => <span className={`${cls} ${ms > 0 ? "up" : "dn"}`}>{ms > 0 ? "▲" : "▼"}{s2(ms)}</span>;
 
 function ZoneCanvas({ rep, r, sp }: { rep: Report; r: CornerReport; sp: (v: number) => number }) {
