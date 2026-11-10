@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { request as httpRequest, IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
@@ -7,14 +8,19 @@ import { isObj, Rec } from "../util.js";
 export interface Reply { status: number; text: string }
 type OnData = (p: Peer, d: Rec, first: boolean) => void;
 
+export const TEAM_PORT = 8765;
+const MAX_PEERS = 16;
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-// A teammate's link, http://25.1.2.3:8765/?key=..., as the bridge's address and its access key
-export function parseLink(s: string): { url: string; key: string } | null {
+// A teammate's bridge as 25.1.2.3, 25.1.2.3:8770 or the link their window shows; the port is 8765 unless given
+export function parseMate(s: string): string | null {
+  const t = s.trim();
   let u: URL;
-  try { u = new URL(s.trim()); } catch { return null; }
-  if ((u.protocol !== "http:" && u.protocol !== "https:") || !isIP(u.hostname.replace(/^\[|\]$/g, ""))) return null;
-  return { url: u.origin, key: u.searchParams.get("key") ?? "" };
+  try { u = new URL(t.includes("://") ? t : `http://${t}`); } catch { return null; }
+  // the address as typed: the URL parser would read a mistyped 25.1.2 as 25.1.0.2
+  if ((u.protocol !== "http:" && u.protocol !== "https:") || !isIP(u.hostname.replace(/^\[|\]$/g, "")) || !t.includes(u.hostname)) return null;
+  return `${u.protocol}//${u.hostname}:${u.port || (t.includes("://") ? (u.protocol === "https:" ? 443 : 80) : TEAM_PORT)}`;
 }
 
 export class Peer {
@@ -23,12 +29,12 @@ export class Peer {
   up = false;
   private gone = false;
 
-  constructor(readonly url: string, public key: string, private onData: OnData) {}
+  constructor(readonly url: string, private onData: OnData) {}
 
   private open(method: string, path: string, body: string | null, onRes: (res: IncomingMessage) => void): ReturnType<typeof httpRequest> {
     const u = new URL(path, this.url);
     const req = (u.protocol === "https:" ? httpsRequest : httpRequest)(u, {
-      method, headers: { "X-Pit-Key": this.key, "X-Pit-Team": "1", ...(body !== null ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } : {}) },
+      method, headers: { "X-Pit-Team": TEAM.code, ...(body !== null ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } : {}) },
     }, onRes);
     req.end(body ?? undefined);
     return req;
@@ -74,13 +80,14 @@ export class Peer {
     });
   }
 
-  async run(join: () => Rec): Promise<void> {
+  async run(): Promise<void> {
     let said = "";
     while (!this.gone) {
-      const r = await this.call("POST", "/team/join", join());
+      const r = await this.call("POST", "/team/join", { port: TEAM.self!.port, tls: TEAM.self!.tls, id: TEAM.id });
+      if (r.status === 409) { TEAM.notMe.add(this.url); dropPeer(this); return; }
       if (r.status === 403 || r.status === 429) {
-        if (said !== "key") log(2, "TEAM", `${this.url} refused the access key: check the link`);
-        said = "key";
+        if (said !== "code") log(2, "TEAM", `${this.url} refused the team code: it must be the same on every PC`);
+        said = "code";
         await sleep(60_000);
         continue;
       }
@@ -98,29 +105,43 @@ export class Peer {
   stop(): void { this.gone = true; }
 }
 
-export const TEAM: { self: { host: string; port: number; tls: boolean; key: string } | null; name: string; driving: boolean; peers: Peer[]; onData: OnData } = {
-  self: null, name: "", driving: false, peers: [], onData: () => {},
+export const TEAM: { self: { host: string; port: number; tls: boolean } | null; id: string; code: string; notMe: Set<string>; name: string; driving: boolean; peers: Peer[]; onData: OnData } = {
+  self: null, id: randomBytes(8).toString("hex"), code: "", notMe: new Set(), name: "", driving: false, peers: [], onData: () => {},
 };
 
 const ownUrl = () => TEAM.self && `${TEAM.self.tls ? "https" : "http"}://${TEAM.self.host}:${TEAM.self.port}`;
 
-export function addPeer(url: string, key: string): void {
-  if (url === ownUrl()) return;
-  const known = TEAM.peers.find((p) => p.url === url);
-  if (known) { known.key = key; return; }
-  const p = new Peer(url, key, (...a) => TEAM.onData(...a));
-  TEAM.peers.push(p);
-  void p.run(() => ({ port: TEAM.self!.port, tls: TEAM.self!.tls, key: TEAM.self!.key }));
+function dropPeer(p: Peer): void {
+  p.stop();
+  TEAM.peers = TEAM.peers.filter((q) => q !== p);
+  STATE.ver++;
 }
 
-// A teammate's bridge asked to link: link back to its own address. Keys of other teammates are never passed on
-export function join(from: string, b: unknown): boolean {
-  if (!isObj(b) || !Number.isInteger(b.port) || b.port < 1 || b.port > 65535 || typeof b.tls !== "boolean" || typeof b.key !== "string" || b.key.length > 200) return false;
+// ponytail: one bridge reached at two addresses is linked twice; harmless, both links carry the same data
+export function addPeer(url: string): void {
+  if (!TEAM.code || url === ownUrl() || TEAM.notMe.has(url) || TEAM.peers.some((p) => p.url === url) || TEAM.peers.length >= MAX_PEERS) return;
+  const p = new Peer(url, (...a) => TEAM.onData(...a));
+  TEAM.peers.push(p);
+  void p.run();
+}
+
+// A teammate's bridge asked to link: link back to its own address. "self" when the caller is this bridge
+export function join(from: string, b: unknown): "ok" | "self" | "bad" {
+  if (!isObj(b) || !Number.isInteger(b.port) || b.port < 1 || b.port > 65535 || typeof b.tls !== "boolean" || typeof b.id !== "string") return "bad";
+  if (b.id === TEAM.id) return "self";
   const ip = from.replace(/^::ffff:/, "");
-  if (!isIP(ip)) return false;
-  const url = `${b.tls ? "https" : "http"}://${isIP(ip) === 6 ? `[${ip}]` : ip}:${b.port}`;
-  addPeer(url, b.key);
-  return true;
+  if (!isIP(ip)) return "bad";
+  addPeer(`${b.tls ? "https" : "http"}://${isIP(ip) === 6 ? `[${ip}]` : ip}:${b.port}`);
+  return "ok";
+}
+
+// Teammates introduce the bridges they are linked to, so each PC only needs one teammate's address
+export function meet(urls: unknown): void {
+  if (!Array.isArray(urls)) return;
+  for (const s of urls.slice(0, MAX_PEERS)) {
+    const url = typeof s === "string" ? parseMate(s) : null;
+    if (url) addPeer(url);
+  }
 }
 
 // The teammate whose driver is in the car, while this PC's driver is not

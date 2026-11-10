@@ -13,7 +13,7 @@ import { PIT, STATE, TEL } from "./state.js";
 import { FakePages } from "./telemetry/fake-pages.js";
 import { CLASSES, DEFAULT_FIELD, Field, MAX_FIELD, MIN_FIELD } from "./sim/roster.js";
 import { SIM_TRACKS } from "./telemetry/sim-tracks.js";
-import { addPeer, parseLink, TEAM } from "./team/link.js";
+import { addPeer, parseMate, TEAM } from "./team/link.js";
 import { receive } from "./team/mirror.js";
 import { Telemetry } from "./telemetry/telemetry.js";
 
@@ -24,9 +24,10 @@ const HELP = `Usage: pitwall-bridge [options]
   --tls-cert FILE --tls-key FILE   serve https with this certificate and private key (PEM)
   --key KEY                  access key for sending pit plans and changing thresholds (default: a new one each start)
   --open                     no access key: anyone who can reach the address may send pit plans
-  --team LINK                share the race with a teammate's bridge, from their engineer link (http://25.1.2.3:8765/?key=...):
-                             laps, stints, stops, settings and the stint plan are shared, and the page follows whoever drives.
-                             Repeat it, or separate links with spaces, for each teammate
+  --team-code CODE           share the car with teammates: the same code on every driver's PC (12 to 64 letters, digits, - or _).
+                             Laps, stints, stops, settings and the stint plan are shared, and the page follows whoever drives
+  --team IP[:PORT]           with --team-code: a teammate's bridge to join (port 8765 unless given). One is enough, the bridges
+                             introduce each other; the first driver to start needs none. Repeat it, or separate with spaces
   --pit-key KEY             ACC's key for the pitstop MFD page (default: read from ACC's controls)
   --key-ms MS                how long each key is held and released, ms (default 40)
   --vjoy [N]                 press the MFD through vJoy device N (default 1) instead of the keyboard
@@ -80,7 +81,7 @@ async function main(): Promise<void> {
         http: { type: "string", default: "127.0.0.1:8765" }, "no-browser": { type: "boolean" }, key: { type: "string" }, open: { type: "boolean" },
         "pit-key": { type: "string" }, "key-ms": { type: "string", default: "40" }, vjoy: { type: "string" },
         "simulate-acc": { type: "boolean" }, game: { type: "string", default: "acc" }, "broadcast-port": { type: "string" }, "broadcast-password": { type: "string" },
-        "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" }, "sim-driver": { type: "string" }, team: { type: "string", multiple: true },
+        "sim-session": { type: "string", default: "race" }, "sim-track": { type: "string", default: "demo" }, "sim-speed": { type: "string", default: "1" }, "sim-minutes": { type: "string" }, "sim-cars": { type: "string" }, "sim-pace": { type: "string" }, "sim-grid": { type: "string" }, "sim-classes": { type: "string" }, "sim-driver": { type: "string" }, team: { type: "string", multiple: true }, "team-code": { type: "string" },
         "tls-cert": { type: "string" }, "tls-key": { type: "string" }, "control-stdin": { type: "boolean" }, "enable-broadcast": { type: "string" }, info: { type: "boolean" }, games: { type: "boolean" }, "install-ac-app": { type: "boolean" }, probe: { type: "boolean" }, sectors: { type: "boolean" }, "bind-vjoy": { type: "string" }, "update-check": { type: "boolean" }, update: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
@@ -134,8 +135,11 @@ async function main(): Promise<void> {
   const field: Field = { cars, mix: Object.keys(mix).length ? mix : DEFAULT_FIELD.mix, pace, grid };
   const simDriver = v["sim-driver"] === undefined ? undefined : Number(v["sim-driver"]);
   if (simDriver !== undefined && simDriver !== 1 && simDriver !== 2) return fail("--sim-driver must be 1 or 2");
-  const mates = (v.team ?? []).flatMap((s) => s.split(/[\s,]+/)).filter(Boolean).map(parseLink);
-  if (mates.some((m) => !m)) return fail("--team must be your teammate's link, e.g. --team http://25.1.2.3:8765/?key=...");
+  const mates = (v.team ?? []).flatMap((s) => s.split(/[\s,]+/)).filter(Boolean).map(parseMate);
+  if (mates.some((m) => !m)) return fail("--team takes a teammate's IP address, e.g. --team 25.1.2.3 (or 25.1.2.3:8770 for another port)");
+  const teamCode = v["team-code"] ?? "";
+  if (teamCode && !/^[A-Za-z0-9_-]{12,64}$/.test(teamCode)) return fail("--team-code needs 12 to 64 letters, digits, dashes or underscores, the same on every teammate's PC");
+  if (mates.length && !teamCode) return fail("--team needs --team-code, the code every teammate's bridge is started with");
   const simTrack = v["sim-track"]!;
   if (simTrack !== "demo" && !(simTrack in SIM_TRACKS)) return fail(`--sim-track must be demo or one of ${Object.keys(SIM_TRACKS).join(", ")}`);
   const key = v.key ?? randomBytes(16).toString("base64url");
@@ -172,7 +176,8 @@ async function main(): Promise<void> {
   startField({ game, simulateAcc: simulate, simSession, broadcastPort: v["broadcast-port"] === undefined ? undefined : Number(v["broadcast-port"]),
     broadcastPassword: v["broadcast-password"] }, pages);
 
-  TEAM.self = { host: hh, port: Number(hp), tls: !!tlsFiles, key: PIT.open ? "" : key };
+  TEAM.self = { host: hh, port: Number(hp), tls: !!tlsFiles };
+  TEAM.code = teamCode;
   TEAM.onData = receive;
   const server = createBridgeServer(tlsFiles);
   server.on("error", (e: NodeJS.ErrnoException) => {
@@ -207,7 +212,8 @@ async function main(): Promise<void> {
       console.log("Only this PC can open it. For the engineer, start it on your VPN address (Hamachi's is 25.x.x.x):");
       for (const ip of myAddresses()) console.log(`    pitwall-bridge --http ${ip}:${hp}`);
     } else console.log(`Engineer, open:   ${scheme}://${hh}:${hp}/${PIT.open ? "" : `?key=${key}`}`);
-    for (const m of mates) { console.log(`Team: joining ${m!.url}`); addPeer(m!.url, m!.key); }
+    if (teamCode) console.log(mates.length ? `Team: joining ${mates.join(", ")}` : "Team: waiting for teammates to join");
+    for (const m of mates) addPeer(m!);
     if (!v["no-browser"]) {
       const url = `${scheme}://${hh === "0.0.0.0" ? "127.0.0.1" : hh}:${hp}/?key=${key}`;
       spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();

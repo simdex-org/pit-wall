@@ -9,7 +9,7 @@ import { FAST, FIELD, log, PIT, setJob, STATE, TEL } from "../state.js";
 import { following, join, TEAM } from "../team/link.js";
 import { loadLayout } from "../tracks.js";
 import { Rec, rnd, ValueError } from "../util.js";
-import { blocked, forgive, keyOk, miss, presented, sessionCookie, sessionOk } from "./auth.js";
+import { blocked, forgive, keyOk, miss, presented, sessionCookie, sessionOk, teamOk } from "./auth.js";
 import { secure, setTls, tls } from "./headers.js";
 import { serveStatic } from "./static.js";
 
@@ -93,9 +93,10 @@ async function post(req: IncomingMessage, res: Res, path: string): Promise<void>
     return reply(res, 204, "");
   }
   if (path === "/team/join") {
-    let ok = false;
-    try { ok = join(from, await readBody(req)); } catch (e) { if (!(e instanceof ValueError)) throw e; }
-    return ok ? reply(res, 204, "") : reply(res, 400, "bad request");
+    if (!teamOk(req)) { miss(from); return reply(res, 403, "wrong team code"); }
+    let r: ReturnType<typeof join> = "bad";
+    try { r = join(from, await readBody(req)); } catch (e) { if (!(e instanceof ValueError)) throw e; }
+    return r === "ok" ? reply(res, 204, "") : r === "self" ? reply(res, 409, "this is the same bridge") : reply(res, 400, "bad request");
   }
   // only the game of the driver in the car can work its pit page
   const via = following();
@@ -272,6 +273,7 @@ function teamBlock(peer: boolean, now: number, sent: { hist: string; hist_t: num
   const t = TEL.t;
   if (!peer) return out;
   out.config_t = STATE.config_t;
+  out.mates = TEAM.peers.filter((p) => p.up).map((p) => p.url);
   if (TEAM.driving && t) {
     const key = `${t.lapsVer}|${t.stops.length}|${t.stop ? Math.floor(t.stop.box * 2) : -1}|${t.pending ? 1 : 0}`;
     if ((key !== sent.hist && now - sent.hist_t >= 250) || now - sent.hist_t >= 2000) { out.hist = rnd(t.exportHist()); sent.hist = key; sent.hist_t = now; }

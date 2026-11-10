@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test } from "vitest";
 import { cleanConfig } from "../src/config.js";
 import { STATE } from "../src/state.js";
 import { drivingHere, inCar } from "../src/team/driver.js";
-import { following, join, parseLink, Peer, TEAM } from "../src/team/link.js";
+import { teamOk } from "../src/http/auth.js";
+import { following, join, meet, parseMate, Peer, TEAM } from "../src/team/link.js";
 import { receive } from "../src/team/mirror.js";
 import { DEFAULT_FIELD, MIN_FIELD } from "../src/sim/roster.js";
 import { FakePages } from "../src/telemetry/fake-pages.js";
@@ -83,25 +84,47 @@ describe("one race history across a driver swap", { timeout: 60000 }, () => {
 });
 
 describe("linked bridges", () => {
-  TEAM.self = { host: "127.0.0.1", port: 8765, tls: false, key: "own-key-1234" };
-  afterEach(() => { for (const p of TEAM.peers) p.stop(); TEAM.peers.length = 0; TEAM.driving = false; });
+  TEAM.self = { host: "127.0.0.1", port: 8765, tls: false };
+  TEAM.code = "team-code-1234";
+  afterEach(() => { for (const p of TEAM.peers) p.stop(); TEAM.peers.length = 0; TEAM.driving = false; TEAM.notMe.clear(); });
 
-  test("a teammate's link gives their bridge and key", () => {
-    expect(parseLink(" http://25.1.2.3:8765/?key=abcdefghijkl ")).toEqual({ url: "http://25.1.2.3:8765", key: "abcdefghijkl" });
-    expect(parseLink("http://teammate:8765/")).toBeNull();
-    expect(parseLink("ftp://25.1.2.3/")).toBeNull();
+  test("a teammate is an IP address, with 8765 unless another port is given; their old link also works", () => {
+    expect(parseMate(" 25.1.2.3 ")).toBe("http://25.1.2.3:8765");
+    expect(parseMate("25.1.2.3:8770")).toBe("http://25.1.2.3:8770");
+    expect(parseMate("http://25.1.2.3:8765/?key=abcdefghijkl")).toBe("http://25.1.2.3:8765");
+    expect(parseMate("https://25.1.2.3:9000/")).toBe("https://25.1.2.3:9000");
+    for (const bad of ["teammate-pc", "http://teammate:8765/", "ftp://25.1.2.3/", "25.1.2", ""]) expect(parseMate(bad), bad).toBeNull();
   });
 
-  test("a join needs a port, tls flag and key, and links back to the caller's own address", () => {
-    expect(join("25.1.2.3", { port: "8765", tls: false, key: "k" })).toBe(false);
-    expect(join("25.1.2.3", { port: 8765, key: "k" })).toBe(false);
-    expect(join("::ffff:127.0.0.1", { port: 1, tls: false, key: "k" })).toBe(true);
-    expect(join("::ffff:127.0.0.1", { port: 1, tls: false, key: "k2" })).toBe(true);
-    expect(TEAM.peers.map((p) => [p.url, p.key])).toEqual([["http://127.0.0.1:1", "k2"]]);
+  test("only a bridge with the same team code gets in", () => {
+    const req = (h: Rec) => ({ headers: h }) as never;
+    expect(teamOk(req({ "x-pit-team": "team-code-1234" }))).toBe(true);
+    expect(teamOk(req({ "x-pit-team": "team-code-9999" }))).toBe(false);
+    expect(teamOk(req({}))).toBe(false);
+    TEAM.code = "";
+    expect(teamOk(req({ "x-pit-team": "" }))).toBe(false);
+    TEAM.code = "team-code-1234";
   });
 
+  test("a join needs a port, tls flag and id, links back to the caller's own address, and spots this bridge itself", () => {
+    expect(join("25.1.2.3", { port: "8765", tls: false, id: "x" })).toBe("bad");
+    expect(join("25.1.2.3", { port: 8765, id: "x" })).toBe("bad");
+    expect(join("::ffff:127.0.0.1", { port: 1, tls: false, id: "x" })).toBe("ok");
+    expect(join("::ffff:127.0.0.1", { port: 1, tls: false, id: "x" })).toBe("ok");
+    expect(join("127.0.0.1", { port: 2, tls: false, id: TEAM.id })).toBe("self");
+    expect(TEAM.peers.map((p) => p.url)).toEqual(["http://127.0.0.1:1"]);
+  });
+
+  test("teammates introduce the bridges they know, never this one twice or itself", () => {
+    meet(["25.4.5.6:8765", "http://25.7.8.9:8770", "http://127.0.0.1:8765", "nonsense", 7]);
+    meet(["http://25.4.5.6:8765"]);
+    expect(TEAM.peers.map((p) => p.url)).toEqual(["http://25.4.5.6:8765", "http://25.7.8.9:8770"]);
+    TEAM.notMe.add("http://25.1.1.1:8765");
+    meet(["25.1.1.1"]);
+    expect(TEAM.peers).toHaveLength(2);
+  });
   test("while the teammate drives their car data and settings become ours, field lines are not copied", () => {
-    const p = new Peer("http://127.0.0.1:1", "k", () => {});
+    const p = new Peer("http://127.0.0.1:1", () => {});
     p.up = true;
     TEAM.peers.push(p);
     const cfg = cleanConfig({ team: { names: ["Ana", "Sam"], spd: 1, first: 0, max_stint_min: 60 } });

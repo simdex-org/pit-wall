@@ -1,7 +1,7 @@
 import { cleanConfig } from "../config.js";
 import { log, STATE, TEL } from "../state.js";
 import { isObj, Rec } from "../util.js";
-import { following, Peer } from "./link.js";
+import { following, meet, Peer } from "./link.js";
 
 // Both bridges see the field, so only the car's own lines are copied
 const FIELD_CATS = new Set(["FIELD", "RC", "TEAM"]);
@@ -10,6 +10,7 @@ const FIELD_CATS = new Set(["FIELD", "RC", "TEAM"]);
 export function receive(p: Peer, d: Rec, first: boolean): void {
   const t = isObj(d.team) ? d.team : {};
   if (typeof t.name === "string") p.name = t.name.slice(0, 60);
+  meet(t.mates);
   if (!!t.driving !== p.driving) { p.driving = !!t.driving; STATE.ver++; }
   if (isObj(d.config) && typeof t.config_t === "number" && t.config_t > STATE.config_t) {
     try { STATE.config = cleanConfig(d.config); STATE.config_t = t.config_t; STATE.config_ver++; STATE.ver++; } catch { }
