@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { IncomingMessage } from "node:http";
 import { PIT } from "../state.js";
+import { TEAM } from "../team/link.js";
 
 export const MIN_KEY = 12;
 const COOKIE = "pitwall_session";
@@ -21,8 +22,10 @@ function cookie(req: IncomingMessage): string {
   return "";
 }
 
-export const keyOk = (req: IncomingMessage) => PIT.open || same(String(req.headers["x-pit-key"] ?? ""), PIT.key);
-export const presented = (req: IncomingMessage) => !!req.headers["x-pit-key"] || cookie(req) !== "";
+// a teammate's bridge, with the code every bridge of the team was started with
+export const teamOk = (req: IncomingMessage) => TEAM.code !== "" && same(String(req.headers["x-pit-team"] ?? ""), TEAM.code);
+export const keyOk = (req: IncomingMessage) => PIT.open || same(String(req.headers["x-pit-key"] ?? ""), PIT.key) || teamOk(req);
+export const presented = (req: IncomingMessage) => !!req.headers["x-pit-key"] || !!req.headers["x-pit-team"] || cookie(req) !== "";
 export const sessionOk = (req: IncomingMessage) => keyOk(req) || same(cookie(req), token());
 
 export function sessionCookie(secure: boolean): string {

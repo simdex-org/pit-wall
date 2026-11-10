@@ -73,7 +73,7 @@ Set-NetConnectionProfile -InterfaceAlias "Hamachi" -NetworkCategory Private
 
 ## Share the car with a teammate
 
-In an endurance race each driver runs Pit Wall on their own PC. One of them pastes the other's link into **Join teammate** in the Pit Wall window (or starts the bridge with `--team http://25.1.2.3:8765/?key=...`). The two bridges then share laps, stints, stops, the pit log, settings and the stint plan. The dashboard on either PC shows the car from the PC of whoever is driving, so strategy and fuel use carry on after a swap, and pit plans go to the game of the driver in the car. Field timing (ACC's broadcasting) must be on, since that is how the bridges tell who is in the car. More than two drivers: link every pair, each link once (paste several links separated by spaces). A bridge never passes a teammate's key on to another.
+In an endurance race each driver runs Pit Wall on their own PC. In the Pit Wall window, switch **Solo** to **Team** and type a team code: any 12 or more letters, digits, dashes or underscores, the same on every driver's PC. The first driver to start leaves **Teammate's IP** empty; the others type that driver's IP address (add `:8770` if they use another port than 8765). On the command line that is `--team-code CODE` and `--team 25.1.2.3`. The bridges introduce each other, so with three or more drivers each PC still needs only one address. They then share laps, stints, stops, the pit log, settings and the stint plan. The dashboard on every PC shows the car from the PC of whoever is driving, so strategy and fuel use carry on after a swap, and pit plans go to the game of the driver in the car. Field timing (ACC's broadcasting) must be on, since that is how the bridges tell who is in the car. A bridge with another code is refused, and the code is never needed by the engineer: their link keeps its own access key.
 
 ## Try it without ACC
 
@@ -81,7 +81,7 @@ In an endurance race each driver runs Pit Wall on their own PC. One of them past
 pnpm --filter @pitwall/bridge start --simulate-acc --key demo
 ```
 
-A full session with a 20-car field and a working pit page. Add `--sim-session quali` for qualifying or `--sim-track spa` for another track. To try a driver swap, start two bridges on different ports with `--sim-driver 1` and `--sim-driver 2`, the second with `--team` and the first one's link.
+A full session with a 20-car field and a working pit page. Add `--sim-session quali` for qualifying or `--sim-track spa` for another track. To try a driver swap, start two bridges on different ports with `--sim-driver 1` and `--sim-driver 2`, both with `--team-code` and the same code, the second also with `--team 127.0.0.1:PORT` of the first. Open the second page at `localhost` rather than `127.0.0.1`: both bridges set the same sign-in cookie, and browsers keep one per host, not per port.
 
 ## Good to know
 
