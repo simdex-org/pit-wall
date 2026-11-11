@@ -75,6 +75,8 @@ Set-NetConnectionProfile -InterfaceAlias "Hamachi" -NetworkCategory Private
 
 In an endurance race each driver runs Pit Wall on their own PC. In the Pit Wall window, switch **Solo** to **Team** and type a team code: any 12 or more letters, digits, dashes or underscores, the same on every driver's PC. The first driver to start leaves **Teammate's IP** empty; the others type that driver's IP address (add `:8770` if they use another port than 8765). On the command line that is `--team-code CODE` and `--team 25.1.2.3`. The bridges introduce each other, so with three or more drivers each PC still needs only one address. They then share laps, stints, stops, the pit log, settings and the stint plan. The dashboard on every PC shows the car from the PC of whoever is driving, so strategy and fuel use carry on after a swap, and pit plans go to the game of the driver in the car. Field timing (ACC's broadcasting) must be on, since that is how the bridges tell who is in the car. A bridge with another code is refused, and the code is never needed by the engineer: their link keeps its own access key.
 
+To see who is quicker where, add the **Teammate laps** module (Analysis group): each driver's best and typical lap, and corner by corner where one gains or loses time on the other, with the likely cause. **Open in Traces**, or a click on a corner, sends both laps to Traces, Lap map and Lap coach. The Laps table and the Lap picker show who drove each lap.
+
 ## Try it without ACC
 
 ```bash

@@ -277,7 +277,7 @@ export class Telemetry {
     if (ms > 0) {
       const item: Rec = { n, ms, s: sectors, valid: !!p.valid, fuel: usedR, out: this.lapStartPit, in: this.lapSawPit && !this.lapStartPit,
         stint: this.stintNo, set: r.tyre_set, wet: !!r.rain_tyres, fuel_end: r.fuel, pos: r.position, gap: ext.gap_ms ?? null,
-        psi: [...r.pressure], core: [...r.core_temp], track_c: r.road, trace: false };
+        psi: [...r.pressure], core: [...r.core_temp], track_c: r.road, trace: false, driver: String(ext.driver ?? r.name ?? "").slice(0, 60) };
       const c = this.cur;
       if (c.length > 60 && c[0]!.p < 0.1 && c[c.length - 1]!.p > 0.9) {
         this.traces.set(n, { ms, valid: item.valid, ch: resample(c, ms), line: this.line, sec: this.secPos });

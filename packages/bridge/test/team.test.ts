@@ -53,6 +53,7 @@ describe("one race history across a driver swap", { timeout: 60000 }, () => {
     expect(st.fuel_added_l).toBeGreaterThan(1);
     expect(b.stintNo).toBe(2);
     expect(b.laps.length).toBeGreaterThanOrEqual(lapsBefore);
+    expect(b.laps.every((l) => typeof l.driver === "string" && l.driver !== "")).toBe(true);
     expect(b.lapFuel.length).toBeGreaterThan(1);
     expect(b.summary(pages.read()).stints.map((s: Rec) => s.n)).toEqual([1, 2]);
   });

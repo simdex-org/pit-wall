@@ -33,7 +33,7 @@ pitwall.latest.summary; // the last value of each kind
 | `reading` | The driver's car, `null` until the driver connects. `car`: `fuel_litres`, `speed_kmh`, `rpm`, `gear`, `tyre_core_temp_c` and `tyre_pressure_psi` (arrays FL, FR, RL, RR), `brake_temp_c`, `brake_pad_mm`, `damage` and more. `session`: `position`, `completed_laps`, `current_lap_ms`, `last_lap_ms`, `best_lap_ms`, `session_time_left_ms`, `fuel_per_lap`, `in_pit_lane`, `flag` and more. `fixed`: `car_model`, `track`, `max_fuel`, `track_length_m` and more. |
 | `summary` | The bridge's working out: `fuel_per_lap`, `stint_laps`, `best_ms`, `advice`, `strategy`, `stints`, `stops`. |
 | `field` | Every car: `cars` (each with `i`, `pos`, `laps`, `kmh`, `spl` the share of the lap done, and more), `me` (your car's `i`), `best`, `weather`, `track_m`. `null` when field timing is off. |
-| `laps` | Your finished laps: `n`, `ms`, `s` (sector times), `valid`, `fuel`, `out`. |
+| `laps` | Your finished laps: `n`, `ms`, `s` (sector times), `valid`, `fuel`, `out`, `stint`, `driver` (who drove it, when teammates share the car). |
 | `units` | The units chosen in Settings: `speed` (`kmh` or `mph`), `temp` (`c` or `f`), `press` (`psi`, `bar` or `kpa`). The data itself is always km/h, °C and psi. |
 | `theme` | The page colours. They are also set on the frame as CSS variables. |
 
