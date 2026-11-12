@@ -29,15 +29,25 @@ export const BASE_TOKENS: Record<string, string> = {
   chFL: "#4b9be0", chFR: "#3ecf7a", chRL: "#f2c230", chRR: "#f06ab8",
 };
 
+export const FONTS: Record<string, string> = {
+  barlow: '"Barlow Semi Condensed", system-ui, sans-serif', inter: '"Inter", system-ui, sans-serif', condensed: '"Roboto Condensed", system-ui, sans-serif',
+  rounded: '"Nunito", system-ui, sans-serif', legible: '"Atkinson Hyperlegible Next", system-ui, sans-serif', system: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+};
+const NUM_FONTS: Record<string, string> = {
+  mono: "ui-monospace, Consolas, monospace", jetbrains: '"JetBrains Mono", ui-monospace, monospace', robotomono: '"Roboto Mono", ui-monospace, monospace',
+};
+const steps = (from: number, to: number) => Array.from({ length: Math.round((to - from) / 0.05) + 1 }, (_, i) => Math.round(from * 100 + i * 5) / 100);
+
 export const LAYOUT = {
-  density: ["auto", "compact", "comfortable"], fontScale: [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.25], radius: [0, 2, 4, 8], panel: ["ruled", "boxed", "flat"], numFont: ["mono", "sans"], labels: ["upper", "sentence"],
+  density: ["auto", "compact", "comfortable"], fontScale: steps(0.6, 1.6), labelScale: steps(0.8, 1.6), radius: [0, 2, 4, 8], panel: ["ruled", "boxed", "flat"],
+  font: ["barlow", "inter", "condensed", "rounded", "legible", "system"], numFont: ["sans", "mono", "jetbrains", "robotomono"], labels: ["upper", "sentence"],
 } as const;
 export type LayoutKey = keyof typeof LAYOUT;
-const DEF_LAYOUT: Pick<Theme, "density" | "fontScale" | "radius" | "panel" | "numFont" | "labels"> = { density: "auto", fontScale: 1, radius: 4, panel: "flat", numFont: "sans", labels: "upper" };
+const DEF_LAYOUT: Pick<Theme, LayoutKey> = { density: "auto", fontScale: 1, labelScale: 1, radius: 4, panel: "flat", font: "barlow", numFont: "sans", labels: "upper" };
 
 export interface Theme {
   format: "pitwall-theme"; schemaVersion: 1; id: string; name: string; base: string; tokens: Record<string, string>;
-  density: string; fontScale: number; radius: number; panel: string; numFont: string; labels: string;
+  density: string; fontScale: number; labelScale: number; radius: number; panel: string; font: string; numFont: string; labels: string;
 }
 
 const BUILTIN_SRC: [string, string, Record<string, string>, Partial<typeof DEF_LAYOUT>][] = [
@@ -129,8 +139,9 @@ class AppearanceStore {
     s.setProperty("--acc-ink", contrast(tok.accent!, "#08090b") >= contrast(tok.accent!, "#ffffff") ? "#08090b" : "#ffffff");
     const comf = t.density === "comfortable";
     s.setProperty("--row", comf ? "32px" : "28px"); s.setProperty("--trow", comf ? "28px" : "24px"); s.setProperty("--pad", comf ? "12px" : "8px"); s.setProperty("--hh", "32px");
-    s.setProperty("--k", String(t.fontScale)); s.setProperty("--r", t.radius + "px");
-    s.setProperty("--num", t.numFont === "sans" ? '"Barlow Semi Condensed", system-ui, sans-serif' : "ui-monospace, Consolas, monospace");
+    s.setProperty("--k", String(t.fontScale)); s.setProperty("--kl", String(t.labelScale)); s.setProperty("--r", t.radius + "px");
+    const font = FONTS[t.font] ?? FONTS.barlow!;
+    s.setProperty("--font", font); s.setProperty("--num", NUM_FONTS[t.numFont] ?? font);
     root.dataset.look = t.base; root.dataset.density = t.density; root.dataset.panel = t.panel; root.dataset.labels = t.labels; root.dataset.num = t.numFont;
     const set = document.getElementById("settings"), safe = unreadable(t);
     if (set) for (const [k, v] of TOKENS) { if (safe) set.style.setProperty(v, BASE_TOKENS[k]!); else set.style.removeProperty(v); }

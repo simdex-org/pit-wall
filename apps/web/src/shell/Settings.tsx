@@ -244,7 +244,7 @@ const About = () => (
   <>
     <h3 className="mt">About</h3>
     <p><b>Pit Wall</b>: race engineering for Assetto Corsa Competizione.</p>
-    <ul className="note"><li>Barlow Semi Condensed: SIL Open Font License 1.1.</li><li>Lucide icons: ISC License.</li><li>three.js: MIT License.</li><li>Track outlines: © OpenStreetMap contributors, ODbL 1.0 (openstreetmap.org/copyright). The Nürburgring 24h layout is traced from Wikimedia Commons, CC BY-SA 3.0.</li></ul>
+    <ul className="note"><li>Barlow Semi Condensed, Inter, Roboto Condensed, Nunito, Atkinson Hyperlegible Next, JetBrains Mono, Roboto Mono: SIL Open Font License 1.1.</li><li>Lucide icons: ISC License.</li><li>three.js: MIT License.</li><li>Track outlines: © OpenStreetMap contributors, ODbL 1.0 (openstreetmap.org/copyright). The Nürburgring 24h layout is traced from Wikimedia Commons, CC BY-SA 3.0.</li></ul>
   </>
 );
 

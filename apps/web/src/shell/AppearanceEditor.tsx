@@ -3,14 +3,15 @@ import { Icon } from "../lib/icons";
 import { download } from "../lib/files";
 import { slug } from "../lib/text";
 import {
-  appearance, BUILTIN_THEMES, CONTRAST_KEYS, contrast, HEX, isBuiltinTheme, LAYOUT, LayoutKey, resolved, Theme, themeLayoutKeys, TOKENS, tokenLabel, unreadable, useAppearance,
+  appearance, BUILTIN_THEMES, CONTRAST_KEYS, contrast, FONTS, HEX, isBuiltinTheme, LAYOUT, LayoutKey, resolved, Theme, themeLayoutKeys, TOKENS, tokenLabel, unreadable, useAppearance,
 } from "../state/appearance";
 import { ColorPicker } from "./ColorPicker";
 import { ask } from "./confirm";
 
 const LAYOUT_LABELS: Record<LayoutKey, [string, string[]]> = {
   density: ["Density", ["Follows size", "Compact", "Comfortable"]], radius: ["Corner radius", ["0", "2", "4", "8"]], panel: ["Panels", ["Ruled", "Boxed", "Flat"]],
-  numFont: ["Numbers", ["Mono", "Sans"]], labels: ["Labels", ["UPPER", "Sentence"]], fontScale: ["Font scale", []],
+  numFont: ["Numbers", ["Same as text", "System mono", "JetBrains Mono", "Roboto Mono"]], labels: ["Labels", ["UPPER", "Sentence"]],
+  font: ["Text font", ["Barlow (default)", "Inter", "Condensed", "Rounded (TV)", "Hyperlegible", "System"]], fontScale: ["Text size", []], labelScale: ["Title size", []],
 };
 
 function Token({ k, role, tok, bg, onChange }: { k: string; role: string; tok: string; bg: string; onChange: (v: string) => void }) {
@@ -108,7 +109,21 @@ export function AppearanceEditor() {
         <p className="note ap-status" role="status">{status}</p>
         <fieldset className="ap-grp">
           <legend>Layout</legend>
-          {(["density", "radius", "panel", "numFont", "labels"] as const).map((k) => (
+          {(["font", "numFont"] as const).map((k) => (
+            <div className="ap-lay" key={k}><label className="lbl" htmlFor={`ap-${k}`}>{LAYOUT_LABELS[k][0]}</label>
+              <select id={`ap-${k}`} value={cur[k]} onChange={(e) => change((t) => { t[k] = e.target.value; })}>
+                {LAYOUT[k].map((v, i) => <option key={v} value={v} style={{ fontFamily: FONTS[v] }}>{LAYOUT_LABELS[k][1][i]}</option>)}
+              </select>
+            </div>
+          ))}
+          {(["fontScale", "labelScale"] as const).map((k) => (
+            <div className="ap-lay" key={k}><label className="lbl" htmlFor={`ap-${k}`}>{LAYOUT_LABELS[k][0]}</label>
+              <input id={`ap-${k}`} type="range" min={LAYOUT[k][0]} max={LAYOUT[k].at(-1)} step={0.05} value={cur[k]}
+                onChange={(e) => change((t) => { t[k] = Math.round(+e.target.value * 100) / 100; })} />
+              <span className="n">{Math.round(cur[k] * 100)} %</span>
+            </div>
+          ))}
+          {(["density", "radius", "panel", "labels"] as const).map((k) => (
             <div className="ap-lay" key={k}>
               <span className="lbl">{LAYOUT_LABELS[k][0]}</span>
               <div className="seg" role="group" aria-label={LAYOUT_LABELS[k][0]}>
@@ -116,9 +131,6 @@ export function AppearanceEditor() {
               </div>
             </div>
           ))}
-          <div className="ap-lay"><label className="lbl" htmlFor="apFs">Font scale</label>
-            <select id="apFs" value={cur.fontScale} onChange={(e) => change((t) => { t.fontScale = +e.target.value; })}>{LAYOUT.fontScale.map((v) => <option key={v} value={v}>{Math.round(v * 100)} %</option>)}</select>
-          </div>
         </fieldset>
         {["Surface", "Identity", "Timing", "State", "Traces"].map((g) => (
           <fieldset className="ap-grp" key={g}>

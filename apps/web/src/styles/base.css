@@ -3,6 +3,12 @@
 @font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-sc-500.woff2) format("woff2");font-weight:500;font-display:swap}
 @font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-sc-600.woff2) format("woff2");font-weight:600;font-display:swap}
 @font-face{font-family:"Barlow Semi Condensed";src:url(/fonts/barlow-sc-700.woff2) format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Inter";src:url(/fonts/inter.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Roboto Condensed";src:url(/fonts/roboto-condensed.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Nunito";src:url(/fonts/nunito.woff2) format("woff2");font-weight:200 1000;font-display:swap}
+@font-face{font-family:"Atkinson Hyperlegible Next";src:url(/fonts/atkinson-hyperlegible-next.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(/fonts/jetbrains-mono.woff2) format("woff2");font-weight:100 800;font-display:swap}
+@font-face{font-family:"Roboto Mono";src:url(/fonts/roboto-mono.woff2) format("woff2");font-weight:100 700;font-display:swap}
 
 :root{
   --bg:#0a0b0d;--panel:#111316;--raise:#171a1e;--line:#272b32;--line2:#1b1e23;--txt:#e9ebee;--mut:#a4aab2;--dim:#7f8690;
@@ -14,7 +20,7 @@
   --acc-soft:color-mix(in srgb,var(--acc) 14%,transparent);
   --bad-soft:color-mix(in srgb,var(--bad) 14%,transparent);
   --warn-soft:color-mix(in srgb,var(--warn) 14%,transparent);
-  --row:28px;--trow:24px;--pad:8px;--hh:32px;--k:1;--r:4px;
+  --row:28px;--trow:24px;--pad:8px;--hh:32px;--k:1;--kl:1;--r:4px;
   --font:"Barlow Semi Condensed",system-ui,sans-serif;
   --num:"Barlow Semi Condensed",system-ui,sans-serif;
   --t-xs:.625rem;--t-sm:.6875rem;--t-md:.8125rem;--t-lg:.9375rem;--t-xl:1.25rem;--t-2xl:1.75rem;--t-3xl:2.75rem;
@@ -620,7 +626,7 @@ table.tt{width:100%;border-collapse:collapse}
   #tabs [role=tab]{padding:0 8px}
   #link{max-width:20px;padding:0 5px;overflow:hidden}
   #kpi{height:auto;flex-wrap:wrap;gap:4px;padding:4px}
-  #kpi .kc{flex:1 0 calc(50% - 4px);height:40px;padding:4px 8px;margin-left:0!important}
+  #kpi .kc{flex:1 0 calc(50% - 4px);min-height:40px;padding:4px 8px;margin-left:0!important}
   #kpi .kc[data-k] .kn{font-size:var(--t-lg)}
   #top>#btnKeys{display:none}
   #banner{padding:8px}
