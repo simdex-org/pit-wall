@@ -54,5 +54,6 @@ describe("game argument", () => {
   test("is only added for Assetto Corsa", () => {
     expect(bridgeArgs(prefs)).not.toContain("--game");
     expect(bridgeArgs(prefs, "ac").slice(-2)).toEqual(["--game", "ac"]);
+    expect(bridgeArgs(prefs, "lmu").slice(-2)).toEqual(["--game", "lmu"]);
   });
 });

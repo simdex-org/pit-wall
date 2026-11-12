@@ -177,6 +177,7 @@ export class Telemetry {
           is_online: !!r.online, fuel_rate: r.fuel_rate, tyre_rate: r.tyre_rate, car_class: r.game ? "" : this.cls,
         },
         capabilities: { tyre_edge_temps: false, tyre_wear: false, sectors: true, field: !!ext.field, flags: true, traces: true },
+        game: r.game ?? "acc", lmu: r.lmu ?? null,
       },
     };
   }

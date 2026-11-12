@@ -37,9 +37,9 @@ export function toMessages(p: Rec, hint: Rec | null, seen: Seen): [number, Rec][
       drivers: [{ first, last, short: (last || first).slice(0, 3).toUpperCase(), dcat: 1, nat: 0 }] }]);
   }
   const type = hint?.session === 2 ? RACE : hint?.session === 1 ? QUALI : 0;
-  // the game's own position number does not move with the cars, so the order is worked out here
+  // AC's own position number does not move with the cars, so the order is worked out here; LMU sends a good one
   const key2 = (c: Rec): number => (type === RACE ? -(c.laps + c.spl) : c.best > 0 ? c.best : Infinity);
-  const pos = new Map([...cars].sort((a, b) => key2(a) - key2(b) || a.i - b.i).map((c, k) => [c.i as number, k + 1]));
+  const pos = new Map([...cars].sort((a, b) => key2(a) - key2(b) || a.i - b.i).map((c, k) => [c.i as number, c.pos || k + 1]));
   out.push([2, { event_idx: 0, session_idx: hint?.sidx ?? 0, type, phase: 5, time_ms: p.t * 1000, end_ms: 0, focus: 0, replay: false, tod_ms: 0,
     air: 0, track: 0, clouds: 0, rain: 0, wet: 0, best: lap(0, 0) }]);
   for (const c of cars) {

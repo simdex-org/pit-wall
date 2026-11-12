@@ -5,6 +5,7 @@ const win = process.platform === "win32";
 // both load kernel32 as soon as they are imported
 const { AccMfd } = win ? await import("../src/pit/acc-mfd.js") : ({} as typeof import("../src/pit/acc-mfd.js"));
 const { AccPages } = win ? await import("../src/telemetry/pages.js") : ({} as typeof import("../src/telemetry/pages.js"));
+const { LmuPages } = win ? await import("../src/telemetry/lmu-pages.js") : ({} as typeof import("../src/telemetry/lmu-pages.js"));
 
 describe.skipIf(!win)("windows", () => {
   test("ACC's pages open (created if the game is not running) and read as zeros", () => {
@@ -12,6 +13,10 @@ describe.skipIf(!win)("windows", () => {
     expect(r.status).toBeTypeOf("number");
     expect(r.xyz).toHaveLength(3);
     expect(r.g_flags).toHaveLength(8);
+  });
+
+  test("LMU's mapping is only opened, never made: without the game there is no session", () => {
+    expect(new LmuPages().read()).toEqual({ status: 0 });
   });
 
   test("the MFD reads, knows ACC is not focused, injects keys", async () => {

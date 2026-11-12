@@ -6,11 +6,12 @@ import { AC_APP_DIR } from "./paths.js";
 // Looks, read only, for the games in Steam's libraries and for their running programs. Nothing here takes a path
 // from outside: the only folder ever written to is <Assetto Corsa>/apps/lua/PitWall, found by this module itself.
 export interface GameState { installed: boolean; running: boolean; app?: "none" | "old" | "current"; csp?: boolean }
-export interface Games { acc: GameState; ac: GameState }
+export interface Games { acc: GameState; ac: GameState; lmu: GameState }
 
 const ACC_EXE = ["steamapps", "common", "Assetto Corsa Competizione", "AC2", "Binaries", "Win64", "AC2-Win64-Shipping.exe"];
 const AC_DIR = ["steamapps", "common", "assettocorsa"];
-const PROGRAMS = { acc: "ac2-win64-shipping.exe", ac: "acs.exe" } as const;
+const LMU_EXE = ["steamapps", "common", "Le Mans Ultimate", "Le Mans Ultimate.exe"];
+const PROGRAMS = { acc: "ac2-win64-shipping.exe", ac: "acs.exe", lmu: "le mans ultimate.exe" } as const;
 
 function steamLibraries(): string[] {
   const out = new Set<string>();
@@ -52,6 +53,7 @@ export function detect(libs = steamLibraries(), now = running(), source = AC_APP
       installed: !!ac, running: now.has(PROGRAMS.ac), csp: !!ac && existsSync(join(ac, "extension")),
       app: !app || !existsSync(app) ? "none" : existsSync(source) && sameFiles(source, app) ? "current" : "old",
     },
+    lmu: { installed: libs.some((l) => existsSync(join(l, ...LMU_EXE))), running: now.has(PROGRAMS.lmu) },
   };
 }
 
