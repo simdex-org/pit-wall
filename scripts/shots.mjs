@@ -52,6 +52,7 @@ try {
     for (const [name, [width, height]] of Object.entries(sizes)) {
       const touch = width <= 820
       const page = await (await browser.newContext({ viewport: { width, height }, isMobile: touch, hasTouch: touch, deviceScaleFactor: touch ? 2 : 1 })).newPage()
+      if (opt('appearance', '')) await page.addInitScript((j) => { try { localStorage.setItem('pitwall.appearance', j) } catch {} }, JSON.stringify({ base: 'pitwall', ...JSON.parse(opt('appearance', '')) }))
       page.on('pageerror', (e) => errors.add(`${tag} ${name}: ${e.message}`))
       page.on('response', (r) => r.status() >= 400 && !r.url().endsWith('/track') && errors.add(`${tag} ${name}: ${r.status()} ${r.url()}`))
       for (let i = 0; i < 30; i++) {
