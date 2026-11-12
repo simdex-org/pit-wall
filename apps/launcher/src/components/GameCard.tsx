@@ -9,7 +9,7 @@ interface Props {
   onInstall: () => void;
 }
 
-const CHOICES: [Choice, string][] = [["auto", "AUTO"], ["acc", "ACC"], ["ac", "AC"]];
+const CHOICES: [Choice, string][] = [["auto", "AUTO"], ["acc", "ACC"], ["ac", "AC"], ["lmu", "LMU"]];
 
 export function GameCard({ games, choice, onChoice, installing, onInstall }: Props) {
   const { ac } = games;
@@ -29,7 +29,14 @@ export function GameCard({ games, choice, onChoice, installing, onInstall }: Pro
         <dd className={`m-0 text-right ${games.acc.running ? "text-ok" : "text-muted"}`}>{stateText(games.acc)}</dd>
         <dt>Assetto Corsa</dt>
         <dd className={`m-0 text-right ${ac.running ? "text-ok" : "text-muted"}`}>{stateText(ac)}</dd>
+        <dt>Le Mans Ultimate</dt>
+        <dd className={`m-0 text-right ${games.lmu.running ? "text-ok" : "text-muted"}`}>{stateText(games.lmu)}</dd>
       </dl>
+      {games.lmu.installed && (choice === "lmu" || (choice === "auto" && games.lmu.running)) && (
+        <p className="m-0 border-t border-line pt-3 text-[12px] leading-[1.45] text-muted">
+          Le Mans Ultimate shares its data only with Settings, Gameplay, Enable Plugins switched on, then the game restarted. Pit plans go to its pit menu through its own web API, no keys pressed.
+        </p>
+      )}
       {ac.installed && (
         <div className="flex flex-col gap-2 border-t border-line pt-3">
           {ac.app === "current" ? (

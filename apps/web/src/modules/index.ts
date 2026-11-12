@@ -12,5 +12,6 @@ import "./coach";
 import "./teammates";
 import "./car3d";
 import "./weather";
+import "./lmu";
 import "./custom";
 import "./html";

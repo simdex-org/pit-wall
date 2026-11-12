@@ -14,7 +14,7 @@ function steam() {
 describe("game detection", () => {
   test("finds nothing in an empty library", () => {
     const { lib, src } = steam();
-    expect(detect([lib], new Set(), src)).toEqual({ acc: { installed: false, running: false }, ac: { installed: false, running: false, csp: false, app: "none" } });
+    expect(detect([lib], new Set(), src)).toEqual({ acc: { installed: false, running: false }, ac: { installed: false, running: false, csp: false, app: "none" }, lmu: { installed: false, running: false } });
   });
 
   test("finds both games and which one is running", () => {
@@ -25,6 +25,14 @@ describe("game detection", () => {
     mkdirSync(exe, { recursive: true });
     writeFileSync(join(exe, "AC2-Win64-Shipping.exe"), "");
     expect(detect([lib], new Set(["ac2-win64-shipping.exe"]), src)).toMatchObject({ acc: { installed: true, running: true }, ac: { installed: true, running: false, app: "none", csp: false } });
+  });
+
+  test("finds Le Mans Ultimate and sees it running", () => {
+    const { lib, src } = steam();
+    const dir = join(lib, "steamapps", "common", "Le Mans Ultimate");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "Le Mans Ultimate.exe"), "");
+    expect(detect([lib], new Set(["le mans ultimate.exe"]), src).lmu).toEqual({ installed: true, running: true });
   });
 
   test("installs the app, then sees it as current, then as old", () => {

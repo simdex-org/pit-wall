@@ -16,6 +16,7 @@ import { SIM_TRACKS } from "./telemetry/sim-tracks.js";
 import { addPeer, parseMate, TEAM } from "./team/link.js";
 import { receive } from "./team/mirror.js";
 import { Telemetry } from "./telemetry/telemetry.js";
+import type { LmuPages } from "./telemetry/lmu-pages.js";
 
 const HELP = `Usage: pitwall-bridge [options]
 
@@ -31,7 +32,8 @@ const HELP = `Usage: pitwall-bridge [options]
   --pit-key KEY             ACC's key for the pitstop MFD page (default: read from ACC's controls)
   --key-ms MS                how long each key is held and released, ms (default 40)
   --vjoy [N]                 press the MFD through vJoy device N (default 1) instead of the keyboard
-  --game acc|ac              which game to read: ACC (default) or Assetto Corsa (no pit control, no field timing)
+  --game acc|ac|lmu          which game to read: ACC (default), Assetto Corsa (no pit control) or Le Mans Ultimate
+                             (its own shared memory; Settings > Gameplay > Enable Plugins on, then restart the game)
   --simulate-acc             a pretend session, 20-car field and pit page instead of the game
   --broadcast-port PORT      ACC's broadcasting UDP port for field timing, on 127.0.0.1 only (default: updListenerPort in
                              broadcasting.json; 0 turns field timing off, also with --simulate-acc)
@@ -112,7 +114,7 @@ async function main(): Promise<void> {
 
   const simulate = !!v["simulate-acc"];
   const game = v.game;
-  if (game !== "acc" && game !== "ac") return fail("--game must be acc or ac");
+  if (game !== "acc" && game !== "ac" && game !== "lmu") return fail("--game must be acc, ac or lmu");
   const [, hh = "", hp = ""] = /^(.*):(\d+)$/.exec(v.http!) ?? [];
   if (!hh || !hp) return fail("--http must be ADDRESS:PORT, e.g. --http 25.1.2.3:8765");
   const simSession = v["sim-session"];
@@ -150,12 +152,19 @@ async function main(): Promise<void> {
   try { if (v["tls-cert"]) tlsFiles = { cert: readFileSync(v["tls-cert"]), key: readFileSync(v["tls-key"]!) }; } catch (e) { return fail(`TLS files: ${(e as Error).message}`); }
   const scheme = tlsFiles ? "https" : "http";
 
+  let lmu: LmuPages | null = null;
+  if (game === "lmu" && !simulate) {
+    try { lmu = new (await import("./telemetry/lmu-pages.js")).LmuPages(); } catch (e) { console.log(`telemetry off: ${(e as Error).message}`); }
+  }
+
   PIT.key = key;
   PIT.open = !!v.open;
   const fakeMfd = new FakeMfd();
   try {
     if (simulate) PIT.mfd = fakeMfd;
     else if (game === "ac") console.log("pit control off: Assetto Corsa has no pit menu to drive");
+    else if (game === "lmu") { const { LmuPit } = await import("./pit/lmu-menu.js"); PIT.mfd = new LmuPit(() => lmu?.last ?? null);
+      console.log("pit control: Le Mans Ultimate's pit menu, through its REST API on port 6397"); }
     else { const { AccMfd } = await import("./pit/acc-mfd.js"); const mfd = new AccMfd(v["pit-key"], Number(v["key-ms"]), v.vjoy === undefined ? undefined : Number(v.vjoy)); PIT.mfd = mfd;
       if (v.vjoy === undefined) console.log(`pit keys: ${Object.entries(mfd.keys).map(([k, n]) => `${k} ${n}`).join(", ")}`); }
   } catch (e) { console.log(`pit control off: ${(e as Error).message}`); }
@@ -169,12 +178,13 @@ async function main(): Promise<void> {
     let src;
     if (simulate) src = pages = new FakePages({ session: simSession === "quali" ? 1 : simSession === "practice" ? 0 : 2, minutes: simMinutes, weekend: simSession === "weekend", clock, track: simTrack === "demo" ? undefined : simTrack, mfd: fakeMfd, field, driver: simDriver, origin: simDriver ? 0 : undefined });
     else if (game === "ac") { const { AcPages } = await import("./telemetry/ac-pages.js"); src = new AcPages(); }
+    else if (game === "lmu") { if (!lmu) throw new Error("Le Mans Ultimate's shared memory could not be opened"); src = lmu; }
     else { const { AccPages } = await import("./telemetry/pages.js"); src = new AccPages(); }
     TEL.t = new Telemetry(STATE.config, clock);
-    void accLoop(src, TEL.t, simulate, game === "ac" ? "Assetto Corsa" : "ACC");
+    void accLoop(src, TEL.t, simulate, game === "ac" ? "Assetto Corsa" : game === "lmu" ? "Le Mans Ultimate" : "ACC");
   } catch (e) { console.log(`telemetry off: ${(e as Error).message}`); }
   startField({ game, simulateAcc: simulate, simSession, broadcastPort: v["broadcast-port"] === undefined ? undefined : Number(v["broadcast-port"]),
-    broadcastPassword: v["broadcast-password"] }, pages);
+    broadcastPassword: v["broadcast-password"] }, pages, lmu);
 
   TEAM.self = { host: hh, port: Number(hp), tls: !!tlsFiles };
   TEAM.code = teamCode;

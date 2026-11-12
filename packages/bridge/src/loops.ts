@@ -1,5 +1,6 @@
 import type { FieldSource } from "./broadcast/client.js";
 import { AcPlugin } from "./broadcast/ac-plugin.js";
+import { LmuField } from "./broadcast/lmu-field.js";
 import { Client } from "./broadcast/client.js";
 import { enable, readConfig } from "./broadcast/config.js";
 import { FakeField } from "./broadcast/fake-field.js";
@@ -12,6 +13,7 @@ import { bakeTrack } from "./tracks-bake.js";
 import { CLASSES } from "./config.js";
 import type { Pages } from "./telemetry/pages.js";
 import type { FakePages } from "./telemetry/fake-pages.js";
+import type { LmuPages } from "./telemetry/lmu-pages.js";
 import type { Telemetry } from "./telemetry/telemetry.js";
 import { Rec, rnd } from "./util.js";
 
@@ -111,7 +113,7 @@ export async function accLoop(pages: Pages | FakePages, tel: Telemetry, sim: boo
   }
 }
 
-export interface FieldArgs { game: "acc" | "ac"; broadcastPort?: number; broadcastPassword?: string; simulateAcc: boolean; simSession: "race" | "quali" | "practice" | "weekend" }
+export interface FieldArgs { game: "acc" | "ac" | "lmu"; broadcastPort?: number; broadcastPassword?: string; simulateAcc: boolean; simSession: "race" | "quali" | "practice" | "weekend" }
 
 function makeSink(field: Field) {
   const last = { t: 0, key: null as string | null };
@@ -135,12 +137,15 @@ function makeSink(field: Field) {
   };
 }
 
-export function startField(args: FieldArgs, pages: FakePages | null): void {
+export function startField(args: FieldArgs, pages: FakePages | null, lmu: LmuPages | null = null): void {
   const off = (msg: string) => { STATE.bc = { state: "off", msg, port: 0 }; console.log(msg); };
   if (args.broadcastPort === 0) return off("Field timing off (--broadcast-port 0).");
   let src: FieldSource, f: Field;
   if (args.game === "ac" && !args.simulateAcc) {
     src = new AcPlugin(() => CTX.hint); f = new Field();
+  } else if (args.game === "lmu" && !args.simulateAcc) {
+    if (!lmu) return off("Field timing off: Le Mans Ultimate's shared memory could not be opened.");
+    src = new LmuField(() => lmu.last, () => CTX.hint); f = new Field();
   } else if (args.simulateAcc) {
     if (!pages) return off("Field timing off: no simulated session.");
     const ff = new FakeField(pages);
@@ -162,5 +167,5 @@ export function startField(args: FieldArgs, pages: FakePages | null): void {
   }
   FIELD.f = f; FIELD.src = src; STATE.bc = src.state;
   src.start(makeSink(f));
-  console.log("Field timing: " + (args.game === "ac" && !args.simulateAcc ? "listening for the Pit Wall app in Assetto Corsa on 127.0.0.1:" + src.state.port : args.simulateAcc ? `simulated ${pages?.world.cars.length ?? 20}-car field${args.simSession === "race" ? "" : ` (${args.simSession === "quali" ? "qualifying" : args.simSession})`}` : `listening to ACC's broadcasting on 127.0.0.1:${(src as Client).state.port}`));
+  console.log("Field timing: " + (args.game === "lmu" && !args.simulateAcc ? "every car from Le Mans Ultimate's shared memory" : args.game === "ac" && !args.simulateAcc ? "listening for the Pit Wall app in Assetto Corsa on 127.0.0.1:" + src.state.port : args.simulateAcc ? `simulated ${pages?.world.cars.length ?? 20}-car field${args.simSession === "race" ? "" : ` (${args.simSession === "quali" ? "qualifying" : args.simSession})`}` : `listening to ACC's broadcasting on 127.0.0.1:${(src as Client).state.port}`));
 }

@@ -57,7 +57,7 @@ async function runPlan(plan: ReturnType<typeof cleanPlan>, by: string): Promise<
   try {
     const car = (STATE.reading as Rec | null)?.reading as Rec | undefined;
     const cs = car?.car as Rec | undefined;
-    const res = await applyPlan(plan, PIT.mfd!, [cs?.front_pad_compound as number | undefined, cs?.rear_pad_compound as number | undefined]);
+    const res = PIT.mfd!.apply ? await PIT.mfd!.apply(plan) : await applyPlan(plan, PIT.mfd!, [cs?.front_pad_compound as number | undefined, cs?.rear_pad_compound as number | undefined]);
     end = { state: "done", res };
     console.log("pit plan applied:", res);
   } catch (e) {
@@ -68,7 +68,7 @@ async function runPlan(plan: ReturnType<typeof cleanPlan>, by: string): Promise<
   STATE.pit_log = [...STATE.pit_log, { ...end, t: Date.now() / 1000, by, only: plan.only, plan }].slice(-50);
   STATE.pit_log_ver++;
   log(end.state === "done" ? 0 : 2, "PLAN", `Pit plan (${plan.only.join(", ")}) ` + (end.state === "done" ? `applied, sent by ${by}` : `failed, sent by ${by}: ${end.msg}`));
-  if (end.state === "done") { PIT.doing = "close"; await closePage(); }
+  if (end.state === "done" && !PIT.mfd!.apply) { PIT.doing = "close"; await closePage(); }
   else PIT.busy = false;
 }
 
@@ -111,6 +111,7 @@ async function post(req: IncomingMessage, res: Res, path: string): Promise<void>
   }
   if (path === "/mfd/close") {
     if (!PIT.mfd) return reply(res, 503, "pit control is not available on this PC");
+    if (PIT.mfd.apply) return reply(res, 409, "this game has no pit page to close");
     const snap = pitSnapshot();
     if (!snap || snap.status !== "live") return reply(res, 409, "ACC is not live on the driver's PC");
     if (PIT.busy) return reply(res, 409, PIT.doing === "plan" ? "a plan is still being applied" : "the pit page is already being closed");

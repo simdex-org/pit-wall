@@ -44,6 +44,8 @@
 
 **Driver (Windows):** download [Pit Wall](https://github.com/simdex-org/pit-wall/releases/latest) (installer or portable `PitWall.exe`), press **Start**, send the engineer the link it shows. Start ACC and drive.
 
+**Le Mans Ultimate** works too: pick **LMU** in the Pit Wall window (or `--game lmu`) and, once, switch on Settings > Gameplay > Enable Plugins in the game, then restart it. Pit plans go to its pit menu through the game's own web API.
+
 **Engineer:** open the link in a browser. Nothing to install.
 
 Only people with the key in the link can send pit plans. Everyone else just watches.
