@@ -10,7 +10,7 @@ const run = (cmd, args, cwd = app) => execFileSync(cmd, args, { cwd, stdio: "inh
 
 run("node", ["scripts/prepare.mjs"]);
 rmSync(join(tauri, "resources.zip"), { force: true });
-run(join(process.env.SystemRoot ?? "C:\Windows", "System32", "tar.exe"), ["-a", "-c", "-f", "resources.zip", "-C", "resources", "node", "bridge", "web", "ac-app", "app.json"], tauri);
+run(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe"), ["-a", "-c", "-f", "resources.zip", "-C", "resources", "node", "bridge", "web", "ac-app", "app.json"], tauri);
 run("pnpm", ["tauri", "build", "--no-bundle", "--", "--features", "portable"]);
 
 const out = join(app, "dist-portable");
