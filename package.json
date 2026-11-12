@@ -21,7 +21,7 @@
     "playwright": "^1.65.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^5.0.5"
   },
   "packageManager": "pnpm@10.30.1"
 }
